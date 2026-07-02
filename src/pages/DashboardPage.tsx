@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
+import { api } from "../services/api";
+import Layout from "../layout/Layout";
+import { getCurrentRole } from "../utils/auth";
 
 // DashboardPage shows a summary of clinic activity for the logged-in user.
 function DashboardPage() {
-  const navigate = useNavigate();
-
   const [stats, setStats] = useState({
     totalPatients: 0,
     lowStockCount: 0,
@@ -16,18 +15,25 @@ function DashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const role = getCurrentRole();
+    const canAccessPatients = role === "admin" || role === "doctor" || role === "nurse";
+    const canAccessMedicines = role === "admin" || role === "doctor" || role === "nurse";
+
     const fetchStats = async () => {
       try {
-        const [patients, medicines, appointments] = await Promise.all([
-          api.get("/patients?limit=1"),
-          api.get("/medicines/low-stock"),
+        const canAccessVisits = role === "admin" || role === "doctor" || role === "nurse";
+
+        const [appointments, patients, medicines, todayVisits] = await Promise.all([
           api.get("/appointments?limit=1"),
+          canAccessPatients ? api.get("/patients?limit=1") : Promise.resolve(null),
+          canAccessMedicines ? api.get("/medicines/low-stock") : Promise.resolve(null),
+          canAccessVisits ? api.get("/visits/today-count") : Promise.resolve(null),
         ]);
 
         setStats({
-          totalPatients: patients.pagination.total,
-          lowStockCount: medicines.data.length,
-          todayVisits: 0,
+          totalPatients: patients?.pagination.total ?? 0,
+          lowStockCount: medicines?.data.length ?? 0,
+          todayVisits: todayVisits?.data.count ?? 0,
           pendingAppointments: appointments.pagination.total,
         });
       } catch (err: unknown) {
@@ -40,50 +46,36 @@ function DashboardPage() {
     fetchStats();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      </Layout>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-red-500">{error}</p>
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold text-blue-700">School Clinic System</h1>
-        <button
-          onClick={handleLogout}
-          className="text-sm text-red-500 hover:underline"
-        >
-          Logout
-        </button>
-      </nav>
-
-      <main className="max-w-4xl mx-auto p-6">
-        <h2 className="text-lg font-semibold text-gray-700 mb-4">Dashboard</h2>
-
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Total Patients" value={stats.totalPatients} color="blue" />
-          <StatCard label="Low Stock Medicines" value={stats.lowStockCount} color="red" />
-          <StatCard label="Total Appointments" value={stats.pendingAppointments} color="green" />
-          <StatCard label="Today's Visits" value={stats.todayVisits} color="purple" />
-        </div>
-      </main>
-    </div>
+    <Layout>
+      <h2 className="text-lg font-semibold text-gray-700 mb-6">Dashboard</h2>
+      <div className="grid grid-cols-2 gap-4 max-w-2xl">
+        <StatCard label="Total Patients" value={stats.totalPatients} color="blue" />
+        <StatCard label="Low Stock Medicines" value={stats.lowStockCount} color="red" />
+        <StatCard label="Total Appointments" value={stats.pendingAppointments} color="green" />
+        <StatCard label="Today's Visits" value={stats.todayVisits} color="purple" />
+      </div>
+    </Layout>
   );
 }
 
