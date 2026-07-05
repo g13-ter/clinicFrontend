@@ -3,6 +3,7 @@ import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../components/Toast";
 import { patientsListPath } from "../config/permissions";
 import type { Patient, Appointment } from "../utils/types";
 
@@ -23,6 +24,7 @@ function patientIdToString(patientId: Patient | string | null): string {
 
 function AppointmentsPage() {
   const { role, can } = useAuth();
+  const { showToast } = useToast();
   const canManage = can("manageAppointments");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -93,19 +95,21 @@ function AppointmentsPage() {
     setFormError("");
     try {
       if (editTarget) {
-        await api.put(`/appointments/${editTarget._id}`, {
+        const res = await api.put(`/appointments/${editTarget._id}`, {
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
           status: editStatus,
         });
+        showToast(res.message);
       } else {
-        await api.post("/appointments", {
+        const res = await api.post("/appointments", {
           patientId: form.patientId,
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
         });
+        showToast(res.message);
       }
       setShowModal(false);
       fetchAppointments(page);

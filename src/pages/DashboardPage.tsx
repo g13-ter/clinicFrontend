@@ -8,6 +8,7 @@ function DashboardPage() {
   const [stats, setStats] = useState({
     totalPatients: 0,
     lowStockCount: 0,
+    expiringCount: 0,
     todayVisits: 0,
     pendingAppointments: 0,
   });
@@ -17,16 +18,18 @@ function DashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [appointments, patients, medicines, todayVisits] = await Promise.all([
+        const [appointments, patients, medicines, expiring, todayVisits] = await Promise.all([
           api.get("/appointments?limit=1"),
           can("viewFullPatients") ? api.get("/patients?limit=1") : Promise.resolve(null),
           can("viewMedicines") ? api.get("/medicines/low-stock") : Promise.resolve(null),
+          can("viewMedicines") ? api.get("/medicines/expiring") : Promise.resolve(null),
           can("viewVisits") ? api.get("/visits/today-count") : Promise.resolve(null),
         ]);
 
         setStats({
           totalPatients: patients?.pagination?.total ?? 0,
           lowStockCount: medicines?.data?.length ?? 0,
+          expiringCount: expiring?.data?.length ?? 0,
           todayVisits: todayVisits?.data?.count ?? 0,
           pendingAppointments: appointments.pagination?.total ?? 0,
         });
@@ -63,9 +66,10 @@ function DashboardPage() {
   return (
     <Layout>
       <h2 className="text-lg font-semibold text-gray-700 mb-6">Dashboard</h2>
-      <div className="grid grid-cols-2 gap-4 max-w-2xl">
+      <div className="grid grid-cols-3 gap-4 max-w-3xl">
         <StatCard label="Total Patients" value={stats.totalPatients} color="blue" />
         <StatCard label="Low Stock Medicines" value={stats.lowStockCount} color="red" />
+        <StatCard label="Expiring Medicines" value={stats.expiringCount} color="amber" />
         <StatCard label="Total Appointments" value={stats.pendingAppointments} color="green" />
         <StatCard label="Today's Visits" value={stats.todayVisits} color="purple" />
       </div>
@@ -79,6 +83,7 @@ function StatCard({ label, value, color }: { label: string; value: number; color
     red: "bg-red-100 text-red-700",
     green: "bg-green-100 text-green-700",
     purple: "bg-purple-100 text-purple-700",
+    amber: "bg-amber-100 text-amber-700",
   };
 
   return (

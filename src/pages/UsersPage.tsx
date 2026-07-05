@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
+import { useToast } from "../components/Toast";
 import type { User } from "../utils/types";
 
 const ROLES = ["admin", "doctor", "nurse", "staff"];
@@ -14,6 +15,7 @@ const emptyForm = {
 };
 
 function UsersPage() {
+  const { showToast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -67,14 +69,16 @@ function UsersPage() {
     if (form.password) body.password = form.password;
     try {
       if (editTarget) {
-        await api.put(`/users/${editTarget._id}`, body);
+        const res = await api.put(`/users/${editTarget._id}`, body);
+        showToast(res.message);
       } else {
         if (!form.password) {
           setFormError("Password is required for new users.");
           setSaving(false);
           return;
         }
-        await api.post("/users", body);
+        const res = await api.post("/users", body);
+        showToast(res.message);
       }
       setShowModal(false);
       fetchUsers();

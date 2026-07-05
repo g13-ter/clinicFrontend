@@ -4,6 +4,7 @@ import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../components/Toast";
 import type { Patient } from "../utils/types";
 
 const emptyForm = {
@@ -21,6 +22,7 @@ const emptyForm = {
 function PatientsPage() {
   const navigate = useNavigate();
   const { can } = useAuth();
+  const { showToast } = useToast();
   const canEdit = can("editPatients");
 
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -99,9 +101,11 @@ function PatientsPage() {
     };
     try {
       if (editTarget) {
-        await api.put(`/patients/${editTarget._id}`, body);
+        const res = await api.put(`/patients/${editTarget._id}`, body);
+        showToast(res.message);
       } else {
-        await api.post("/patients", body);
+        const res = await api.post("/patients", body);
+        showToast(res.message);
       }
       setShowModal(false);
       fetchPatients(page, search);

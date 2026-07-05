@@ -44,6 +44,9 @@ export interface Medicine {
   unit: string;
   expiryDate?: string;
   lowStockThreshold: number;
+  isLowStock?: boolean;
+  isExpired?: boolean;
+  isExpiringSoon?: boolean;
 }
 
 export interface User {

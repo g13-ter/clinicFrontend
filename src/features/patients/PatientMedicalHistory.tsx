@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import Modal from "../../components/Modal";
+import { useToast } from "../../components/Toast";
 import type { MedicalHistory } from "../../utils/types";
 
 const empty = { diagnosis: "", prescription: "", familyHistory: "", allergies: "" };
@@ -16,6 +17,7 @@ type Form = typeof empty;
 
 function PatientMedicalHistory({ patientId }: { patientId: string }) {
   const { can } = useAuth();
+  const { showToast } = useToast();
   const canEdit = can("editMedicalHistory");
   const canView = can("viewMedicalHistory");
 
@@ -57,9 +59,10 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
     const body: Record<string, unknown> = { ...form };
     if (!editing) body.patientId = patientId;
     try {
-      editing
+      const res = editing
         ? await api.put(`/medical-history/${editing._id}`, body)
         : await api.post("/medical-history", body);
+      showToast(res.message);
       setOpen(false);
       reload();
     } catch (err: unknown) {

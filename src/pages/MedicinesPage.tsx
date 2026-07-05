@@ -3,6 +3,7 @@ import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../components/Toast";
 import type { Medicine } from "../utils/types";
 
 const emptyForm = {
@@ -15,6 +16,7 @@ const emptyForm = {
 
 function MedicinesPage() {
   const { can } = useAuth();
+  const { showToast } = useToast();
   const canEdit = can("editMedicines");
 
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -78,9 +80,11 @@ function MedicinesPage() {
 
     try {
       if (editTarget) {
-        await api.put(`/medicines/${editTarget._id}`, body);
+        const res = await api.put(`/medicines/${editTarget._id}`, body);
+        showToast(res.message);
       } else {
-        await api.post("/medicines", body);
+        const res = await api.post("/medicines", body);
+        showToast(res.message);
       }
       setShowModal(false);
       fetchMedicines();
@@ -92,6 +96,15 @@ function MedicinesPage() {
   };
 
   const isLow = (m: Medicine) => m.quantity <= m.lowStockThreshold;
+
+  const EXPIRING_SOON_DAYS = 30;
+  const isExpired = (m: Medicine) => !!m.expiryDate && new Date(m.expiryDate) < new Date();
+  const isExpiringSoon = (m: Medicine) => {
+    if (!m.expiryDate) return false;
+    const expiry = new Date(m.expiryDate);
+    const soonThreshold = new Date(Date.now() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000);
+    return expiry >= new Date() && expiry <= soonThreshold;
+  };
 
   return (
     <Layout>
@@ -121,19 +134,29 @@ function MedicinesPage() {
                 <th className="text-left px-4 py-3">Unit</th>
                 <th className="text-left px-4 py-3">Expiry Date</th>
                 <th className="text-left px-4 py-3">Stock Status</th>
+                <th className="text-left px-4 py-3">Expiry Status</th>
                 {canEdit && <th className="px-4 py-3"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {medicines.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-gray-400">
+                  <td colSpan={7} className="text-center py-6 text-gray-400">
                     No medicines found.
                   </td>
                 </tr>
               ) : (
                 medicines.map((m) => (
-                  <tr key={m._id} className={`hover:bg-gray-50 ${isLow(m) ? "bg-red-50" : ""}`}>
+                  <tr
+                    key={m._id}
+                    className={`hover:bg-gray-50 ${
+                      isLow(m) || isExpired(m)
+                        ? "bg-red-50"
+                        : isExpiringSoon(m)
+                        ? "bg-amber-50"
+                        : ""
+                    }`}
+                  >
                     <td className="px-4 py-3 font-medium">{m.name}</td>
                     <td className="px-4 py-3">{m.quantity}</td>
                     <td className="px-4 py-3">{m.unit}</td>
@@ -146,6 +169,19 @@ function MedicinesPage() {
                       {isLow(m) ? (
                         <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
                           Low Stock
+                        </span>
+                      ) : (
+                        <span className="text-xs text-green-600">OK</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isExpired(m) ? (
+                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+                          Expired
+                        </span>
+                      ) : isExpiringSoon(m) ? (
+                        <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                          Expiring Soon
                         </span>
                       ) : (
                         <span className="text-xs text-green-600">OK</span>

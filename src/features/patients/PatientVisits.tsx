@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { getCurrentRole } from "../../utils/auth";
 import Modal from "../../components/Modal";
+import { useToast } from "../../components/Toast";
 import type { ClinicVisit } from "../../utils/types";
 
 const empty = {
@@ -17,6 +18,7 @@ type Form = typeof empty;
 
 function PatientVisits({ patientId }: { patientId: string }) {
   const canEdit = getCurrentRole() === "nurse";
+  const { showToast } = useToast();
 
   const [visits, setVisits] = useState<ClinicVisit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,9 +64,10 @@ function PatientVisits({ patientId }: { patientId: string }) {
     };
     if (!editing) body.patientId = patientId;
     try {
-      editing
+      const res = editing
         ? await api.put(`/visits/${editing._id}`, body)
         : await api.post("/visits", body);
+      showToast(res.message);
       setOpen(false);
       reload();
     } catch (err: unknown) {

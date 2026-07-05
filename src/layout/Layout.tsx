@@ -1,10 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { NAV_ITEMS } from "../config/permissions";
 import { useAuth } from "../hooks/useAuth";
+import { useSessionExpiryWarning } from "../hooks/useSessionExpiryWarning";
 
 function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { role } = useAuth();
+  const minutesLeft = useSessionExpiryWarning();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -49,7 +51,22 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 p-6 overflow-auto">{children}</main>
+      <main className="flex-1 p-6 overflow-auto">
+        {minutesLeft !== null && (
+          <div className="mb-4 bg-amber-100 text-amber-800 text-sm px-4 py-2 rounded flex justify-between items-center">
+            <span>
+              Your session will expire in {minutesLeft} minute{minutesLeft === 1 ? "" : "s"}. Please save your work.
+            </span>
+            <button
+              onClick={handleLogout}
+              className="text-amber-900 underline text-xs"
+            >
+              Log in again
+            </button>
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }
