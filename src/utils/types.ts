@@ -68,6 +68,6 @@ export interface AuditLog {
   action: "create" | "update" | "delete" | "view";
   resource: string;
   resourceId: string;
-  performedBy: { _id: string; name: string } | string;
+  performedBy: { _id: string; name: string } | string | null;
   createdAt: string;
 }

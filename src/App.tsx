@@ -9,6 +9,7 @@ import UsersPage from "./pages/UsersPage";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { ROUTE_ACCESS } from "./config/permissions";
 
 function App() {
   return (
@@ -18,7 +19,7 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={ROUTE_ACCESS["/dashboard"]}>
               <DashboardPage />
             </ProtectedRoute>
           }
@@ -26,7 +27,7 @@ function App() {
         <Route
           path="/patients"
           element={
-            <ProtectedRoute roles={["admin", "doctor", "nurse"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/patients"]}>
               <PatientsPage />
             </ProtectedRoute>
           }
@@ -34,7 +35,7 @@ function App() {
         <Route
           path="/patients/:id"
           element={
-            <ProtectedRoute roles={["admin", "doctor", "nurse"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/patients/:id"]}>
               <PatientDetailPage />
             </ProtectedRoute>
           }
@@ -42,7 +43,7 @@ function App() {
         <Route
           path="/appointments"
           element={
-            <ProtectedRoute roles={["admin", "doctor", "nurse", "staff"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/appointments"]}>
               <AppointmentsPage />
             </ProtectedRoute>
           }
@@ -50,7 +51,7 @@ function App() {
         <Route
           path="/medicines"
           element={
-            <ProtectedRoute roles={["admin", "doctor", "nurse"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/medicines"]}>
               <MedicinesPage />
             </ProtectedRoute>
           }
@@ -58,7 +59,7 @@ function App() {
         <Route
           path="/users"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/users"]}>
               <UsersPage />
             </ProtectedRoute>
           }
@@ -66,7 +67,7 @@ function App() {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/reports"]}>
               <ReportsPage />
             </ProtectedRoute>
           }
@@ -74,7 +75,7 @@ function App() {
         <Route
           path="/audit-log"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={ROUTE_ACCESS["/audit-log"]}>
               <AuditLogPage />
             </ProtectedRoute>
           }

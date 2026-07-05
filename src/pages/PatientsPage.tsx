@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
-import { getCurrentRole } from "../utils/auth";
+import { useAuth } from "../hooks/useAuth";
 import type { Patient } from "../utils/types";
 
 const emptyForm = {
@@ -20,8 +20,8 @@ const emptyForm = {
 
 function PatientsPage() {
   const navigate = useNavigate();
-  const role = getCurrentRole();
-  const canEdit = role === "nurse";
+  const { can } = useAuth();
+  const canEdit = can("editPatients");
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,7 +46,7 @@ function PatientsPage() {
       if (q) params.set("search", q);
       const res = await api.get(`/patients?${params}`);
       setPatients(res.data);
-      setTotal(res.pagination.total);
+      setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load patients");
     } finally {

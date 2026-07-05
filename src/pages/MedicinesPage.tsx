@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
-import { getCurrentRole } from "../utils/auth";
+import { useAuth } from "../hooks/useAuth";
 import type { Medicine } from "../utils/types";
 
 const emptyForm = {
@@ -14,8 +14,8 @@ const emptyForm = {
 };
 
 function MedicinesPage() {
-  const role = getCurrentRole();
-  const canEdit = role === "nurse";
+  const { can } = useAuth();
+  const canEdit = can("editMedicines");
 
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);

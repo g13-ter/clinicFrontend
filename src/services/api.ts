@@ -1,4 +1,29 @@
 // Base API utility - attaches auth token and handles responses centrally.
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly errors?: { field: string; message: string }[];
+
+  constructor(message: string, status: number, errors?: { field: string; message: string }[]) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.errors = errors;
+  }
+}
+
+export interface ApiSuccess<T = unknown> {
+  success: boolean;
+  message: string;
+  data: T;
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 const BASE = "/api";
 
 const getHeaders = (isJson = true): HeadersInit => {
@@ -11,47 +36,45 @@ const getHeaders = (isJson = true): HeadersInit => {
   return headers;
 };
 
-const handleResponse = async (res: Response) => {
+const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
   if (res.status === 401) {
     localStorage.removeItem("token");
     window.location.href = "/login";
-    return;
+    throw new ApiError("Session expired", 401);
   }
 
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.message || "Something went wrong");
+    throw new ApiError(data.message || "Something went wrong", res.status, data.errors);
   }
 
-  return data;
+  return data as ApiSuccess<T>;
 };
 
 export const api = {
-  get: (path: string) =>
-    fetch(`${BASE}${path}`, {
-      headers: getHeaders(),
-    }).then(handleResponse),
+  get: <T = any>(path: string) =>
+    fetch(`${BASE}${path}`, { headers: getHeaders() }).then((res) => handleResponse<T>(res)),
 
-  post: (path: string, body: unknown) =>
+  post: <T = any>(path: string, body: unknown) =>
     fetch(`${BASE}${path}`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(body),
-    }).then(handleResponse),
+    }).then((res) => handleResponse<T>(res)),
 
-  put: (path: string, body: unknown) =>
+  put: <T = any>(path: string, body: unknown) =>
     fetch(`${BASE}${path}`, {
       method: "PUT",
       headers: getHeaders(),
       body: JSON.stringify(body),
-    }).then(handleResponse),
+    }).then((res) => handleResponse<T>(res)),
 
-  delete: (path: string) =>
+  delete: <T = any>(path: string) =>
     fetch(`${BASE}${path}`, {
       method: "DELETE",
       headers: getHeaders(),
-    }).then(handleResponse),
+    }).then((res) => handleResponse<T>(res)),
 
   download: (path: string) =>
     fetch(`${BASE}${path}`, {

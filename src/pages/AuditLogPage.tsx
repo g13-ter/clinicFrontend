@@ -25,7 +25,7 @@ function AuditLogPage() {
     try {
       const res = await api.get(`/audit-logs?page=${p}&limit=${limit}`);
       setLogs(res.data);
-      setTotal(res.pagination.total);
+      setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load audit logs");
     } finally {
@@ -39,8 +39,11 @@ function AuditLogPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  const performerName = (p: AuditLog["performedBy"]) =>
-    typeof p === "object" ? p.name : p;
+  const performerName = (p: AuditLog["performedBy"]) => {
+    if (p == null) return "Deleted user";
+    if (typeof p === "object") return p.name;
+    return p;
+  };
 
   return (
     <Layout>

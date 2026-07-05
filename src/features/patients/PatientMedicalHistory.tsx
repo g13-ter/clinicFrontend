@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import { getCurrentRole } from "../../utils/auth";
+import { useAuth } from "../../hooks/useAuth";
 import Modal from "../../components/Modal";
 import type { MedicalHistory } from "../../utils/types";
 
@@ -15,9 +15,9 @@ const FIELDS = [
 type Form = typeof empty;
 
 function PatientMedicalHistory({ patientId }: { patientId: string }) {
-  const role = getCurrentRole();
-  const canEdit = role === "doctor";
-  const canView = role === "doctor" || role === "nurse";
+  const { can } = useAuth();
+  const canEdit = can("editMedicalHistory");
+  const canView = can("viewMedicalHistory");
 
   const [history, setHistory] = useState<MedicalHistory[]>([]);
   const [loading, setLoading] = useState(true);

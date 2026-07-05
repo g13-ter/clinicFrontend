@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
-import { getCurrentRole } from "../utils/auth";
+import { useAuth } from "../hooks/useAuth";
+import { patientsListPath } from "../config/permissions";
 import type { Patient, Appointment } from "../utils/types";
 
 const STATUSES = ["pending", "confirmed", "cancelled", "completed"];
@@ -14,9 +15,15 @@ const emptyForm = {
   notes: "",
 };
 
+function patientIdToString(patientId: Patient | string | null): string {
+  if (patientId == null) return "";
+  if (typeof patientId === "object") return patientId._id;
+  return patientId;
+}
+
 function AppointmentsPage() {
-  const role = getCurrentRole();
-  const canCreate = role === "staff";
+  const { role, can } = useAuth();
+  const canManage = can("manageAppointments");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [total, setTotal] = useState(0);
@@ -41,7 +48,7 @@ function AppointmentsPage() {
     try {
       const res = await api.get(`/appointments?page=${p}&limit=${limit}`);
       setAppointments(res.data);
-      setTotal(res.pagination.total);
+      setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load appointments");
     } finally {
@@ -54,10 +61,11 @@ function AppointmentsPage() {
   }, [page]);
 
   useEffect(() => {
-    if (canCreate) {
-      api.get("/patients?limit=200").then((res) => setPatients(res.data)).catch(() => {});
-    }
-  }, [canCreate]);
+    if (!canManage) return;
+    const patientsPath = patientsListPath(role);
+    if (!patientsPath) return;
+    api.get<Patient[]>(patientsPath).then((res) => setPatients(res.data)).catch(() => {});
+  }, [canManage, role]);
 
   const openCreate = () => {
     setEditTarget(null);
@@ -70,7 +78,7 @@ function AppointmentsPage() {
     setEditTarget(a);
     setEditStatus(a.status);
     setForm({
-      patientId: a.patientId && typeof a.patientId === "object" ? a.patientId._id : (a.patientId ?? ""),
+      patientId: patientIdToString(a.patientId),
       appointmentDate: a.appointmentDate.slice(0, 16),
       reason: a.reason,
       notes: a.notes ?? "",
@@ -126,7 +134,7 @@ function AppointmentsPage() {
     <Layout>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-gray-700">Appointments</h2>
-        {canCreate && (
+        {canManage && (
           <button
             onClick={openCreate}
             className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
@@ -150,7 +158,7 @@ function AppointmentsPage() {
                   <th className="text-left px-4 py-3">Date</th>
                   <th className="text-left px-4 py-3">Reason</th>
                   <th className="text-left px-4 py-3">Status</th>
-                  {canCreate && <th className="px-4 py-3"></th>}
+                  {canManage && <th className="px-4 py-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -180,7 +188,7 @@ function AppointmentsPage() {
                           {a.status}
                         </span>
                       </td>
-                      {canCreate && (
+                      {canManage && (
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => openEdit(a)}

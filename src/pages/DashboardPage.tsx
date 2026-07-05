@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import Layout from "../layout/Layout";
-import { getCurrentRole } from "../utils/auth";
+import { useAuth } from "../hooks/useAuth";
 
-// DashboardPage shows a summary of clinic activity for the logged-in user.
 function DashboardPage() {
+  const { role, can } = useAuth();
   const [stats, setStats] = useState({
     totalPatients: 0,
     lowStockCount: 0,
@@ -15,26 +15,20 @@ function DashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const role = getCurrentRole();
-    const canAccessPatients = role === "admin" || role === "doctor" || role === "nurse";
-    const canAccessMedicines = role === "admin" || role === "doctor" || role === "nurse";
-
     const fetchStats = async () => {
       try {
-        const canAccessVisits = role === "admin" || role === "doctor" || role === "nurse";
-
         const [appointments, patients, medicines, todayVisits] = await Promise.all([
           api.get("/appointments?limit=1"),
-          canAccessPatients ? api.get("/patients?limit=1") : Promise.resolve(null),
-          canAccessMedicines ? api.get("/medicines/low-stock") : Promise.resolve(null),
-          canAccessVisits ? api.get("/visits/today-count") : Promise.resolve(null),
+          can("viewFullPatients") ? api.get("/patients?limit=1") : Promise.resolve(null),
+          can("viewMedicines") ? api.get("/medicines/low-stock") : Promise.resolve(null),
+          can("viewVisits") ? api.get("/visits/today-count") : Promise.resolve(null),
         ]);
 
         setStats({
-          totalPatients: patients?.pagination.total ?? 0,
-          lowStockCount: medicines?.data.length ?? 0,
-          todayVisits: todayVisits?.data.count ?? 0,
-          pendingAppointments: appointments.pagination.total,
+          totalPatients: patients?.pagination?.total ?? 0,
+          lowStockCount: medicines?.data?.length ?? 0,
+          todayVisits: todayVisits?.data?.count ?? 0,
+          pendingAppointments: appointments.pagination?.total ?? 0,
         });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard");
@@ -44,7 +38,7 @@ function DashboardPage() {
     };
 
     fetchStats();
-  }, []);
+  }, [role]);
 
   if (loading) {
     return (
@@ -79,7 +73,6 @@ function DashboardPage() {
   );
 }
 
-// StatCard displays a single number with a label.
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   const colors: Record<string, string> = {
     blue: "bg-blue-100 text-blue-700",

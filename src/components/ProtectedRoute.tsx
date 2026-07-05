@@ -1,14 +1,13 @@
 import { Navigate } from "react-router-dom";
 import { getCurrentUser } from "../utils/auth";
-import type { UserRole } from "../utils/auth";
+import type { UserRole } from "../config/permissions";
 
-// ProtectedRoute blocks access if there is no token, it is expired, or the role is not allowed.
 function ProtectedRoute({
   children,
   roles,
 }: {
   children: React.ReactNode;
-  roles?: UserRole[];
+  roles?: readonly UserRole[];
 }) {
   const user = getCurrentUser();
 
@@ -24,5 +23,3 @@ function ProtectedRoute({
 }
 
 export default ProtectedRoute;
-
-

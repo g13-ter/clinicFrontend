@@ -1,30 +1,20 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { getCurrentRole } from "../utils/auth";
-
-const navItems = [
-  { to: "/dashboard", label: "Dashboard", roles: ["admin", "doctor", "nurse", "staff"] },
-  { to: "/patients", label: "Patients", roles: ["admin", "doctor", "nurse"] },
-  { to: "/appointments", label: "Appointments", roles: ["admin", "doctor", "nurse", "staff"] },
-  { to: "/medicines", label: "Medicines", roles: ["admin", "doctor", "nurse"] },
-  { to: "/users", label: "Users", roles: ["admin"] },
-  { to: "/reports", label: "Reports", roles: ["admin"] },
-  { to: "/audit-log", label: "Audit Log", roles: ["admin"] },
-];
+import { NAV_ITEMS } from "../config/permissions";
+import { useAuth } from "../hooks/useAuth";
 
 function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const role = getCurrentRole();
+  const { role } = useAuth();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
   };
 
-  const visible = navItems.filter((item) => role && item.roles.includes(role));
+  const visible = NAV_ITEMS.filter((item) => role && item.roles.includes(role));
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
       <aside className="w-56 bg-white shadow flex flex-col">
         <div className="px-6 py-5 border-b">
           <h1 className="text-base font-bold text-blue-700 leading-tight">
@@ -59,7 +49,6 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 p-6 overflow-auto">{children}</main>
     </div>
   );

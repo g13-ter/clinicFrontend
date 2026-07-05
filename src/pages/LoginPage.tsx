@@ -10,29 +10,29 @@ function LoginPage() {
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  try {
-    const data = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    }).then(async (res) => {
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Login failed");
-      return json;
-    });
+    try {
+      const data = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      }).then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || "Login failed");
+        return json;
+      });
 
-    localStorage.setItem("token", data.token);
-    navigate("/dashboard");
-  } catch (err: unknown) {
-    setError(err instanceof Error ? err.message : "Login failed");
-  } finally {
-    setLoading(false);
-  }
-};
+      localStorage.setItem("token", data.token);
+      navigate("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
