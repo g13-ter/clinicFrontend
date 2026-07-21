@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
@@ -21,6 +21,7 @@ const emptyForm = {
 
 function PatientsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { can } = useAuth();
   const { showToast } = useToast();
   const canEdit = can("editPatients");
@@ -28,7 +29,7 @@ function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
