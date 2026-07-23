@@ -18,25 +18,7 @@ import {
 } from "../components/icons";
 import type { Medicine, User } from "../utils/types";
 
-const MONTHLY_VISITS = [
-  { month: "July", value: 72, color: "#5dade2" },
-  { month: "Aug", value: 48, color: "#e74c3c" },
-  { month: "Sept", value: 85, color: "#2ecc71" },
-  { month: "Oct", value: 60, color: "#f1c40f" },
-];
-
-const COMMON_ILLNESSES = [
-  { label: "Fever", value: 10, color: "#3498db" },
-  { label: "Headache", value: 70, color: "#e74c3c" },
-  { label: "Allergies", value: 20, color: "#2ecc71" },
-  { label: "Diarrhea", value: 50, color: "#f1c40f" },
-];
-
-const CONTAGIOUS_ILLNESSES = [
-  { label: "Flu", value: 40, color: "#f1c40f" },
-  { label: "Chicken Pox", value: 35, color: "#2ecc71" },
-  { label: "Sore Eyes", value: 25, color: "#3498db" },
-];
+const DEFAULT_COLORS = ["#5dade2", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6", "#f39c12"];
 
 function DashboardPage() {
   const { role, can } = useAuth();
@@ -51,6 +33,9 @@ function DashboardPage() {
   const [lowStockItems, setLowStockItems] = useState<Medicine[]>([]);
   const [expiringItems, setExpiringItems] = useState<Medicine[]>([]);
   const [staff, setStaff] = useState<User[]>([]);
+  const [monthlyVisits, setMonthlyVisits] = useState<{ month: string; value: number; color?: string }[]>([]);
+  const [commonIllnesses, setCommonIllnesses] = useState<{ label: string; value: number; color?: string }[]>([]);
+  const [contagiousIllnesses, setContagiousIllnesses] = useState<{ label: string; value: number; color?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -70,6 +55,15 @@ function DashboardPage() {
           ? await api.get("/medicines/low-stock").catch(() => null)
           : null;
 
+        // analytics: monthly visits and complaint counts
+        let visitsMonthly: { month: string; value: number }[] | null = null;
+        let complaints: { complaint: string; count: number }[] | null = null;
+
+        if (can("viewVisits")) {
+          visitsMonthly = await api.get("/analytics/visits-monthly?months=12").then((r) => r.data).catch(() => null);
+          complaints = await api.get("/analytics/complaints").then((r) => r.data).catch(() => null);
+        }
+
         setStats({
           totalPatients: patients?.pagination?.total ?? 0,
           totalMedicines: medicines?.pagination?.total ?? 0,
@@ -80,6 +74,31 @@ function DashboardPage() {
         setLowStockItems(lowStock?.data?.slice(0, 2) ?? []);
         setExpiringItems(expiring?.data?.slice(0, 1) ?? []);
         setStaff(users?.data ?? []);
+
+        // map analytics into chart-friendly shapes with colors
+        if (visitsMonthly) {
+          setMonthlyVisits(
+            visitsMonthly.map((v, i) => ({ ...v, color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] }))
+          );
+        }
+
+        if (complaints) {
+          const mapped = complaints.map((c) => ({ label: c.complaint, value: c.count }));
+
+          // Common illnesses: top 4 complaints
+          setCommonIllnesses(
+            mapped.slice(0, 4).map((m, i) => ({ ...m, color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] }))
+          );
+
+          // Contagious illnesses: filter by a small keyword set
+          const contagiousKeywords = ["flu", "chicken", "pox", "sore", "cough", "cold"];
+          const contagious = mapped.filter((m) =>
+            contagiousKeywords.some((k) => m.label.toLowerCase().includes(k))
+          );
+          setContagiousIllnesses(
+            contagious.slice(0, 4).map((m, i) => ({ ...m, color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] }))
+          );
+        }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard");
       } finally {
@@ -246,18 +265,18 @@ function DashboardPage() {
 
         <div className="clinic-panel xl:col-span-1">
           <h3 className="clinic-panel-title">Monthly Clinic Visits Trend</h3>
-          <BarChart data={MONTHLY_VISITS} />
+          <BarChart data={monthlyVisits} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="clinic-panel">
           <h3 className="clinic-panel-title uppercase tracking-wide">Common Illnesses Record</h3>
-          <PieChart segments={COMMON_ILLNESSES} showPercent />
+          <PieChart segments={commonIllnesses} showPercent />
         </div>
         <div className="clinic-panel">
           <h3 className="clinic-panel-title uppercase tracking-wide">Contagious Illnesses Record</h3>
-          <PieChart segments={CONTAGIOUS_ILLNESSES} />
+          <PieChart segments={contagiousIllnesses} />
         </div>
       </div>
     </Layout>
@@ -265,21 +284,21 @@ function DashboardPage() {
 }
 
 function BarChart({ data }: { data: { month: string; value: number; color: string }[] }) {
-  const max = Math.max(...data.map((d) => d.value));
+  const max = Math.max(0, ...data.map((d) => d.value));
 
   return (
-    <div className="flex items-end justify-center gap-4 h-36 pt-2">
+    <div className="flex items-end justify-start gap-2 h-36 pt-2 overflow-x-auto px-1">
       {data.map((item) => (
-        <div key={item.month} className="flex flex-col items-center gap-1 flex-1">
+        <div key={item.month} className="flex flex-col items-center gap-1 min-w-[42px]">
           <div
             className="w-full max-w-[42px] rounded-t-md transition-all"
             style={{
-              height: `${(item.value / max) * 100}%`,
+              height: `${max > 0 ? (item.value / max) * 100 : 20}%`,
               minHeight: "20%",
               backgroundColor: item.color,
             }}
           />
-          <span className="text-xs font-semibold text-gray-700">{item.month}</span>
+          <span className="text-[10px] font-semibold text-gray-700 text-center w-full break-words">{item.month}</span>
         </div>
       ))}
     </div>

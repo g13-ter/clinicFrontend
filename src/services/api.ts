@@ -43,10 +43,22 @@ const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
     throw new ApiError("Session expired", 401);
   }
 
-  const data = await res.json();
+  // Some endpoints may legitimately return an empty body (204 or binary downloads).
+  // Use text() and only JSON-parse when there is content to avoid "Unexpected end of JSON input".
+  const text = await res.text();
+
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      throw new ApiError("Invalid JSON response from server", res.status);
+    }
+  }
 
   if (!res.ok) {
-    throw new ApiError(data.message || "Something went wrong", res.status, data.errors);
+    const message = data?.message || "Something went wrong";
+    throw new ApiError(message, res.status, data?.errors);
   }
 
   return data as ApiSuccess<T>;
