@@ -10,46 +10,32 @@ import {
   ReportsIcon,
   StaffIcon,
   AlertIcon,
+  CartIcon,
 } from "../components/icons";
-import type { Medicine, User } from "../utils/types";
+import type { DashboardStats } from "../utils/types";
+
+function activityLabel(action: string, resource: string): string {
+  const verb = { create: "created", update: "updated", delete: "deleted", view: "viewed" }[action] ?? action;
+  return `${verb} a ${resource}`;
+}
+
+function performedByName(p: DashboardStats["recentActivity"][number]["performedBy"]): string {
+  if (!p) return "Someone";
+  if (typeof p === "object") return p.name;
+  return p;
+}
 
 function DashboardPage() {
   const { role, can } = useAuth();
-  const [stats, setStats] = useState({
-    totalPatients: 0,
-    lowStockCount: 0,
-    expiringCount: 0,
-    todayVisits: 0,
-    pendingAppointments: 0,
-  });
-  const [lowStockItems, setLowStockItems] = useState<Medicine[]>([]);
-  const [expiringItems, setExpiringItems] = useState<Medicine[]>([]);
-  const [staff, setStaff] = useState<User[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [appointments, patients, medicines, expiring, todayVisits, users] = await Promise.all([
-          api.get("/appointments?limit=1"),
-          can("viewFullPatients") ? api.get("/patients?limit=1") : Promise.resolve(null),
-          can("viewMedicines") ? api.get("/medicines/low-stock") : Promise.resolve(null),
-          can("viewMedicines") ? api.get("/medicines/expiring") : Promise.resolve(null),
-          can("viewVisits") ? api.get("/visits/today-count") : Promise.resolve(null),
-          role === "admin" ? api.get("/users?limit=5") : Promise.resolve(null),
-        ]);
-
-        setStats({
-          totalPatients: patients?.pagination?.total ?? 0,
-          lowStockCount: medicines?.data?.length ?? 0,
-          expiringCount: expiring?.data?.length ?? 0,
-          todayVisits: todayVisits?.data?.count ?? 0,
-          pendingAppointments: appointments.pagination?.total ?? 0,
-        });
-        setLowStockItems(medicines?.data?.slice(0, 3) ?? []);
-        setExpiringItems(expiring?.data?.slice(0, 3) ?? []);
-        setStaff(users?.data ?? []);
+        const res = await api.get<DashboardStats>("/dashboard/stats");
+        setStats(res.data);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard");
       } finally {
@@ -58,7 +44,7 @@ function DashboardPage() {
     };
 
     fetchStats();
-  }, [role]);
+  }, []);
 
   if (loading) {
     return (
@@ -70,17 +56,17 @@ function DashboardPage() {
     );
   }
 
-  if (error) {
+  if (error || !stats) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-500">{error || "No dashboard data available"}</p>
         </div>
       </Layout>
     );
   }
 
-  const hasAlerts = lowStockItems.length > 0 || expiringItems.length > 0;
+  const hasAlerts = stats.lowStockCount > 0 || stats.outOfStockCount > 0 || stats.expiredCount > 0;
 
   return (
     <Layout>
@@ -88,17 +74,36 @@ function DashboardPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         {can("viewFullPatients") && (
-          <StatCard icon={PatientsIcon} label="Total Patients" value={stats.totalPatients} color="blue" />
+          <StatCard icon={PatientsIcon} label="Total Students" value={stats.totalStudents} color="blue" />
         )}
-        {can("viewMedicines") && (
-          <StatCard icon={MedicineIcon} label="Low Stock Medicines" value={stats.lowStockCount} color="red" />
-        )}
-        {can("viewMedicines") && (
-          <StatCard icon={MedicineIcon} label="Expiring Medicines" value={stats.expiringCount} color="amber" />
-        )}
-        <StatCard icon={ReportsIcon} label="Total Appointments" value={stats.pendingAppointments} color="green" />
+        <StatCard icon={ReportsIcon} label="Today's Appointments" value={stats.todaysAppointments} color="green" />
         {can("viewVisits") && (
-          <StatCard icon={VisitsIcon} label="Today's Visits" value={stats.todayVisits} color="purple" />
+          <StatCard icon={VisitsIcon} label="Waiting Patients" value={stats.waitingPatients} color="purple" />
+        )}
+        {can("viewMedicalHistory") && (
+          <StatCard
+            icon={ReportsIcon}
+            label="Consultations This Month"
+            value={stats.monthlyConsultations}
+            color="blue"
+          />
+        )}
+        {can("viewMedicines") && (
+          <StatCard icon={MedicineIcon} label="Low Stock Items" value={stats.lowStockCount} color="red" />
+        )}
+        {can("viewMedicines") && (
+          <StatCard icon={MedicineIcon} label="Out of Stock" value={stats.outOfStockCount} color="red" />
+        )}
+        {can("viewMedicines") && (
+          <StatCard icon={MedicineIcon} label="Expired Items" value={stats.expiredCount} color="amber" />
+        )}
+        {can("viewPurchaseRequests") && (
+          <StatCard
+            icon={CartIcon}
+            label="Pending Purchase Requests"
+            value={stats.pendingPurchaseRequests}
+            color="amber"
+          />
         )}
       </div>
 
@@ -115,6 +120,14 @@ function DashboardPage() {
             {can("editMedicines") && (
               <Link to="/medicines" className="quick-action-link">Update Medicine Inventory</Link>
             )}
+            {can("submitPurchaseRequest") && (
+              <Link to="/purchase-requests" className="quick-action-link">Submit Purchase Request</Link>
+            )}
+            {can("reviewPurchaseRequest") && stats.pendingPurchaseRequests > 0 && (
+              <Link to="/purchase-requests" className="quick-action-link">
+                Review {stats.pendingPurchaseRequests} Pending Request{stats.pendingPurchaseRequests === 1 ? "" : "s"}
+              </Link>
+            )}
             <Link to="/appointments" className="quick-action-link">View Appointments</Link>
           </div>
         </div>
@@ -123,41 +136,83 @@ function DashboardPage() {
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Notifications &amp; Alerts</h3>
           {!hasAlerts && <p className="text-sm text-gray-400">No alerts right now.</p>}
           <ul className="flex flex-col gap-3">
-            {lowStockItems.map((m) => (
-              <li key={m._id} className="flex items-start gap-2 text-sm">
+            {stats.lowStockCount > 0 && (
+              <li className="flex items-start gap-2 text-sm">
                 <AlertIcon className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                 <span>
-                  <span className="font-medium">Low Stock:</span> {m.name} - {m.quantity} {m.unit} remaining
+                  <span className="font-medium">{stats.lowStockCount}</span> item
+                  {stats.lowStockCount === 1 ? "" : "s"} running low on stock
                 </span>
               </li>
-            ))}
-            {expiringItems.map((m) => (
-              <li key={m._id} className="flex items-start gap-2 text-sm">
+            )}
+            {stats.outOfStockCount > 0 && (
+              <li className="flex items-start gap-2 text-sm">
+                <AlertIcon className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-medium">{stats.outOfStockCount}</span> item
+                  {stats.outOfStockCount === 1 ? "" : "s"} out of stock
+                </span>
+              </li>
+            )}
+            {stats.expiredCount > 0 && (
+              <li className="flex items-start gap-2 text-sm">
                 <AlertIcon className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                 <span>
-                  <span className="font-medium">{m.isExpired ? "Expired:" : "Expiring Soon:"}</span> {m.name}
+                  <span className="font-medium">{stats.expiredCount}</span> item
+                  {stats.expiredCount === 1 ? "" : "s"} expired
                 </span>
               </li>
-            ))}
+            )}
           </ul>
         </div>
 
         {role === "admin" && (
           <div className="bg-white rounded-lg shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Staff</h3>
-            {staff.length === 0 && <p className="text-sm text-gray-400">No staff found.</p>}
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Staff Overview</h3>
             <ul className="flex flex-col gap-3">
-              {staff.map((u) => (
-                <li key={u._id} className="flex items-center gap-2 text-sm">
-                  <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span>{u.name}</span>
-                  <span className="text-xs text-gray-400 capitalize ml-auto">{u.role}</span>
-                </li>
-              ))}
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Doctors</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.doctor}</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Nurses</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.nurse}</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Student Staff</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.staff}</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Admins</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.admin}</span>
+              </li>
             </ul>
           </div>
         )}
       </div>
+
+      {stats.recentActivity.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-5 mt-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Recent Activity</h3>
+          <ul className="flex flex-col gap-2">
+            {stats.recentActivity.map((log, i) => (
+              <li key={i} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                <span>
+                  <span className="font-medium">{performedByName(log.performedBy)}</span>{" "}
+                  {activityLabel(log.action, log.resource)}
+                </span>
+                <span className="text-xs text-gray-400 shrink-0 ml-3">
+                  {new Date(log.createdAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Layout>
   );
 }

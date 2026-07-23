@@ -12,6 +12,7 @@ import {
   ReportsIcon,
   AuditIcon,
   SearchIcon,
+  CartIcon,
 } from "../components/icons";
 
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -19,6 +20,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/patients": PatientsIcon,
   "/appointments": VisitsIcon,
   "/medicines": MedicineIcon,
+  "/purchase-requests": CartIcon,
   "/users": StaffIcon,
   "/reports": ReportsIcon,
   "/audit-log": AuditIcon,

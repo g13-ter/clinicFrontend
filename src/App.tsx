@@ -5,6 +5,7 @@ import PatientsPage from "./pages/PatientsPage";
 import PatientDetailPage from "./pages/PatientDetailPage";
 import AppointmentsPage from "./pages/AppointmentsPage";
 import MedicinesPage from "./pages/MedicinesPage";
+import PurchaseRequestsPage from "./pages/PurchaseRequestsPage";
 import UsersPage from "./pages/UsersPage";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
@@ -53,6 +54,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/medicines"]}>
               <MedicinesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase-requests"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/purchase-requests"]}>
+              <PurchaseRequestsPage />
             </ProtectedRoute>
           }
         />

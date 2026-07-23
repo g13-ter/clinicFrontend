@@ -5,12 +5,13 @@ import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 import { patientsListPath } from "../config/permissions";
-import type { Patient, Appointment } from "../utils/types";
+import type { Patient, Appointment, Doctor } from "../utils/types";
 
 const STATUSES = ["pending", "confirmed", "cancelled", "completed"];
 
 const emptyForm = {
   patientId: "",
+  doctorId: "",
   appointmentDate: "",
   reason: "",
   notes: "",
@@ -20,6 +21,12 @@ function patientIdToString(patientId: Patient | string | null): string {
   if (patientId == null) return "";
   if (typeof patientId === "object") return patientId._id;
   return patientId;
+}
+
+function doctorIdToString(doctorId: Doctor | string | null | undefined): string {
+  if (doctorId == null) return "";
+  if (typeof doctorId === "object") return doctorId._id;
+  return doctorId;
 }
 
 function AppointmentsPage() {
@@ -34,6 +41,7 @@ function AppointmentsPage() {
   const [error, setError] = useState("");
 
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
 
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Appointment | null>(null);
@@ -69,6 +77,11 @@ function AppointmentsPage() {
     api.get<Patient[]>(patientsPath).then((res) => setPatients(res.data)).catch(() => {});
   }, [canManage, role]);
 
+  useEffect(() => {
+    if (!can("selectDoctorForAppointment")) return;
+    api.get<Doctor[]>("/users/doctors").then((res) => setDoctors(res.data)).catch(() => {});
+  }, [can]);
+
   const openCreate = () => {
     setEditTarget(null);
     setForm(emptyForm);
@@ -81,6 +94,7 @@ function AppointmentsPage() {
     setEditStatus(a.status);
     setForm({
       patientId: patientIdToString(a.patientId),
+      doctorId: doctorIdToString(a.doctorId),
       appointmentDate: a.appointmentDate.slice(0, 16),
       reason: a.reason,
       notes: a.notes ?? "",
@@ -96,6 +110,7 @@ function AppointmentsPage() {
     try {
       if (editTarget) {
         const res = await api.put(`/appointments/${editTarget._id}`, {
+          doctorId: form.doctorId || undefined,
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
@@ -105,6 +120,7 @@ function AppointmentsPage() {
       } else {
         const res = await api.post("/appointments", {
           patientId: form.patientId,
+          doctorId: form.doctorId || undefined,
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
@@ -134,6 +150,11 @@ function AppointmentsPage() {
     return p ? String(p) : "Unknown Patient";
   };
 
+  const doctorName = (d: Doctor | string | null | undefined) => {
+    if (d && typeof d === "object") return d.name;
+    return d ? String(d) : "—";
+  };
+
   return (
     <Layout>
       <div className="flex justify-between items-center mb-4">
@@ -159,6 +180,7 @@ function AppointmentsPage() {
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
                   <th className="text-left px-4 py-3">Patient</th>
+                  <th className="text-left px-4 py-3">Doctor</th>
                   <th className="text-left px-4 py-3">Date</th>
                   <th className="text-left px-4 py-3">Reason</th>
                   <th className="text-left px-4 py-3">Status</th>
@@ -168,7 +190,7 @@ function AppointmentsPage() {
               <tbody className="divide-y divide-gray-100">
                 {appointments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-6 text-gray-400">
+                    <td colSpan={6} className="text-center py-6 text-gray-400">
                       No appointments found.
                     </td>
                   </tr>
@@ -176,6 +198,7 @@ function AppointmentsPage() {
                   appointments.map((a) => (
                     <tr key={a._id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{patientName(a.patientId)}</td>
+                      <td className="px-4 py-3">{doctorName(a.doctorId)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {new Date(a.appointmentDate).toLocaleString([], {
                           dateStyle: "medium",
@@ -252,6 +275,27 @@ function AppointmentsPage() {
                         {p.firstName} {p.lastName} ({p.studentId})
                       </option>
                     ))}
+                  </select>
+                </div>
+              )}
+              {can("selectDoctorForAppointment") && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Doctor</label>
+                  <select
+                    value={form.doctorId}
+                    onChange={(e) => setForm({ ...form, doctorId: e.target.value })}
+                    className="input w-full"
+                  >
+                    <option value="">No preference / unassigned</option>
+                    {doctors
+                      .filter((d) => d.isAvailable !== false || d._id === form.doctorId)
+                      .map((d) => (
+                        <option key={d._id} value={d._id}>
+                          {d.name}
+                          {d.isAvailable === false ? " (unavailable)" : ""}
+                          {d.scheduleNotes ? ` — ${d.scheduleNotes}` : ""}
+                        </option>
+                      ))}
                   </select>
                 </div>
               )}

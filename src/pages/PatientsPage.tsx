@@ -16,6 +16,7 @@ const emptyForm = {
   course: "",
   yearLevel: "1",
   contactNumber: "",
+  email: "",
   address: "",
 };
 
@@ -85,6 +86,7 @@ function PatientsPage() {
       course: p.course,
       yearLevel: String(p.yearLevel),
       contactNumber: p.contactNumber,
+      email: p.email ?? "",
       address: p.address,
     });
     setFormError("");
@@ -95,11 +97,12 @@ function PatientsPage() {
     e.preventDefault();
     setSaving(true);
     setFormError("");
-    const body = {
+    const body: Record<string, unknown> = {
       ...form,
       age: Number(form.age),
       yearLevel: Number(form.yearLevel),
     };
+    if (!form.email) delete body.email;
     try {
       if (editTarget) {
         const res = await api.put(`/patients/${editTarget._id}`, body);
@@ -301,6 +304,14 @@ function PatientsPage() {
                   value={form.contactNumber}
                   onChange={(e) => setForm({ ...form, contactNumber: e.target.value })}
                   required
+                  className="input"
+                />
+              </Field>
+              <Field label="Email (for appointment notifications)">
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="input"
                 />
               </Field>
