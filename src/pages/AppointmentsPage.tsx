@@ -5,7 +5,7 @@ import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 import { patientsListPath } from "../config/permissions";
-import type { Patient, Appointment } from "../utils/types";
+import type { Patient, Appointment, Doctor } from "../utils/types";
 
 const STATUSES = ["pending", "confirmed", "cancelled", "completed"];
 
@@ -134,6 +134,11 @@ function AppointmentsPage() {
     return p ? String(p) : "Unknown Patient";
   };
 
+  const doctorName = (d: Doctor | string | null | undefined) => {
+    if (d && typeof d === "object") return d.name;
+    return d ? String(d) : "—";
+  };
+
   return (
     <Layout>
       <div className="flex justify-between items-center mb-4">
@@ -159,6 +164,7 @@ function AppointmentsPage() {
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
                   <th className="text-left px-4 py-3">Patient</th>
+                  <th className="text-left px-4 py-3">Doctor</th>
                   <th className="text-left px-4 py-3">Date</th>
                   <th className="text-left px-4 py-3">Reason</th>
                   <th className="text-left px-4 py-3">Status</th>
@@ -168,7 +174,7 @@ function AppointmentsPage() {
               <tbody className="divide-y divide-gray-100">
                 {appointments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-6 text-gray-400">
+                    <td colSpan={6} className="text-center py-6 text-gray-400">
                       No appointments found.
                     </td>
                   </tr>
@@ -176,6 +182,7 @@ function AppointmentsPage() {
                   appointments.map((a) => (
                     <tr key={a._id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{patientName(a.patientId)}</td>
+                      <td className="px-4 py-3">{doctorName(a.doctorId)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {new Date(a.appointmentDate).toLocaleString([], {
                           dateStyle: "medium",

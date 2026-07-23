@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
@@ -16,11 +16,13 @@ const emptyForm = {
   course: "",
   yearLevel: "1",
   contactNumber: "",
+  email: "",
   address: "",
 };
 
 function PatientsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { can } = useAuth();
   const { showToast } = useToast();
   const canEdit = can("editPatients");
@@ -28,7 +30,7 @@ function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -84,6 +86,7 @@ function PatientsPage() {
       course: p.course,
       yearLevel: String(p.yearLevel),
       contactNumber: p.contactNumber,
+      email: p.email ?? "",
       address: p.address,
     });
     setFormError("");
@@ -94,11 +97,12 @@ function PatientsPage() {
     e.preventDefault();
     setSaving(true);
     setFormError("");
-    const body = {
+    const body: Record<string, unknown> = {
       ...form,
       age: Number(form.age),
       yearLevel: Number(form.yearLevel),
     };
+    if (!form.email) delete body.email;
     try {
       if (editTarget) {
         const res = await api.put(`/patients/${editTarget._id}`, body);
@@ -300,6 +304,14 @@ function PatientsPage() {
                   value={form.contactNumber}
                   onChange={(e) => setForm({ ...form, contactNumber: e.target.value })}
                   required
+                  className="input"
+                />
+              </Field>
+              <Field label="Email (for appointment notifications)">
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="input"
                 />
               </Field>
