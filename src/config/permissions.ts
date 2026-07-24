@@ -9,6 +9,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/patients/:id": ["admin", "doctor", "nurse"],
   "/appointments": ["admin", "doctor", "nurse", "staff"],
   "/medicines": ["admin", "doctor", "nurse"],
+  "/purchase-requests": ["admin", "nurse"],
   "/users": ["admin"],
   "/reports": ["admin"],
   "/audit-log": ["admin"],
@@ -19,6 +20,7 @@ export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] 
   { to: "/patients", label: "Patients", roles: ROUTE_ACCESS["/patients"] },
   { to: "/appointments", label: "Appointments", roles: ROUTE_ACCESS["/appointments"] },
   { to: "/medicines", label: "Medicines", roles: ROUTE_ACCESS["/medicines"] },
+  { to: "/purchase-requests", label: "Purchase Requests", roles: ROUTE_ACCESS["/purchase-requests"] },
   { to: "/users", label: "Users", roles: ROUTE_ACCESS["/users"] },
   { to: "/reports", label: "Reports", roles: ROUTE_ACCESS["/reports"] },
   { to: "/audit-log", label: "Audit Log", roles: ROUTE_ACCESS["/audit-log"] },
@@ -34,6 +36,11 @@ export const CAPABILITIES = {
   editMedicines: ["nurse"] as const satisfies readonly UserRole[],
   editMedicalHistory: ["doctor"] as const satisfies readonly UserRole[],
   viewMedicalHistory: ["doctor", "nurse"] as const satisfies readonly UserRole[],
+  submitPurchaseRequest: ["nurse"] as const satisfies readonly UserRole[],
+  reviewPurchaseRequest: ["admin"] as const satisfies readonly UserRole[],
+  viewPurchaseRequests: ["admin", "nurse"] as const satisfies readonly UserRole[],
+  selectDoctorForAppointment: ["staff", "nurse", "admin"] as const satisfies readonly UserRole[],
+  manageDoctorSchedule: ["admin"] as const satisfies readonly UserRole[],
 } as const;
 
 export type Capability = keyof typeof CAPABILITIES;

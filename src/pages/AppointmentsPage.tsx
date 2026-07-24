@@ -5,12 +5,13 @@ import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 import { patientsListPath } from "../config/permissions";
-import type { Patient, Appointment } from "../utils/types";
+import type { Patient, Appointment, Doctor } from "../utils/types";
 
 const STATUSES = ["pending", "confirmed", "cancelled", "completed"];
 
 const emptyForm = {
   patientId: "",
+  doctorId: "",
   appointmentDate: "",
   reason: "",
   notes: "",
@@ -22,10 +23,21 @@ function patientIdToString(patientId: Patient | string | null): string {
   return patientId;
 }
 
+function doctorIdToString(doctorId: Doctor | string | null | undefined): string {
+  if (doctorId == null) return "";
+  if (typeof doctorId === "object") return doctorId._id;
+  return doctorId;
+}
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function AppointmentsPage() {
-  const { role, can } = useAuth();
+  const { role, can, user } = useAuth();
   const { showToast } = useToast();
   const canManage = can("manageAppointments");
+  const isDoctor = role === "doctor";
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [total, setTotal] = useState(0);
@@ -33,7 +45,14 @@ function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Doctors land on "today only" by default - a real clinic doctor cares
+  // about who's coming in today, not a full historical list. Other roles
+  // (staff/nurse/admin) see everything by default, matching their broader
+  // scheduling responsibilities.
+  const [dateFilter, setDateFilter] = useState(isDoctor ? todayStr() : "");
+
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
 
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Appointment | null>(null);
@@ -48,7 +67,9 @@ function AppointmentsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get(`/appointments?page=${p}&limit=${limit}`);
+      const params = new URLSearchParams({ page: String(p), limit: String(limit) });
+      if (dateFilter) params.set("date", dateFilter);
+      const res = await api.get(`/appointments?${params.toString()}`);
       setAppointments(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
@@ -60,7 +81,13 @@ function AppointmentsPage() {
 
   useEffect(() => {
     fetchAppointments(page);
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, dateFilter]);
+
+  const changeDateFilter = (value: string) => {
+    setDateFilter(value);
+    setPage(1);
+  };
 
   useEffect(() => {
     if (!canManage) return;
@@ -68,6 +95,11 @@ function AppointmentsPage() {
     if (!patientsPath) return;
     api.get<Patient[]>(patientsPath).then((res) => setPatients(res.data)).catch(() => {});
   }, [canManage, role]);
+
+  useEffect(() => {
+    if (!can("selectDoctorForAppointment")) return;
+    api.get<Doctor[]>("/users/doctors").then((res) => setDoctors(res.data)).catch(() => {});
+  }, [can]);
 
   const openCreate = () => {
     setEditTarget(null);
@@ -81,6 +113,7 @@ function AppointmentsPage() {
     setEditStatus(a.status);
     setForm({
       patientId: patientIdToString(a.patientId),
+      doctorId: doctorIdToString(a.doctorId),
       appointmentDate: a.appointmentDate.slice(0, 16),
       reason: a.reason,
       notes: a.notes ?? "",
@@ -96,6 +129,7 @@ function AppointmentsPage() {
     try {
       if (editTarget) {
         const res = await api.put(`/appointments/${editTarget._id}`, {
+          doctorId: form.doctorId || undefined,
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
@@ -105,6 +139,7 @@ function AppointmentsPage() {
       } else {
         const res = await api.post("/appointments", {
           patientId: form.patientId,
+          doctorId: form.doctorId || undefined,
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
@@ -134,16 +169,52 @@ function AppointmentsPage() {
     return p ? String(p) : "Unknown Patient";
   };
 
+  const doctorName = (d: Doctor | string | null | undefined) => {
+    if (d && typeof d === "object") {
+      const isSelf = isDoctor && user?.id === d._id;
+      return isSelf ? `${d.name} (You)` : d.name;
+    }
+    return d ? String(d) : "—";
+  };
+
   return (
     <Layout>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-700">Appointments</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-lg font-semibold text-gray-700">
+          {isDoctor && dateFilter === todayStr() ? "Today's Patients" : "Appointments"}
+        </h2>
         {canManage && (
           <button
             onClick={openCreate}
             className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
           >
             + New Appointment
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <label className="text-xs text-gray-500">Date:</label>
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => changeDateFilter(e.target.value)}
+          className="input text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => changeDateFilter(todayStr())}
+          className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
+        >
+          Today
+        </button>
+        {dateFilter && (
+          <button
+            type="button"
+            onClick={() => changeDateFilter("")}
+            className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            All Dates
           </button>
         )}
       </div>
@@ -159,6 +230,7 @@ function AppointmentsPage() {
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
                   <th className="text-left px-4 py-3">Patient</th>
+                  <th className="text-left px-4 py-3">Doctor</th>
                   <th className="text-left px-4 py-3">Date</th>
                   <th className="text-left px-4 py-3">Reason</th>
                   <th className="text-left px-4 py-3">Status</th>
@@ -168,7 +240,7 @@ function AppointmentsPage() {
               <tbody className="divide-y divide-gray-100">
                 {appointments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-6 text-gray-400">
+                    <td colSpan={6} className="text-center py-6 text-gray-400">
                       No appointments found.
                     </td>
                   </tr>
@@ -176,6 +248,7 @@ function AppointmentsPage() {
                   appointments.map((a) => (
                     <tr key={a._id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{patientName(a.patientId)}</td>
+                      <td className="px-4 py-3">{doctorName(a.doctorId)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {new Date(a.appointmentDate).toLocaleString([], {
                           dateStyle: "medium",
@@ -252,6 +325,27 @@ function AppointmentsPage() {
                         {p.firstName} {p.lastName} ({p.studentId})
                       </option>
                     ))}
+                  </select>
+                </div>
+              )}
+              {can("selectDoctorForAppointment") && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Doctor</label>
+                  <select
+                    value={form.doctorId}
+                    onChange={(e) => setForm({ ...form, doctorId: e.target.value })}
+                    className="input w-full"
+                  >
+                    <option value="">No preference / unassigned</option>
+                    {doctors
+                      .filter((d) => d.isAvailable !== false || d._id === form.doctorId)
+                      .map((d) => (
+                        <option key={d._id} value={d._id}>
+                          {d.name}
+                          {d.isAvailable === false ? " (unavailable)" : ""}
+                          {d.scheduleNotes ? ` — ${d.scheduleNotes}` : ""}
+                        </option>
+                      ))}
                   </select>
                 </div>
               )}
