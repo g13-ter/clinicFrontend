@@ -1,23 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../services/api";
 import Layout from "../layout/Layout";
 import { useAuth } from "../hooks/useAuth";
 import {
-  PlusIcon,
+  PatientsIcon,
+  MedicineIcon,
+  VisitsIcon,
+  ReportsIcon,
   StaffIcon,
-  StethoscopeIcon,
-  CalendarIcon,
-  ReferralIcon,
   AlertIcon,
-  ChevronRightIcon,
-  StudentStatIcon,
-  MedicineStatIcon,
-  EmergencyStatIcon,
-  ReferralStatIcon,
+  CartIcon,
 } from "../components/icons";
-import type { Medicine, User } from "../utils/types";
+import type { DashboardStats } from "../utils/types";
 
+<<<<<<< HEAD
 const DEFAULT_COLORS = ["#5dade2", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6", "#f39c12"];
 
 function DashboardPage() {
@@ -36,12 +33,29 @@ function DashboardPage() {
   const [monthlyVisits, setMonthlyVisits] = useState<{ month: string; value: number; color?: string }[]>([]);
   const [commonIllnesses, setCommonIllnesses] = useState<{ label: string; value: number; color?: string }[]>([]);
   const [contagiousIllnesses, setContagiousIllnesses] = useState<{ label: string; value: number; color?: string }[]>([]);
+=======
+function activityLabel(action: string, resource: string): string {
+  const verb = { create: "created", update: "updated", delete: "deleted", view: "viewed" }[action] ?? action;
+  return `${verb} a ${resource}`;
+}
+
+function performedByName(p: DashboardStats["recentActivity"][number]["performedBy"]): string {
+  if (!p) return "Someone";
+  if (typeof p === "object") return p.name;
+  return p;
+}
+
+function DashboardPage() {
+  const { role, can } = useAuth();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+>>>>>>> 7ce3c0fc7d732536f27396e3bc6d329517a7413f
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
+<<<<<<< HEAD
         const [appointments, patients, medicines, expiring, todayVisits, users] = await Promise.all([
           api.get("/appointments?limit=1"),
           can("viewFullPatients") ? api.get("/patients?limit=1") : Promise.resolve(null),
@@ -99,6 +113,10 @@ function DashboardPage() {
             contagious.slice(0, 4).map((m, i) => ({ ...m, color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] }))
           );
         }
+=======
+        const res = await api.get<DashboardStats>("/dashboard/stats");
+        setStats(res.data);
+>>>>>>> 7ce3c0fc7d732536f27396e3bc6d329517a7413f
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard");
       } finally {
@@ -107,11 +125,7 @@ function DashboardPage() {
     };
 
     fetchStats();
-  }, [role]);
-
-  const scrollStats = () => {
-    statsRef.current?.scrollBy({ left: 170, behavior: "smooth" });
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -123,122 +137,163 @@ function DashboardPage() {
     );
   }
 
-  if (error) {
+  if (error || !stats) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-500">{error || "No dashboard data available"}</p>
         </div>
       </Layout>
     );
   }
 
-  const statCards = [
-    can("viewFullPatients") && {
-      icon: <StudentStatIcon />,
-      value: stats.totalPatients,
-      label: "Total Students",
-    },
-    can("viewMedicines") && {
-      icon: <MedicineStatIcon />,
-      value: stats.totalMedicines,
-      label: "Number of Medications",
-    },
-    can("viewVisits") && {
-      icon: <StethoscopeIcon />,
-      value: stats.clinicVisits,
-      label: "Clinic Visits",
-    },
-    {
-      icon: <EmergencyStatIcon />,
-      value: stats.emergencyCases,
-      label: "Emergency Cases",
-    },
-    {
-      icon: <ReferralStatIcon />,
-      value: stats.referrals,
-      label: "Referal",
-    },
-  ].filter(Boolean) as { icon: React.ReactNode; value: number; label: string }[];
-
-  const hasAlerts = lowStockItems.length > 0 || expiringItems.length > 0;
+  const hasAlerts = stats.lowStockCount > 0 || stats.outOfStockCount > 0 || stats.expiredCount > 0;
 
   return (
     <Layout>
-      <div className="flex items-center gap-3 mb-5">
-        <div ref={statsRef} className="flex gap-3 overflow-x-auto scrollbar-hide flex-1 pb-1">
-          {statCards.map((card) => (
-            <div key={card.label} className="clinic-stat-card">
-              <div className="mb-2">{card.icon}</div>
-              <p className="clinic-stat-value">{card.value}</p>
-              <p className="clinic-stat-label">{card.label}</p>
-            </div>
-          ))}
-        </div>
-        <button type="button" onClick={scrollStats} className="clinic-scroll-btn" aria-label="Scroll stats">
-          <ChevronRightIcon />
-        </button>
+      <h2 className="text-lg font-semibold text-gray-700 mb-6">Dashboard</h2>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        {can("viewFullPatients") && (
+          <StatCard icon={PatientsIcon} label="Total Students" value={stats.totalStudents} color="blue" />
+        )}
+        <StatCard icon={ReportsIcon} label="Today's Appointments" value={stats.todaysAppointments} color="green" />
+        {can("viewVisits") && (
+          <StatCard icon={VisitsIcon} label="Waiting Patients" value={stats.waitingPatients} color="purple" />
+        )}
+        {can("viewMedicalHistory") && (
+          <StatCard
+            icon={ReportsIcon}
+            label="Consultations This Month"
+            value={stats.monthlyConsultations}
+            color="blue"
+          />
+        )}
+        {can("viewMedicines") && (
+          <StatCard icon={MedicineIcon} label="Low Stock Items" value={stats.lowStockCount} color="red" />
+        )}
+        {can("viewMedicines") && (
+          <StatCard icon={MedicineIcon} label="Out of Stock" value={stats.outOfStockCount} color="red" />
+        )}
+        {can("viewMedicines") && (
+          <StatCard icon={MedicineIcon} label="Expired Items" value={stats.expiredCount} color="amber" />
+        )}
+        {can("viewPurchaseRequests") && (
+          <StatCard
+            icon={CartIcon}
+            label="Pending Purchase Requests"
+            value={stats.pendingPurchaseRequests}
+            color="amber"
+          />
+        )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-4">
-        <div className="clinic-panel xl:col-span-1">
-          <h3 className="clinic-panel-title">Quick Action</h3>
-          <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h3>
+          <div className="flex flex-col gap-2">
             {can("editPatients") && (
-              <Link to="/patients" className="clinic-quick-action">
-                <PlusIcon className="text-sky-600" />
-                Add New Student
-              </Link>
+              <Link to="/patients" className="quick-action-link">Add New Patient</Link>
             )}
             {role === "admin" && (
-              <Link to="/users" className="clinic-quick-action">
-                <StaffIcon className="w-4 h-4 text-sky-600" />
-                Add New Staff
-              </Link>
+              <Link to="/users" className="quick-action-link">Add New Staff</Link>
             )}
-            <Link to="/appointments" className="clinic-quick-action">
-              <StethoscopeIcon className="w-5 h-5" />
-              Clinic Visits
-            </Link>
             {can("editMedicines") && (
-              <Link to="/medicines" className="clinic-quick-action">
-                <CalendarIcon className="text-sky-600" />
-                Update Medication Inventory
+              <Link to="/medicines" className="quick-action-link">Update Medicine Inventory</Link>
+            )}
+            {can("submitPurchaseRequest") && (
+              <Link to="/purchase-requests" className="quick-action-link">Submit Purchase Request</Link>
+            )}
+            {can("reviewPurchaseRequest") && stats.pendingPurchaseRequests > 0 && (
+              <Link to="/purchase-requests" className="quick-action-link">
+                Review {stats.pendingPurchaseRequests} Pending Request{stats.pendingPurchaseRequests === 1 ? "" : "s"}
               </Link>
             )}
-            <Link to="/appointments" className="clinic-quick-action">
-              <ReferralIcon className="text-sky-600" />
-              Create Referal
-            </Link>
+            <Link to="/appointments" className="quick-action-link">View Appointments</Link>
           </div>
         </div>
 
-        <div className="clinic-panel xl:col-span-1">
-          <h3 className="clinic-panel-title">Notifications &amp; Alerts</h3>
-          {!hasAlerts && (
-            <p className="text-sm text-gray-600 bg-white/50 rounded-lg px-3 py-2">
-              No alerts right now.
-            </p>
-          )}
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Notifications &amp; Alerts</h3>
+          {!hasAlerts && <p className="text-sm text-gray-400">No alerts right now.</p>}
           <ul className="flex flex-col gap-3">
-            {lowStockItems.map((m) => (
-              <li key={m._id} className="flex items-start gap-2 text-sm text-gray-800">
-                <AlertIcon className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+            {stats.lowStockCount > 0 && (
+              <li className="flex items-start gap-2 text-sm">
+                <AlertIcon className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                 <span>
-                  <span className="font-bold">Low Stock Alert!</span> {m.name} - {m.quantity} Remaining
+                  <span className="font-medium">{stats.lowStockCount}</span> item
+                  {stats.lowStockCount === 1 ? "" : "s"} running low on stock
                 </span>
               </li>
-            ))}
-            {expiringItems.map((m) => (
-              <li key={m._id} className="flex items-start gap-2 text-sm text-gray-800">
-                <CalendarIcon className="w-5 h-5 text-sky-600 mt-0.5 shrink-0" />
+            )}
+            {stats.outOfStockCount > 0 && (
+              <li className="flex items-start gap-2 text-sm">
+                <AlertIcon className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                 <span>
-                  <span className="font-bold">Upcoming Check-up</span> Medical for {m.name}
+                  <span className="font-medium">{stats.outOfStockCount}</span> item
+                  {stats.outOfStockCount === 1 ? "" : "s"} out of stock
+                </span>
+              </li>
+            )}
+            {stats.expiredCount > 0 && (
+              <li className="flex items-start gap-2 text-sm">
+                <AlertIcon className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-medium">{stats.expiredCount}</span> item
+                  {stats.expiredCount === 1 ? "" : "s"} expired
+                </span>
+              </li>
+            )}
+          </ul>
+        </div>
+
+        {role === "admin" && (
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Staff Overview</h3>
+            <ul className="flex flex-col gap-3">
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Doctors</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.doctor}</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Nurses</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.nurse}</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Student Staff</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.staff}</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <StaffIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                <span>Admins</span>
+                <span className="text-xs text-gray-400 ml-auto">{stats.usersByRole.admin}</span>
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {stats.recentActivity.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-5 mt-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Recent Activity</h3>
+          <ul className="flex flex-col gap-2">
+            {stats.recentActivity.map((log, i) => (
+              <li key={i} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                <span>
+                  <span className="font-medium">{performedByName(log.performedBy)}</span>{" "}
+                  {activityLabel(log.action, log.resource)}
+                </span>
+                <span className="text-xs text-gray-400 shrink-0 ml-3">
+                  {new Date(log.createdAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
                 </span>
               </li>
             ))}
           </ul>
         </div>
+<<<<<<< HEAD
 
         <div className="clinic-panel xl:col-span-1">
           <h3 className="clinic-panel-title">Search &amp; Filters</h3>
@@ -279,10 +334,14 @@ function DashboardPage() {
           <PieChart segments={contagiousIllnesses} />
         </div>
       </div>
+=======
+      )}
+>>>>>>> 7ce3c0fc7d732536f27396e3bc6d329517a7413f
     </Layout>
   );
 }
 
+<<<<<<< HEAD
 function BarChart({ data }: { data: { month: string; value: number; color: string }[] }) {
   const max = Math.max(0, ...data.map((d) => d.value));
 
@@ -308,53 +367,34 @@ function BarChart({ data }: { data: { month: string; value: number; color: strin
 function PieChart({
   segments,
   showPercent = false,
+=======
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+>>>>>>> 7ce3c0fc7d732536f27396e3bc6d329517a7413f
 }: {
-  segments: { label: string; value: number; color: string }[];
-  showPercent?: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  color: string;
 }) {
-  const total = segments.reduce((sum, s) => sum + s.value, 0);
-  let cumulative = 0;
-
-  const slices = segments.map((segment) => {
-    const start = (cumulative / total) * 360;
-    cumulative += segment.value;
-    const end = (cumulative / total) * 360;
-    return { ...segment, start, end };
-  });
-
-  const polarToCartesian = (angle: number, radius: number) => {
-    const rad = ((angle - 90) * Math.PI) / 180;
-    return { x: 50 + radius * Math.cos(rad), y: 50 + radius * Math.sin(rad) };
-  };
-
-  const describeArc = (start: number, end: number, radius: number) => {
-    const startPoint = polarToCartesian(start, radius);
-    const endPoint = polarToCartesian(end, radius);
-    const largeArc = end - start > 180 ? 1 : 0;
-    return `M 50 50 L ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${largeArc} 1 ${endPoint.x} ${endPoint.y} Z`;
+  const colors: Record<string, string> = {
+    blue: "bg-blue-100 text-blue-700",
+    red: "bg-red-100 text-red-700",
+    green: "bg-green-100 text-green-700",
+    purple: "bg-purple-100 text-purple-700",
+    amber: "bg-amber-100 text-amber-700",
   };
 
   return (
-    <div className="flex items-center gap-6 flex-wrap">
-      <div className="relative w-36 h-36 shrink-0">
-        <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
-          {slices.map((slice) => (
-            <path key={slice.label} d={describeArc(slice.start, slice.end, 45)} fill={slice.color} />
-          ))}
-          <circle cx="50" cy="50" r="18" fill="#d8ecf7" />
-        </svg>
+    <div className="bg-white rounded-lg shadow-sm p-5 flex flex-col items-center text-center gap-2">
+      <div className={`w-11 h-11 rounded-full flex items-center justify-center ${colors[color]}`}>
+        <Icon className="w-5 h-5" />
       </div>
-      <ul className="flex flex-col gap-2 text-sm">
-        {segments.map((segment) => (
-          <li key={segment.label} className="flex items-center gap-2 font-medium text-gray-800">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: segment.color }} />
-            {segment.label}
-            {showPercent && (
-              <span className="text-gray-600">({Math.round((segment.value / total) * 100)}%)</span>
-            )}
-          </li>
-        ))}
-      </ul>
+      <p className="text-2xl font-bold">{value}</p>
+      <p className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[color]}`}>{label}</p>
     </div>
   );
 }
