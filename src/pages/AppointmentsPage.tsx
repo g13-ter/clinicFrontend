@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../components/Toast";
+import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
 import type { Patient, Appointment, Doctor } from "../utils/types";
 
 const STATUSES = ["pending", "confirmed", "cancelled", "completed"];
+const FORM_FIELDS = ["patientId", "doctorId", "appointmentDate", "reason", "notes", "status"];
 
 const emptyForm = {
   patientId: "",
@@ -59,7 +63,11 @@ function AppointmentsPage() {
   const [form, setForm] = useState(emptyForm);
   const [editStatus, setEditStatus] = useState("pending");
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
+  const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
+    useFormErrors();
+
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const limit = 10;
 
@@ -104,7 +112,7 @@ function AppointmentsPage() {
   const openCreate = () => {
     setEditTarget(null);
     setForm(emptyForm);
-    setFormError("");
+    resetFormErrors();
     setShowModal(true);
   };
 
@@ -118,14 +126,14 @@ function AppointmentsPage() {
       reason: a.reason,
       notes: a.notes ?? "",
     });
-    setFormError("");
+    resetFormErrors();
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setFormError("");
+    resetFormErrors();
     try {
       if (editTarget) {
         const res = await api.put(`/appointments/${editTarget._id}`, {
@@ -149,9 +157,35 @@ function AppointmentsPage() {
       setShowModal(false);
       fetchAppointments(page);
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : "Save failed");
+      applyError(err, "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const setField = (key: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    clearField(key);
+  };
+
+  // Only appointments that haven't already run their course make sense to
+  // cancel - a completed or already-cancelled appointment has nothing left
+  // to undo.
+  const isCancellable = (a: Appointment) => a.status === "pending" || a.status === "confirmed";
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      const res = await api.put(`/appointments/${cancelTarget._id}`, { status: "cancelled" });
+      showToast(res.message);
+      setCancelTarget(null);
+      fetchAppointments(page);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Cancel failed");
+      setCancelTarget(null);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -240,8 +274,34 @@ function AppointmentsPage() {
               <tbody className="divide-y divide-gray-100">
                 {appointments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-6 text-gray-400">
-                      No appointments found.
+                    <td colSpan={6} className="text-center py-10">
+                      {dateFilter ? (
+                        <div className="text-sm text-gray-500">
+                          <p className="mb-2">
+                            No appointments {dateFilter === todayStr() ? "today" : `on ${new Date(dateFilter).toLocaleDateString()}`}.
+                          </p>
+                          <button
+                            onClick={() => changeDateFilter("")}
+                            className="text-blue-600 hover:underline text-sm"
+                          >
+                            View all dates
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          <p className="mb-3">No appointments scheduled yet.</p>
+                          {canManage ? (
+                            <button
+                              onClick={openCreate}
+                              className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+                            >
+                              + Schedule the first appointment
+                            </button>
+                          ) : (
+                            <p className="text-gray-400">Check back once staff or nursing schedules a visit.</p>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -269,10 +329,18 @@ function AppointmentsPage() {
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => openEdit(a)}
-                            className="text-gray-500 hover:underline text-xs"
+                            className="text-gray-500 hover:underline text-xs mr-3"
                           >
                             Edit
                           </button>
+                          {isCancellable(a) && (
+                            <button
+                              onClick={() => setCancelTarget(a)}
+                              className="text-red-500 hover:underline text-xs"
+                            >
+                              Cancel
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -309,15 +377,16 @@ function AppointmentsPage() {
       {showModal && (
         <Modal title={editTarget ? "Edit Appointment" : "New Appointment"} onClose={() => setShowModal(false)}>
             {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+            <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               {!editTarget && (
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Patient *</label>
                   <select
                     value={form.patientId}
-                    onChange={(e) => setForm({ ...form, patientId: e.target.value })}
+                    onChange={(e) => setField("patientId", e.target.value)}
                     required
-                    className="input w-full"
+                    className={`input w-full ${fieldErrors.patientId ? "input-error" : ""}`}
                   >
                     <option value="">Select a patient…</option>
                     {patients.map((p) => (
@@ -326,6 +395,7 @@ function AppointmentsPage() {
                       </option>
                     ))}
                   </select>
+                  <FieldError message={fieldErrors.patientId} />
                 </div>
               )}
               {can("selectDoctorForAppointment") && (
@@ -333,8 +403,8 @@ function AppointmentsPage() {
                   <label className="block text-xs text-gray-500 mb-1">Doctor</label>
                   <select
                     value={form.doctorId}
-                    onChange={(e) => setForm({ ...form, doctorId: e.target.value })}
-                    className="input w-full"
+                    onChange={(e) => setField("doctorId", e.target.value)}
+                    className={`input w-full ${fieldErrors.doctorId ? "input-error" : ""}`}
                   >
                     <option value="">No preference / unassigned</option>
                     {doctors
@@ -347,6 +417,7 @@ function AppointmentsPage() {
                         </option>
                       ))}
                   </select>
+                  <FieldError message={fieldErrors.doctorId} />
                 </div>
               )}
               <div>
@@ -354,27 +425,32 @@ function AppointmentsPage() {
                 <input
                   type="datetime-local"
                   value={form.appointmentDate}
-                  onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })}
+                  onChange={(e) => setField("appointmentDate", e.target.value)}
                   required
-                  className="input w-full"
+                  className={`input w-full ${fieldErrors.appointmentDate ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors.appointmentDate} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Reason *</label>
                 <input
                   value={form.reason}
-                  onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                  onChange={(e) => setField("reason", e.target.value)}
                   required
-                  className="input w-full"
+                  className={`input w-full ${fieldErrors.reason ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors.reason} />
               </div>
               {editTarget && (
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Status</label>
                   <select
                     value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className="input w-full"
+                    onChange={(e) => {
+                      setEditStatus(e.target.value);
+                      clearField("status");
+                    }}
+                    className={`input w-full ${fieldErrors.status ? "input-error" : ""}`}
                   >
                     {STATUSES.map((s) => (
                       <option key={s} value={s}>
@@ -382,6 +458,7 @@ function AppointmentsPage() {
                       </option>
                     ))}
                   </select>
+                  <FieldError message={fieldErrors.status} />
                 </div>
               )}
               <div>
@@ -389,9 +466,10 @@ function AppointmentsPage() {
                 <textarea
                   rows={2}
                   value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="input w-full"
+                  onChange={(e) => setField("notes", e.target.value)}
+                  className={`input w-full ${fieldErrors.notes ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors.notes} />
               </div>
               <div className="flex justify-end gap-2 mt-1">
                 <button
@@ -411,6 +489,26 @@ function AppointmentsPage() {
               </div>
             </form>
         </Modal>
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title="Cancel appointment"
+          message={
+            <>
+              Cancel the appointment for <strong>{patientName(cancelTarget.patientId)}</strong> on{" "}
+              {new Date(cancelTarget.appointmentDate).toLocaleString([], {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+              ? The patient will need to be notified separately.
+            </>
+          }
+          confirmLabel="Cancel Appointment"
+          busy={cancelling}
+          onConfirm={handleCancel}
+          onCancel={() => setCancelTarget(null)}
+        />
       )}
     </Layout>
   );

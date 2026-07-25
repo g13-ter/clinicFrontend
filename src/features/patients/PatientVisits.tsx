@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { getCurrentRole } from "../../utils/auth";
+import { useFormErrors } from "../../hooks/useFormErrors";
 import Modal from "../../components/Modal";
 import { useToast } from "../../components/Toast";
+import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { ClinicVisit } from "../../utils/types";
 
 const empty = {
@@ -13,6 +15,8 @@ const empty = {
   temperature: "",
   pulseRate: "",
 };
+
+const FORM_FIELDS = ["patientId", ...Object.keys(empty)];
 
 type Form = typeof empty;
 
@@ -26,7 +30,8 @@ function PatientVisits({ patientId }: { patientId: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Form>(empty);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
+    useFormErrors();
 
   const reload = () =>
     api.get(`/visits/patient/${patientId}`).then((r) => setVisits(r.data)).catch(() => {});
@@ -35,7 +40,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
     reload().finally(() => setLoading(false));
   }, [patientId]);
 
-  const openCreate = () => { setEditing(null); setForm(empty); setError(""); setOpen(true); };
+  const openCreate = () => { setEditing(null); setForm(empty); resetFormErrors(); setOpen(true); };
   const openEdit = (v: ClinicVisit) => {
     setEditing(v);
     setForm({
@@ -46,14 +51,14 @@ function PatientVisits({ patientId }: { patientId: string }) {
       temperature: v.temperature != null ? String(v.temperature) : "",
       pulseRate: v.pulseRate != null ? String(v.pulseRate) : "",
     });
-    setError("");
+    resetFormErrors();
     setOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError("");
+    resetFormErrors();
     const body: Record<string, unknown> = {
       complaint: form.complaint,
       treatment: form.treatment || undefined,
@@ -71,13 +76,16 @@ function PatientVisits({ patientId }: { patientId: string }) {
       setOpen(false);
       reload();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      applyError(err, "Save failed");
     } finally {
       setSaving(false);
     }
   };
 
-  const f = (k: keyof Form, v: string) => setForm((prev) => ({ ...prev, [k]: v }));
+  const f = (k: keyof Form, v: string) => {
+    setForm((prev) => ({ ...prev, [k]: v }));
+    clearField(k);
+  };
 
   return (
     <section>
@@ -135,31 +143,68 @@ function PatientVisits({ patientId }: { patientId: string }) {
 
       {open && (
         <Modal title={editing ? "Edit Visit" : "New Visit"} onClose={() => setOpen(false)}>
-          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+          {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+          <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
           <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Complaint *</label>
-              <input value={form.complaint} onChange={(e) => f("complaint", e.target.value)} required className="input" />
+              <input
+                value={form.complaint}
+                onChange={(e) => f("complaint", e.target.value)}
+                required
+                className={`input ${fieldErrors.complaint ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.complaint} />
             </div>
             <div className="col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Treatment</label>
-              <input value={form.treatment} onChange={(e) => f("treatment", e.target.value)} className="input" />
+              <input
+                value={form.treatment}
+                onChange={(e) => f("treatment", e.target.value)}
+                className={`input ${fieldErrors.treatment ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.treatment} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Blood Pressure</label>
-              <input placeholder="e.g. 120/80" value={form.bloodPressure} onChange={(e) => f("bloodPressure", e.target.value)} className="input" />
+              <input
+                placeholder="e.g. 120/80"
+                value={form.bloodPressure}
+                onChange={(e) => f("bloodPressure", e.target.value)}
+                className={`input ${fieldErrors.bloodPressure ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.bloodPressure} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Temperature (°C)</label>
-              <input type="number" step="0.1" value={form.temperature} onChange={(e) => f("temperature", e.target.value)} className="input" />
+              <input
+                type="number"
+                step="0.1"
+                value={form.temperature}
+                onChange={(e) => f("temperature", e.target.value)}
+                className={`input ${fieldErrors.temperature ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.temperature} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Pulse Rate</label>
-              <input type="number" value={form.pulseRate} onChange={(e) => f("pulseRate", e.target.value)} className="input" />
+              <input
+                type="number"
+                value={form.pulseRate}
+                onChange={(e) => f("pulseRate", e.target.value)}
+                className={`input ${fieldErrors.pulseRate ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.pulseRate} />
             </div>
             <div className="col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Notes</label>
-              <textarea rows={2} value={form.notes} onChange={(e) => f("notes", e.target.value)} className="input" />
+              <textarea
+                rows={2}
+                value={form.notes}
+                onChange={(e) => f("notes", e.target.value)}
+                className={`input ${fieldErrors.notes ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.notes} />
             </div>
             <div className="col-span-2 flex justify-end gap-2 mt-1">
               <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>

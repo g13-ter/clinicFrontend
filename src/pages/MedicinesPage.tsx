@@ -3,8 +3,12 @@ import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../components/Toast";
+import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Medicine } from "../utils/types";
+
+const FORM_FIELDS = ["name", "quantity", "unit", "expiryDate", "lowStockThreshold"];
 
 const emptyForm = {
   name: "",
@@ -27,7 +31,8 @@ function MedicinesPage() {
   const [editTarget, setEditTarget] = useState<Medicine | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
+  const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
+    useFormErrors();
 
   const fetchMedicines = async () => {
     setLoading(true);
@@ -49,7 +54,7 @@ function MedicinesPage() {
   const openCreate = () => {
     setEditTarget(null);
     setForm(emptyForm);
-    setFormError("");
+    resetFormErrors();
     setShowModal(true);
   };
 
@@ -62,14 +67,14 @@ function MedicinesPage() {
       expiryDate: m.expiryDate ? m.expiryDate.slice(0, 10) : "",
       lowStockThreshold: String(m.lowStockThreshold),
     });
-    setFormError("");
+    resetFormErrors();
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setFormError("");
+    resetFormErrors();
     const body: Record<string, unknown> = {
       name: form.name,
       quantity: Number(form.quantity),
@@ -89,10 +94,15 @@ function MedicinesPage() {
       setShowModal(false);
       fetchMedicines();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : "Save failed");
+      applyError(err, "Save failed");
     } finally {
       setSaving(false);
     }
+  };
+
+  const setField = (key: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    clearField(key);
   };
 
   const isLow = (m: Medicine) => m.quantity <= m.lowStockThreshold;
@@ -208,15 +218,17 @@ function MedicinesPage() {
       {showModal && (
         <Modal title={editTarget ? "Edit Medicine" : "Add Medicine"} onClose={() => setShowModal(false)}>
             {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+            <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Name *</label>
                 <input
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => setField("name", e.target.value)}
                   required
-                  className="input w-full"
+                  className={`input w-full ${fieldErrors.name ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors.name} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -225,20 +237,22 @@ function MedicinesPage() {
                     type="number"
                     min={0}
                     value={form.quantity}
-                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                    onChange={(e) => setField("quantity", e.target.value)}
                     required
-                    className="input w-full"
+                    className={`input w-full ${fieldErrors.quantity ? "input-error" : ""}`}
                   />
+                  <FieldError message={fieldErrors.quantity} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Unit *</label>
                   <input
                     placeholder="e.g. tablets, ml"
                     value={form.unit}
-                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                    onChange={(e) => setField("unit", e.target.value)}
                     required
-                    className="input w-full"
+                    className={`input w-full ${fieldErrors.unit ? "input-error" : ""}`}
                   />
+                  <FieldError message={fieldErrors.unit} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -247,9 +261,10 @@ function MedicinesPage() {
                   <input
                     type="date"
                     value={form.expiryDate}
-                    onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
-                    className="input w-full"
+                    onChange={(e) => setField("expiryDate", e.target.value)}
+                    className={`input w-full ${fieldErrors.expiryDate ? "input-error" : ""}`}
                   />
+                  <FieldError message={fieldErrors.expiryDate} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Low Stock Threshold</label>
@@ -257,9 +272,10 @@ function MedicinesPage() {
                     type="number"
                     min={0}
                     value={form.lowStockThreshold}
-                    onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
-                    className="input w-full"
+                    onChange={(e) => setField("lowStockThreshold", e.target.value)}
+                    className={`input w-full ${fieldErrors.lowStockThreshold ? "input-error" : ""}`}
                   />
+                  <FieldError message={fieldErrors.lowStockThreshold} />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-1">

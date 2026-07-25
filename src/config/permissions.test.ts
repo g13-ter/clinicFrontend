@@ -17,7 +17,11 @@ describe("permissions", () => {
 
   it("keeps route access aligned with nav expectations", () => {
     expect(hasRole("staff", ROUTE_ACCESS["/appointments"])).toBe(true);
-    expect(hasRole("staff", ROUTE_ACCESS["/patients"])).toBe(false);
+    // Staff can browse basic student info (studentId/name/course/year via
+    // /patients/basic) for searching/booking purposes, even though they
+    // can't see full records - PatientsPage renders a cut-down read-only
+    // view for this role instead of the full admin/doctor/nurse table.
+    expect(hasRole("staff", ROUTE_ACCESS["/patients"])).toBe(true);
     expect(hasRole("admin", ROUTE_ACCESS["/audit-log"])).toBe(true);
   });
 });

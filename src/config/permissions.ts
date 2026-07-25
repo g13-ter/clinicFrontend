@@ -5,8 +5,9 @@ export const USER_ROLES: readonly UserRole[] = ["admin", "doctor", "nurse", "sta
 
 export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/dashboard": ["admin", "doctor", "nurse", "staff"],
-  "/patients": ["admin", "doctor", "nurse"],
+  "/patients": ["admin", "doctor", "nurse", "staff"],
   "/patients/:id": ["admin", "doctor", "nurse"],
+  "/patient-queue": ["admin", "doctor", "nurse"],
   "/appointments": ["admin", "doctor", "nurse", "staff"],
   "/medicines": ["admin", "doctor", "nurse"],
   "/purchase-requests": ["admin", "nurse"],
@@ -18,6 +19,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
 export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] }[] = [
   { to: "/dashboard", label: "Dashboard", roles: ROUTE_ACCESS["/dashboard"] },
   { to: "/patients", label: "Patients", roles: ROUTE_ACCESS["/patients"] },
+  { to: "/patient-queue", label: "Patient Queue", roles: ROUTE_ACCESS["/patient-queue"] },
   { to: "/appointments", label: "Appointments", roles: ROUTE_ACCESS["/appointments"] },
   { to: "/medicines", label: "Medicines", roles: ROUTE_ACCESS["/medicines"] },
   { to: "/purchase-requests", label: "Purchase Requests", roles: ROUTE_ACCESS["/purchase-requests"] },
@@ -31,8 +33,13 @@ export const CAPABILITIES = {
   manageAppointments: ["staff", "nurse"] as const satisfies readonly UserRole[],
   editPatients: ["nurse"] as const satisfies readonly UserRole[],
   viewFullPatients: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
+  // Broader than viewFullPatients - staff can search/browse basic student
+  // info (studentId/name/course/year only, via /patients/basic) even
+  // though they can't see full records or medical data.
+  searchPatients: ["admin", "doctor", "nurse", "staff"] as const satisfies readonly UserRole[],
   viewMedicines: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
   viewVisits: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
+  manageQueue: ["nurse"] as const satisfies readonly UserRole[],
   editMedicines: ["nurse"] as const satisfies readonly UserRole[],
   editMedicalHistory: ["doctor"] as const satisfies readonly UserRole[],
   viewMedicalHistory: ["doctor", "nurse"] as const satisfies readonly UserRole[],

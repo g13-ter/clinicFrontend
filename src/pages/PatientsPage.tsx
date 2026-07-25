@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
@@ -16,19 +16,26 @@ const emptyForm = {
   course: "",
   yearLevel: "1",
   contactNumber: "",
+  email: "",
   address: "",
 };
 
 function PatientsPage() {
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { role, can } = useAuth();
   const { showToast } = useToast();
   const canEdit = can("editPatients");
+  // Staff get a read-only, basic-fields-only view (studentId/name/course/
+  // year - no gender/contact/address/email, no create/edit, no link into
+  // the full detail page) - matches the backend's /patients/basic
+  // endpoint and RBAC ("staff can search students, not view full records").
+  const isBasicView = role === "staff";
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -44,6 +51,15 @@ function PatientsPage() {
     setLoading(true);
     setError("");
     try {
+      if (isBasicView) {
+        const params = new URLSearchParams();
+        if (q) params.set("search", q);
+        const res = await api.get(`/patients/basic?${params}`);
+        setPatients(res.data);
+        setTotal(res.data.length);
+        return;
+      }
+
       const params = new URLSearchParams({ page: String(p), limit: String(limit) });
       if (q) params.set("search", q);
       const res = await api.get(`/patients?${params}`);
@@ -58,6 +74,7 @@ function PatientsPage() {
 
   useEffect(() => {
     fetchPatients(page, search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -84,6 +101,7 @@ function PatientsPage() {
       course: p.course,
       yearLevel: String(p.yearLevel),
       contactNumber: p.contactNumber,
+      email: p.email ?? "",
       address: p.address,
     });
     setFormError("");
@@ -94,11 +112,12 @@ function PatientsPage() {
     e.preventDefault();
     setSaving(true);
     setFormError("");
-    const body = {
+    const body: Record<string, unknown> = {
       ...form,
       age: Number(form.age),
       yearLevel: Number(form.yearLevel),
     };
+    if (!form.email) delete body.email;
     try {
       if (editTarget) {
         const res = await api.put(`/patients/${editTarget._id}`, body);
@@ -121,7 +140,9 @@ function PatientsPage() {
   return (
     <Layout>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-700">Patients</h2>
+        <h2 className="text-lg font-semibold text-gray-700">
+          {isBasicView ? "Search Students" : "Patients"}
+        </h2>
         {canEdit && (
           <button
             onClick={openCreate}
@@ -158,15 +179,19 @@ function PatientsPage() {
                   <th className="text-left px-4 py-3">Student ID</th>
                   <th className="text-left px-4 py-3">Name</th>
                   <th className="text-left px-4 py-3">Course / Year</th>
-                  <th className="text-left px-4 py-3">Gender</th>
-                  <th className="text-left px-4 py-3">Contact</th>
-                  <th className="px-4 py-3"></th>
+                  {!isBasicView && (
+                    <>
+                      <th className="text-left px-4 py-3">Gender</th>
+                      <th className="text-left px-4 py-3">Contact</th>
+                      <th className="px-4 py-3"></th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {patients.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-6 text-gray-400">
+                    <td colSpan={isBasicView ? 3 : 6} className="text-center py-6 text-gray-400">
                       No patients found.
                     </td>
                   </tr>
@@ -176,24 +201,28 @@ function PatientsPage() {
                       <td className="px-4 py-3 font-mono">{p.studentId}</td>
                       <td className="px-4 py-3">{p.firstName} {p.lastName}</td>
                       <td className="px-4 py-3">{p.course} — Yr {p.yearLevel}</td>
-                      <td className="px-4 py-3">{p.gender}</td>
-                      <td className="px-4 py-3">{p.contactNumber}</td>
-                      <td className="px-4 py-3 flex gap-2 justify-end">
-                        <button
-                          onClick={() => navigate(`/patients/${p._id}`)}
-                          className="text-blue-600 hover:underline text-xs"
-                        >
-                          View
-                        </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => openEdit(p)}
-                            className="text-gray-500 hover:underline text-xs"
-                          >
-                            Edit
-                          </button>
-                        )}
-                      </td>
+                      {!isBasicView && (
+                        <>
+                          <td className="px-4 py-3">{p.gender}</td>
+                          <td className="px-4 py-3">{p.contactNumber}</td>
+                          <td className="px-4 py-3 flex gap-2 justify-end">
+                            <button
+                              onClick={() => navigate(`/patients/${p._id}`)}
+                              className="text-blue-600 hover:underline text-xs"
+                            >
+                              View
+                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => openEdit(p)}
+                                className="text-gray-500 hover:underline text-xs"
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))
                 )}
@@ -201,8 +230,9 @@ function PatientsPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {/* Pagination - not applicable to the basic view, which returns
+              its full (small) result set in one shot */}
+          {!isBasicView && totalPages > 1 && (
             <div className="flex gap-2 mt-4 items-center text-sm">
               <button
                 disabled={page === 1}
@@ -300,6 +330,14 @@ function PatientsPage() {
                   value={form.contactNumber}
                   onChange={(e) => setForm({ ...form, contactNumber: e.target.value })}
                   required
+                  className="input"
+                />
+              </Field>
+              <Field label="Email (for appointment notifications)">
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="input"
                 />
               </Field>

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { useFormErrors } from "../../hooks/useFormErrors";
 import Modal from "../../components/Modal";
 import { useToast } from "../../components/Toast";
+import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { MedicalHistory, Medicine } from "../../utils/types";
 
 const empty = { diagnosis: "", prescription: "", familyHistory: "", allergies: "" };
@@ -12,6 +14,7 @@ const FIELDS = [
   { key: "familyHistory", label: "Family History" },
   { key: "allergies", label: "Allergies" },
 ] as const;
+const FORM_FIELDS = ["patientId", ...FIELDS.map((f) => f.key)];
 
 type Form = typeof empty;
 
@@ -35,7 +38,8 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Form>(empty);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
+    useFormErrors();
 
   // Only in-stock medicines are offerable - a doctor can't prescribe what
   // the system doesn't actually have. Only fetched when this user can
@@ -62,7 +66,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
     setEditing(null);
     setForm(empty);
     setPrescribedRows([]);
-    setError("");
+    resetFormErrors();
     setOpen(true);
   };
 
@@ -80,7 +84,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
     // a way that's easy to get wrong). Past items still display below,
     // read-only, in the table.
     setPrescribedRows([]);
-    setError("");
+    resetFormErrors();
     setOpen(true);
   };
 
@@ -105,10 +109,16 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
     (r) => (r.medicineId && !r.quantity) || rowExceedsStock(r)
   );
 
+  // Backend validation errors for prescribed items come back keyed like
+  // "prescribedItems.0.quantity" (matching the array index); map those onto
+  // the row they belong to so each row can show its own message.
+  const rowFieldError = (i: number, key: "medicineId" | "quantity" | "instructions") =>
+    fieldErrors[`prescribedItems.${i}.${key}`];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError("");
+    resetFormErrors();
     const body: Record<string, unknown> = { ...form };
     if (!editing) {
       body.patientId = patientId;
@@ -133,10 +143,15 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
         api.get<Medicine[]>("/medicines?limit=200").then((r) => setMedicines(r.data)).catch(() => {});
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      applyError(err, "Save failed");
     } finally {
       setSaving(false);
     }
+  };
+
+  const setField = (key: keyof Form, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    clearField(key);
   };
 
   return (
@@ -206,7 +221,12 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
       {open && (
         <Modal title={editing ? "Edit History" : "New History Entry"} onClose={() => setOpen(false)}>
-          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+          {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+          <UnmatchedFieldErrors
+            errors={unmatchedFieldErrors(FORM_FIELDS).filter(
+              ([field]) => !field.startsWith("prescribedItems.")
+            )}
+          />
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             {FIELDS.map(({ key, label }) => (
               <div key={key}>
@@ -214,9 +234,10 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                 <textarea
                   rows={2}
                   value={form[key]}
-                  onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                  className="input"
+                  onChange={(e) => setField(key, e.target.value)}
+                  className={`input ${fieldErrors[key] ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors[key]} />
               </div>
             ))}
 
@@ -243,32 +264,47 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                   {prescribedRows.map((row, i) => {
                     const med = medicineById(row.medicineId);
                     const exceeds = rowExceedsStock(row);
+                    const medicineIdError = rowFieldError(i, "medicineId");
+                    const quantityError = rowFieldError(i, "quantity");
+                    const instructionsError = rowFieldError(i, "instructions");
                     return (
                       <div key={i} className="border rounded p-2 flex flex-col gap-2">
                         <div className="flex gap-2">
-                          <select
-                            value={row.medicineId}
-                            onChange={(e) => updateRow(i, { medicineId: e.target.value })}
-                            className="input flex-1 text-sm"
-                          >
-                            <option value="">Select medicine…</option>
-                            {medicines
-                              .filter((m) => m.quantity > 0)
-                              .map((m) => (
-                                <option key={m._id} value={m._id}>
-                                  {m.name} ({m.quantity} {m.unit} in stock)
-                                </option>
-                              ))}
-                          </select>
-                          <input
-                            type="number"
-                            min={1}
-                            max={med?.quantity}
-                            placeholder="Qty"
-                            value={row.quantity}
-                            onChange={(e) => updateRow(i, { quantity: e.target.value })}
-                            className="input w-20 text-sm"
-                          />
+                          <div className="flex-1">
+                            <select
+                              value={row.medicineId}
+                              onChange={(e) => {
+                                updateRow(i, { medicineId: e.target.value });
+                                clearField(`prescribedItems.${i}.medicineId`);
+                              }}
+                              className={`input text-sm ${medicineIdError ? "input-error" : ""}`}
+                            >
+                              <option value="">Select medicine…</option>
+                              {medicines
+                                .filter((m) => m.quantity > 0)
+                                .map((m) => (
+                                  <option key={m._id} value={m._id}>
+                                    {m.name} ({m.quantity} {m.unit} in stock)
+                                  </option>
+                                ))}
+                            </select>
+                            <FieldError message={medicineIdError} />
+                          </div>
+                          <div className="w-20">
+                            <input
+                              type="number"
+                              min={1}
+                              max={med?.quantity}
+                              placeholder="Qty"
+                              value={row.quantity}
+                              onChange={(e) => {
+                                updateRow(i, { quantity: e.target.value });
+                                clearField(`prescribedItems.${i}.quantity`);
+                              }}
+                              className={`input w-20 text-sm ${quantityError ? "input-error" : ""}`}
+                            />
+                            <FieldError message={quantityError} />
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeRow(i)}
@@ -280,9 +316,13 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                         <input
                           placeholder="Instructions (e.g. Take 1 tablet every 6 hours)"
                           value={row.instructions}
-                          onChange={(e) => updateRow(i, { instructions: e.target.value })}
-                          className="input text-sm"
+                          onChange={(e) => {
+                            updateRow(i, { instructions: e.target.value });
+                            clearField(`prescribedItems.${i}.instructions`);
+                          }}
+                          className={`input text-sm ${instructionsError ? "input-error" : ""}`}
                         />
+                        <FieldError message={instructionsError} />
                         {exceeds && (
                           <p className="text-red-500 text-xs">
                             Only {med?.quantity} {med?.unit} available - reduce quantity.

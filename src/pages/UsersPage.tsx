@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { api } from "../services/api";
+import { useAuth } from "../hooks/useAuth";
+import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../components/Toast";
+import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { User } from "../utils/types";
 
 const ROLES = ["admin", "doctor", "nurse", "staff"];
+const FORM_FIELDS = ["name", "email", "password", "role"];
 
 const emptyForm = {
   name: "",
@@ -15,6 +20,7 @@ const emptyForm = {
 };
 
 function UsersPage() {
+  const { user: currentUser } = useAuth();
   const { showToast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +30,11 @@ function UsersPage() {
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
+  const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
+    useFormErrors();
+
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -46,21 +56,21 @@ function UsersPage() {
   const openCreate = () => {
     setEditTarget(null);
     setForm(emptyForm);
-    setFormError("");
+    resetFormErrors();
     setShowModal(true);
   };
 
   const openEdit = (u: User) => {
     setEditTarget(u);
     setForm({ name: u.name, email: u.email, password: "", role: u.role });
-    setFormError("");
+    resetFormErrors();
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setFormError("");
+    resetFormErrors();
     const body: Record<string, string> = {
       name: form.name,
       email: form.email,
@@ -73,7 +83,7 @@ function UsersPage() {
         showToast(res.message);
       } else {
         if (!form.password) {
-          setFormError("Password is required for new users.");
+          applyError(new Error("Password is required for new users."));
           setSaving(false);
           return;
         }
@@ -83,9 +93,30 @@ function UsersPage() {
       setShowModal(false);
       fetchUsers();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : "Save failed");
+      applyError(err, "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const setField = (key: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    clearField(key);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await api.delete(`/users/${deleteTarget._id}`);
+      showToast(res.message);
+      setDeleteTarget(null);
+      fetchUsers();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -147,10 +178,25 @@ function UsersPage() {
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => openEdit(u)}
-                        className="text-gray-500 hover:underline text-xs"
+                        className="text-gray-500 hover:underline text-xs mr-3"
                       >
                         Edit
                       </button>
+                      {currentUser?.id === u._id ? (
+                        <span
+                          className="text-gray-300 text-xs cursor-not-allowed"
+                          title="You can't delete your own account"
+                        >
+                          Delete
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteTarget(u)}
+                          className="text-red-500 hover:underline text-xs"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -163,25 +209,28 @@ function UsersPage() {
       {showModal && (
         <Modal title={editTarget ? "Edit User" : "Add User"} onClose={() => setShowModal(false)}>
             {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+            <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Name *</label>
                 <input
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => setField("name", e.target.value)}
                   required
-                  className="input w-full"
+                  className={`input w-full ${fieldErrors.name ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors.name} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Email *</label>
                 <input
                   type="email"
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) => setField("email", e.target.value)}
                   required
-                  className="input w-full"
+                  className={`input w-full ${fieldErrors.email ? "input-error" : ""}`}
                 />
+                <FieldError message={fieldErrors.email} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">
@@ -190,17 +239,18 @@ function UsersPage() {
                 <input
                   type="password"
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="input w-full"
+                  onChange={(e) => setField("password", e.target.value)}
+                  className={`input w-full ${fieldErrors.password ? "input-error" : ""}`}
                   autoComplete="new-password"
                 />
+                <FieldError message={fieldErrors.password} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Role *</label>
                 <select
                   value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="input w-full"
+                  onChange={(e) => setField("role", e.target.value)}
+                  className={`input w-full ${fieldErrors.role ? "input-error" : ""}`}
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -208,6 +258,7 @@ function UsersPage() {
                     </option>
                   ))}
                 </select>
+                <FieldError message={fieldErrors.role} />
               </div>
               <div className="flex justify-end gap-2 mt-1">
                 <button
@@ -227,6 +278,22 @@ function UsersPage() {
               </div>
             </form>
         </Modal>
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete user"
+          message={
+            <>
+              Delete <strong>{deleteTarget.name}</strong> ({deleteTarget.email})? They'll immediately
+              lose access to the system. This can't be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </Layout>
   );
