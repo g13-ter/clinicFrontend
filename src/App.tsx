@@ -3,8 +3,10 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import PatientsPage from "./pages/PatientsPage";
 import PatientDetailPage from "./pages/PatientDetailPage";
+import PatientQueuePage from "./pages/PatientQueuePage";
 import AppointmentsPage from "./pages/AppointmentsPage";
 import MedicinesPage from "./pages/MedicinesPage";
+import PurchaseRequestsPage from "./pages/PurchaseRequestsPage";
 import UsersPage from "./pages/UsersPage";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
@@ -41,6 +43,14 @@ function App() {
           }
         />
         <Route
+          path="/patient-queue"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/patient-queue"]}>
+              <PatientQueuePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/appointments"
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/appointments"]}>
@@ -53,6 +63,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/medicines"]}>
               <MedicinesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase-requests"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/purchase-requests"]}>
+              <PurchaseRequestsPage />
             </ProtectedRoute>
           }
         />

@@ -18,7 +18,7 @@ export interface Patient {
 
 export interface ClinicVisit {
   _id: string;
-  patientId: string;
+  patientId: Patient | string;
   complaint: string;
   treatment: string;
   notes: string;
@@ -26,6 +26,7 @@ export interface ClinicVisit {
   bloodPressure: string;
   temperature: number;
   pulseRate: number;
+  readyForDoctor?: boolean;
   isActive: boolean;
 }
 
