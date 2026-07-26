@@ -51,84 +51,95 @@ function Layout({ children }: { children: React.ReactNode }) {
   const canSearchPatients = can(role, "searchPatients");
 
   return (
-    <div className="min-h-screen bg-gray-100 print:bg-white">
-      <div className="h-1.5 bg-slate-800 print:hidden" />
+    <div className="min-h-screen bg-transparent print:bg-white">
+      <div className="h-1.5 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 print:hidden" />
       <div className="flex">
-        <aside className="w-56 min-h-[calc(100vh-6px)] bg-white shadow flex flex-col print:hidden">
-          <div className="px-5 py-5 border-b flex items-center gap-2">
-            <span className="text-3xl font-bold text-slate-800 leading-none shrink-0">+</span>
-            <div className="leading-tight">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                School Clinic
-              </p>
-              <h1 className="text-sm font-bold text-slate-800">Health System</h1>
+        <aside className="hidden w-72 min-h-[calc(100vh-6px)] flex-col border-r border-blue-100 bg-white/95 shadow-[16px_0_45px_-26px_rgba(37,99,235,0.35)] backdrop-blur print:hidden lg:flex">
+          <div className="border-b border-blue-100 bg-gradient-to-br from-blue-600 via-blue-700 to-slate-900 px-6 py-6 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-xl font-semibold shadow-lg">
+                +
+              </div>
+              <div className="leading-tight">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-100">
+                  School Clinic
+                </p>
+                <h1 className="text-sm font-bold">Health System</h1>
+              </div>
             </div>
           </div>
-          <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
-            {visible.map((item) => {
-              const Icon = NAV_ICONS[item.to] ?? DashboardIcon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-sky-500 text-white"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  {item.label}
-                </NavLink>
-              );
-            })}
+          <nav className="flex-1 px-3 py-5">
+            <div className="mb-3 px-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+              Main Menu
+            </div>
+            <div className="space-y-1">
+              {visible.map((item) => {
+                const Icon = NAV_ICONS[item.to] ?? DashboardIcon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                          : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                      }`
+                    }
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </div>
           </nav>
-          <div className="px-4 py-4 border-t">
-            <span className="block text-xs text-gray-400 mb-2 uppercase tracking-wide">{role}</span>
+          <div className="border-t border-blue-100 px-5 py-5">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-3 py-3 text-sm text-orange-700">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-orange-500">Signed in as</p>
+              <p className="mt-1 font-semibold">{role}</p>
+            </div>
             <button
               onClick={handleLogout}
-              className="text-sm text-red-500 hover:underline"
+              className="mt-3 text-sm font-medium text-red-500 transition-colors hover:text-red-600"
             >
               Logout
             </button>
           </div>
         </aside>
 
-        <div className="flex-1 flex flex-col min-w-0 print:block">
-          <header className="bg-white shadow-sm px-6 py-3 flex justify-end items-center gap-4 print:hidden">
-            {canSearchPatients && (
-              <form onSubmit={handleSearch} className="relative w-72">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search students..."
-                  className="input pr-9"
-                />
-                <button
-                  type="submit"
-                  aria-label="Search students"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-sky-600"
-                >
-                  <SearchIcon />
-                </button>
-              </form>
-            )}
-            <NotificationBell />
+        <div className="flex-1 min-w-0 flex-col print:block">
+          <header className="border-b border-blue-100 bg-white/90 px-6 py-4 shadow-sm backdrop-blur print:hidden">
+            <div className="flex items-center justify-end gap-3">
+              {canSearchPatients && (
+                <form onSubmit={handleSearch} className="relative hidden w-72 md:block">
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search students..."
+                    className="input pr-10"
+                  />
+                  <button
+                    type="submit"
+                    aria-label="Search students"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-blue-600"
+                  >
+                    <SearchIcon />
+                  </button>
+                </form>
+              )}
+              <NotificationBell />
+            </div>
           </header>
 
-          <main className="flex-1 p-6 overflow-auto print:p-0 print:overflow-visible">
+          <main className="flex-1 overflow-auto p-6 print:p-0 print:overflow-visible">
             {minutesLeft !== null && (
-              <div className="mb-4 bg-amber-100 text-amber-800 text-sm px-4 py-2 rounded flex justify-between items-center print:hidden">
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-700 print:hidden">
                 <span>
                   Your session will expire in {minutesLeft} minute{minutesLeft === 1 ? "" : "s"}. Please save your work.
                 </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-amber-900 underline text-xs"
-                >
+                <button onClick={handleLogout} className="text-xs font-semibold underline">
                   Log in again
                 </button>
               </div>

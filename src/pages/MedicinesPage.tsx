@@ -118,110 +118,121 @@ function MedicinesPage() {
 
   return (
     <Layout>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-700">Medicines</h2>
-        {canEdit && (
-          <button
-            onClick={openCreate}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
-          >
-            + Add Medicine
-          </button>
-        )}
-      </div>
-
-      {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-
-      {loading ? (
-        <p className="text-gray-400 text-sm">Loading…</p>
-      ) : (
-        <div className="bg-white rounded shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-              <tr>
-                <th className="text-left px-4 py-3">Name</th>
-                <th className="text-left px-4 py-3">Quantity</th>
-                <th className="text-left px-4 py-3">Unit</th>
-                <th className="text-left px-4 py-3">Expiry Date</th>
-                <th className="text-left px-4 py-3">Stock Status</th>
-                <th className="text-left px-4 py-3">Expiry Status</th>
-                {canEdit && <th className="px-4 py-3"></th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {medicines.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-6 text-gray-400">
-                    No medicines found.
-                  </td>
-                </tr>
-              ) : (
-                medicines.map((m) => (
-                  <tr
-                    key={m._id}
-                    className={`hover:bg-gray-50 ${
-                      isLow(m) || isExpired(m)
-                        ? "bg-red-50"
-                        : isExpiringSoon(m)
-                        ? "bg-amber-50"
-                        : ""
-                    }`}
-                  >
-                    <td className="px-4 py-3 font-medium">{m.name}</td>
-                    <td className="px-4 py-3">{m.quantity}</td>
-                    <td className="px-4 py-3">{m.unit}</td>
-                    <td className="px-4 py-3">
-                      {m.expiryDate
-                        ? new Date(m.expiryDate).toLocaleDateString()
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {isLow(m) ? (
-                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                          Low Stock
-                        </span>
-                      ) : (
-                        <span className="text-xs text-green-600">OK</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {isExpired(m) ? (
-                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                          Expired
-                        </span>
-                      ) : isExpiringSoon(m) ? (
-                        <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
-                          Expiring Soon
-                        </span>
-                      ) : (
-                        <span className="text-xs text-green-600">OK</span>
-                      )}
-                    </td>
-                    {canEdit && (
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => openEdit(m)}
-                          className="text-gray-500 hover:underline text-xs"
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      <div className="page-shell">
+        <div className="rounded-[24px] border border-blue-100 bg-gradient-to-br from-blue-600 via-blue-700 to-slate-900 p-6 text-white shadow-[0_25px_50px_-20px_rgba(37,99,235,0.55)]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-blue-100">Inventory</p>
+              <h2 className="mt-2 text-2xl font-semibold">Medicine Inventory</h2>
+              <p className="mt-2 max-w-2xl text-sm text-blue-50/90">
+                Monitor stock levels, expiry dates, and clinic supply status in one place.
+              </p>
+            </div>
+            {canEdit && (
+              <button
+                onClick={openCreate}
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition-all hover:-translate-y-0.5"
+              >
+                + Add Medicine
+              </button>
+            )}
+          </div>
         </div>
-      )}
 
-      {showModal && (
-        <Modal title={editTarget ? "Edit Medicine" : "Add Medicine"} onClose={() => setShowModal(false)}>
-            {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+        {error && <p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
+
+        {loading ? (
+          <div className="flex h-48 items-center justify-center rounded-2xl border border-blue-100 bg-white/80 shadow-sm">
+            <p className="text-sm font-medium text-slate-500">Loading medicines...</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_20px_40px_-24px_rgba(15,23,42,0.35)]">
+            <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="pill pill-primary">Clinical Supplies</span>
+                <span className="pill pill-secondary">Updated Today</span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Quantity</th>
+                    <th className="px-4 py-3">Unit</th>
+                    <th className="px-4 py-3">Expiry Date</th>
+                    <th className="px-4 py-3">Stock Status</th>
+                    <th className="px-4 py-3">Expiry Status</th>
+                    {canEdit && <th className="px-4 py-3 text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {medicines.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                        No medicines found.
+                      </td>
+                    </tr>
+                  ) : (
+                    medicines.map((m) => (
+                      <tr
+                        key={m._id}
+                        className={`transition-colors hover:bg-slate-50 ${
+                          isLow(m) || isExpired(m)
+                            ? "bg-red-50/60"
+                            : isExpiringSoon(m)
+                            ? "bg-amber-50/60"
+                            : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-semibold text-slate-700">{m.name}</td>
+                        <td className="px-4 py-3 text-slate-600">{m.quantity}</td>
+                        <td className="px-4 py-3 text-slate-600">{m.unit}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {m.expiryDate ? new Date(m.expiryDate).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isLow(m) ? (
+                            <span className="pill pill-danger">Low Stock</span>
+                          ) : (
+                            <span className="pill pill-success">In Stock</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isExpired(m) ? (
+                            <span className="pill pill-danger">Expired</span>
+                          ) : isExpiringSoon(m) ? (
+                            <span className="pill pill-secondary">Expiring Soon</span>
+                          ) : (
+                            <span className="pill pill-success">OK</span>
+                          )}
+                        </td>
+                        {canEdit && (
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => openEdit(m)}
+                              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50"
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {showModal && (
+          <Modal title={editTarget ? "Edit Medicine" : "Add Medicine"} onClose={() => setShowModal(false)}>
+            {formError && <p className="mb-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{formError}</p>}
             <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Name *</label>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Name *</label>
                 <input
                   value={form.name}
                   onChange={(e) => setField("name", e.target.value)}
@@ -230,9 +241,9 @@ function MedicinesPage() {
                 />
                 <FieldError message={fieldErrors.name} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Quantity *</label>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Quantity *</label>
                   <input
                     type="number"
                     min={0}
@@ -244,7 +255,7 @@ function MedicinesPage() {
                   <FieldError message={fieldErrors.quantity} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Unit *</label>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Unit *</label>
                   <input
                     placeholder="e.g. tablets, ml"
                     value={form.unit}
@@ -255,9 +266,9 @@ function MedicinesPage() {
                   <FieldError message={fieldErrors.unit} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Expiry Date</label>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Expiry Date</label>
                   <input
                     type="date"
                     value={form.expiryDate}
@@ -267,7 +278,7 @@ function MedicinesPage() {
                   <FieldError message={fieldErrors.expiryDate} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Low Stock Threshold</label>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Low Stock Threshold</label>
                   <input
                     type="number"
                     min={0}
@@ -278,25 +289,26 @@ function MedicinesPage() {
                   <FieldError message={fieldErrors.lowStockThreshold} />
                 </div>
               </div>
-              <div className="flex justify-end gap-2 mt-1">
+              <div className="mt-1 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition-all hover:from-blue-700 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
             </form>
-        </Modal>
-      )}
+          </Modal>
+        )}
+      </div>
     </Layout>
   );
 }
