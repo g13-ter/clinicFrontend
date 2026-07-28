@@ -1,5 +1,4 @@
-// Small hand-rolled line icons so the UI doesn't need an icon library dependency.
-// Each icon accepts a className so callers control size and color via Tailwind.
+// Dependency-free icons styled through className.
 
 type IconProps = { className?: string };
 
@@ -126,6 +125,22 @@ export function CartIcon({ className = "w-5 h-5" }: IconProps) {
       <path d="M3 4h2l2.4 12.4a1.5 1.5 0 0 0 1.5 1.2h8.2a1.5 1.5 0 0 0 1.5-1.2L20.5 8H6" />
       <circle cx="9.5" cy="20" r="1.4" />
       <circle cx="17" cy="20" r="1.4" />
+    </svg>
+  );
+}
+
+export function MenuIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
+      <path d="m6 6 12 12M18 6 6 18" />
     </svg>
   );
 }

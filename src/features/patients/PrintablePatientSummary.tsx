@@ -3,16 +3,11 @@ import type { Patient, ClinicVisit, MedicalHistory } from "../../utils/types";
 interface Props {
   patient: Patient;
   visits: ClinicVisit[];
-  // null means the current viewer doesn't have permission to see medical
-  // history at all (e.g. admin/staff) - distinct from an empty array, which
-  // means they can see it but there's nothing recorded yet.
+  // null means hidden; an empty array means visible with no records.
   history: MedicalHistory[] | null;
 }
 
-// Rendered off-screen (see the `hidden print:block` wrapper in
-// PatientDetailPage) so it only ever appears in the printed/PDF output, not
-// in the normal on-screen layout. Kept deliberately plain - black text,
-// simple borders - since colors and shadows often don't survive printing.
+// Print-only layout with printer-safe styling.
 function PrintablePatientSummary({ patient, visits, history }: Props) {
   const generatedAt = new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   const latestVisit = visits[0];
@@ -22,7 +17,7 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
       <div className="flex justify-between items-start border-b-2 border-black pb-3 mb-4">
         <div>
           <h1 className="text-xl font-bold">School Clinic System</h1>
-          <p className="text-sm">Patient Clinic Summary</p>
+          <p className="text-sm">Student Clinic Summary</p>
         </div>
         <p className="text-xs text-right">Printed {generatedAt}</p>
       </div>

@@ -1,20 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useFormErrors } from "../hooks/useFormErrors";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
 import type { ClinicVisit, Patient } from "../utils/types";
+import { reportFilename, saveBlobDownload } from "../utils/download";
+import type { ReactNode } from "react";
 
-// Nurse checks a patient in; the queue then shows every visit that's
-// still open (isActive: true), across ALL patients, sorted by arrival
-// time - this is the clinic-wide "who's here right now" view. It
-// complements PatientVisits.tsx (that one's the per-patient history
-// buried inside a specific patient's page).
+// Clinic-wide queue of open visits sorted by arrival time.
 const POLL_INTERVAL_MS = 15000;
 
 const emptyCheckInForm = {
@@ -23,6 +21,8 @@ const emptyCheckInForm = {
   bloodPressure: "",
   temperature: "",
   pulseRate: "",
+  isEmergency: false,
+  emergencyDetails: "",
 };
 const CHECKIN_FORM_FIELDS = Object.keys(emptyCheckInForm);
 
@@ -38,7 +38,7 @@ const VITALS_FORM_FIELDS = Object.keys(emptyVitalsForm);
 
 function patientLabel(p: ClinicVisit["patientId"]): string {
   if (p && typeof p === "object") return `${p.firstName} ${p.lastName} (${p.studentId})`;
-  return "Unknown Patient";
+  return "Unknown Student";
 }
 
 function patientLink(p: ClinicVisit["patientId"]): string | null {
@@ -58,10 +58,18 @@ function vitalsSummary(v: ClinicVisit): string {
   );
 }
 
-function PatientQueuePage() {
+function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
+  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
+}
+
+function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const { role, can } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const canManage = can("manageQueue");
+  const canCheckIn = can("checkInPatients");
+  const requestedPatientId = searchParams.get("patientId") ?? "";
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,8 +77,11 @@ function PatientQueuePage() {
 
   const [patients, setPatients] = useState<Patient[]>([]);
 
-  const [showCheckIn, setShowCheckIn] = useState(false);
-  const [checkInForm, setCheckInForm] = useState(emptyCheckInForm);
+  const [showCheckIn, setShowCheckIn] = useState(canCheckIn && Boolean(requestedPatientId));
+  const [checkInForm, setCheckInForm] = useState({
+    ...emptyCheckInForm,
+    patientId: requestedPatientId,
+  });
   const {
     formError: checkInFormError,
     fieldErrors: checkInFieldErrors,
@@ -100,7 +111,7 @@ function PatientQueuePage() {
       const res = await api.get<ClinicVisit[]>("/visits/queue");
       setQueue(res.data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load patient queue");
+      setError(err instanceof Error ? err.message : "Failed to load student queue");
     } finally {
       if (showSpinner) setLoading(false);
     }
@@ -113,19 +124,19 @@ function PatientQueuePage() {
   }, [fetchQueue]);
 
   useEffect(() => {
-    if (!canManage) return;
+    if (!canCheckIn) return;
     const path = patientsListPath(role);
     if (!path) return;
     api.get<Patient[]>(path).then((res) => setPatients(res.data)).catch(() => {});
-  }, [canManage, role]);
+  }, [canCheckIn, role]);
 
-  const openCheckIn = () => {
-    setCheckInForm(emptyCheckInForm);
+  const openCheckIn = (patientId = "") => {
+    setCheckInForm({ ...emptyCheckInForm, patientId });
     resetCheckInErrors();
     setShowCheckIn(true);
   };
 
-  const ci = (k: keyof typeof emptyCheckInForm, v: string) => {
+  const ci = (k: keyof typeof emptyCheckInForm, v: string | boolean) => {
     setCheckInForm((prev) => ({ ...prev, [k]: v }));
     clearCheckInField(k);
   };
@@ -140,7 +151,9 @@ function PatientQueuePage() {
         complaint: checkInForm.complaint,
         bloodPressure: checkInForm.bloodPressure || undefined,
         temperature: checkInForm.temperature ? Number(checkInForm.temperature) : undefined,
-        pulseRate: checkInForm.pulseRate ? Number(checkInForm.pulseRate) : undefined,
+      pulseRate: checkInForm.pulseRate ? Number(checkInForm.pulseRate) : undefined,
+        isEmergency: checkInForm.isEmergency,
+        emergencyDetails: checkInForm.emergencyDetails || undefined,
       });
       showToast(res.message);
       setShowCheckIn(false);
@@ -204,19 +217,114 @@ function PatientQueuePage() {
     }
   };
 
+  const handleStatus = async (v: ClinicVisit, status: "in_consultation" | "paused" | "completed" | "cancelled" | "referred") => {
+    const body: Record<string, string> = { status };
+    if (status === "referred") {
+      const referralFacility = window.prompt("Referral facility:");
+      const referralReason = window.prompt("Referral reason:");
+      if (!referralFacility || !referralReason) return;
+      body.referralFacility = referralFacility;
+      body.referralReason = referralReason;
+    }
+    if (status === "completed") {
+      const closureOutcome = window.prompt("Closure outcome: returned_to_class, sent_home, or guardian_pickup");
+      if (!closureOutcome) return;
+      body.closureOutcome = closureOutcome;
+    }
+    if (status === "cancelled") body.closureOutcome = "cancelled";
+    try {
+      const res = await api.put(`/visits/${v._id}/status`, body);
+      showToast(res.message);
+      if (status === "referred") {
+        const referral = await api.download(`/visits/${v._id}/referral-form`);
+        if (referral.ok) {
+          const blob = await referral.blob();
+          saveBlobDownload(
+            blob,
+            reportFilename(referral.headers.get("Content-Disposition"), `Referral_${v._id}.docx`),
+          );
+        }
+      }
+      fetchQueue(false);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to update visit status");
+    }
+  };
+
+  const openConsultation = async (visit: ClinicVisit) => {
+    if (!visit.patientId || typeof visit.patientId !== "object") return;
+    try {
+      if (visit.status !== "in_consultation") {
+        await api.put(`/visits/${visit._id}/status`, { status: "in_consultation" });
+      }
+      const params = new URLSearchParams({
+        tab: "consultation",
+        visitId: visit._id,
+        patientId: visit.patientId._id,
+        complaint: visit.complaint,
+      });
+      if (visit.appointmentId) {
+        params.set(
+          "appointmentId",
+          typeof visit.appointmentId === "object" ? visit.appointmentId._id : visit.appointmentId,
+        );
+      }
+      navigate(`/clinical-workspace?${params}`);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to start consultation");
+    }
+  };
+
   const waitingCount = queue.filter((v) => !v.readyForDoctor).length;
-  const readyCount = queue.filter((v) => v.readyForDoctor).length;
+  const readyCount = queue.filter((v) => v.status === "ready_for_doctor" || v.readyForDoctor).length;
+  const renderQueueActions = (v: ClinicVisit) => {
+    if (!canManage) return null;
+    return (
+      <>
+        <button onClick={() => openVitals(v)} className="text-xs text-gray-600 hover:underline">
+          Record Vitals
+        </button>
+        {!v.readyForDoctor && (
+          <button onClick={() => handleMarkReady(v)} className="text-xs text-green-600 hover:underline">
+            Ready for Consultation
+          </button>
+        )}
+        {v.readyForDoctor && v.status !== "in_consultation" && (
+          <button onClick={() => openConsultation(v)} className="text-xs text-blue-600 hover:underline">
+            Start Consultation
+          </button>
+        )}
+        {v.status === "in_consultation" && (
+          <>
+            <button onClick={() => openConsultation(v)} className="text-xs text-blue-600 hover:underline">Open Consultation</button>
+            <button onClick={() => handleStatus(v, "paused")} className="text-xs text-amber-600 hover:underline">Pause</button>
+            <button onClick={() => handleStatus(v, "completed")} className="text-xs text-green-600 hover:underline">Complete</button>
+            <button onClick={() => handleStatus(v, "referred")} className="text-xs text-red-600 hover:underline">Refer</button>
+          </>
+        )}
+        {v.status === "paused" && (
+          <>
+            <button onClick={() => handleStatus(v, "in_consultation")} className="text-xs text-blue-600 hover:underline">Resume</button>
+            <button onClick={() => handleStatus(v, "cancelled")} className="text-xs text-red-600 hover:underline">Cancel</button>
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
-    <Layout>
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-lg font-semibold text-gray-700">Patient Queue</h2>
-        {canManage && (
+    <PageFrame embedded={embedded}>
+      <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-700">Student Queue</h2>
+          <p className="mt-0.5 text-sm text-gray-500">Check in, triage, and move students through the clinic.</p>
+        </div>
+        {canCheckIn && (
           <button
-            onClick={openCheckIn}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+            onClick={() => openCheckIn()}
+            className="self-start rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 sm:self-auto"
           >
-            + Check In Patient
+            + Check In Student
           </button>
         )}
       </div>
@@ -232,11 +340,60 @@ function PatientQueuePage() {
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : (
-        <div className="bg-white rounded shadow overflow-hidden">
-          <table className="w-full text-sm">
+        <>
+          <div className="space-y-3 md:hidden">
+            {queue.length === 0 ? (
+              <div className="rounded-lg bg-white py-8 text-center text-sm text-gray-400 shadow">
+                Queue is empty.
+              </div>
+            ) : (
+              queue.map((v) => {
+                const link = patientLink(v.patientId);
+                return (
+                  <article key={v._id} className={`rounded-lg border-l-4 bg-white p-4 shadow ${v.readyForDoctor ? "border-l-green-500" : "border-l-amber-400"}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 font-medium">
+                        {link ? (
+                          <Link to={link} className="break-words text-blue-600 hover:underline">
+                            {patientLabel(v.patientId)}
+                          </Link>
+                        ) : patientLabel(v.patientId)}
+                        <p className="mt-1 text-xs font-normal text-gray-400">
+                          Arrived {new Date(v.visitDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${
+                        v.status === "in_consultation" ? "bg-blue-100 text-blue-700" : v.readyForDoctor ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {v.status === "in_consultation" ? "In Consultation" : v.readyForDoctor ? "Ready for Consultation" : "Triage"}
+                      </span>
+                    </div>
+                    <dl className="mt-3 grid gap-3 border-t pt-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-gray-400">Complaint</dt>
+                        <dd className="break-words text-gray-700">{v.complaint}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-gray-400">Vitals</dt>
+                        <dd className="break-words text-gray-700">{vitalsSummary(v)}</dd>
+                      </div>
+                    </dl>
+                    {canManage && (
+                      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t pt-3">
+                        {renderQueueActions(v)}
+                      </div>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded bg-white shadow md:block">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
-                <th className="text-left px-4 py-3">Patient</th>
+                <th className="text-left px-4 py-3">Student</th>
                 <th className="text-left px-4 py-3">Arrived</th>
                 <th className="text-left px-4 py-3">Complaint</th>
                 <th className="text-left px-4 py-3">Vitals</th>
@@ -273,31 +430,16 @@ function PatientQueuePage() {
                       <td className="px-4 py-3">
                         <span
                           className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            v.readyForDoctor ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                            v.status === "in_consultation" ? "bg-blue-100 text-blue-700" : v.readyForDoctor ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
                           }`}
                         >
-                          {v.readyForDoctor ? "Ready for Doctor" : "Waiting for Triage"}
+                          {v.status === "in_consultation" ? "In Consultation" : v.readyForDoctor ? "Ready for Doctor / Nurse" : "Waiting for Triage"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {canManage && (
-                          <>
-                            <button
-                              onClick={() => openVitals(v)}
-                              className="text-gray-500 hover:underline text-xs mr-3"
-                            >
-                              Vitals
-                            </button>
-                            {!v.readyForDoctor && (
-                              <button
-                                onClick={() => handleMarkReady(v)}
-                                className="text-green-600 hover:underline text-xs"
-                              >
-                                Mark Ready
-                              </button>
-                            )}
-                          </>
-                        )}
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-3 whitespace-nowrap">
+                          {renderQueueActions(v)}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -305,23 +447,24 @@ function PatientQueuePage() {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {showCheckIn && (
-        <Modal title="Check In Patient" onClose={() => setShowCheckIn(false)}>
+        <Modal title="Check In Student" onClose={() => setShowCheckIn(false)}>
           {checkInFormError && <p className="text-red-500 text-sm mb-3">{checkInFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedCheckInErrors(CHECKIN_FORM_FIELDS)} />
           <form onSubmit={handleCheckIn} className="flex flex-col gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Patient *</label>
+              <label className="block text-xs text-gray-500 mb-1">Student *</label>
               <select
                 value={checkInForm.patientId}
                 onChange={(e) => ci("patientId", e.target.value)}
                 required
                 className={`input w-full ${checkInFieldErrors.patientId ? "input-error" : ""}`}
               >
-                <option value="">Select a patient…</option>
+                <option value="">Select a student…</option>
                 {patients.map((p) => (
                   <option key={p._id} value={p._id}>
                     {p.firstName} {p.lastName} ({p.studentId})
@@ -341,10 +484,10 @@ function PatientQueuePage() {
               <FieldError message={checkInFieldErrors.complaint} />
             </div>
             <p className="text-xs text-gray-400 -mt-1">
-              Vitals are optional here — you can check the patient in now and record vitals in a moment,
+              Vitals are optional here — you can check the student in now and record vitals in a moment,
               or fill them in below right away.
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Blood Pressure</label>
                 <input
@@ -377,6 +520,16 @@ function PatientQueuePage() {
                 <FieldError message={checkInFieldErrors.pulseRate} />
               </div>
             </div>
+            <label className="flex items-center gap-2 text-sm text-red-700">
+              <input type="checkbox" checked={checkInForm.isEmergency} onChange={(e) => ci("isEmergency", e.target.checked)} />
+              Emergency case
+            </label>
+            {checkInForm.isEmergency && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Emergency Details</label>
+                <textarea value={checkInForm.emergencyDetails} onChange={(e) => ci("emergencyDetails", e.target.value)} className="input w-full" rows={2} />
+              </div>
+            )}
             <div className="flex justify-end gap-2 mt-1">
               <button
                 type="button"
@@ -401,8 +554,8 @@ function PatientQueuePage() {
         <Modal title={`Vitals: ${patientLabel(vitalsTarget.patientId)}`} onClose={() => setVitalsTarget(null)}>
           {vitalsFormError && <p className="text-red-500 text-sm mb-3">{vitalsFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedVitalsErrors(VITALS_FORM_FIELDS)} />
-          <form onSubmit={handleSaveVitals} className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <form onSubmit={handleSaveVitals} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Complaint *</label>
               <input
                 value={vitalsForm.complaint}
@@ -412,7 +565,7 @@ function PatientQueuePage() {
               />
               <FieldError message={vitalsFieldErrors.complaint} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Treatment Given</label>
               <input
                 value={vitalsForm.treatment}
@@ -452,7 +605,7 @@ function PatientQueuePage() {
               />
               <FieldError message={vitalsFieldErrors.pulseRate} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Notes</label>
               <textarea
                 rows={2}
@@ -462,7 +615,7 @@ function PatientQueuePage() {
               />
               <FieldError message={vitalsFieldErrors.notes} />
             </div>
-            <div className="col-span-2 flex justify-end gap-2 mt-1">
+            <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setVitalsTarget(null)}
@@ -481,7 +634,7 @@ function PatientQueuePage() {
           </form>
         </Modal>
       )}
-    </Layout>
+    </PageFrame>
   );
 }
 

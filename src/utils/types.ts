@@ -1,5 +1,4 @@
-// These mirror the JSON shapes returned by the API.
-// Backend Mongoose models use ObjectId/Document — these are the plain REST equivalents.
+// Plain REST equivalents of the backend models.
 
 export interface Patient {
   _id: string;
@@ -13,12 +12,35 @@ export interface Patient {
   contactNumber: string;
   email?: string;
   address: string;
+  dateOfBirth?: string;
+  bloodType?: string;
+  guardianName?: string;
+  guardianContactNumber?: string;
+  healthConditions?: string;
+  medicalAlerts?: {
+    allergies?: string[];
+    chronicConditions?: string[];
+    currentMedications?: string[];
+    notes?: string;
+  };
+  consents?: {
+    treatment: boolean;
+    medicineAdministration: boolean;
+    dataPrivacy: boolean;
+    guardianName?: string;
+    updatedAt?: string;
+  };
+  schoolYear?: string;
+  enrollmentStatus?: "active" | "graduated" | "transferred";
+  immunizations?: { vaccine: string; dateAdministered?: string; notes?: string }[];
   isActive: boolean;
 }
 
 export interface ClinicVisit {
   _id: string;
   patientId: Patient | string;
+  appointmentId?: Appointment | string | null;
+  assignedDoctorId?: Doctor | string | null;
   complaint: string;
   treatment: string;
   notes: string;
@@ -26,7 +48,24 @@ export interface ClinicVisit {
   bloodPressure: string;
   temperature: number;
   pulseRate: number;
+  respiratoryRate?: number;
+  heightCm?: number;
+  weightKg?: number;
+  bmi?: number;
+  nursingAssessment?: string;
+  consultationFindings?: string;
+  nursingInterventions?: string;
+  nursingRecommendations?: string;
+  clinicProtocolReference?: string;
   readyForDoctor?: boolean;
+  status?: "triage" | "ready_for_doctor" | "in_consultation" | "paused" | "completed" | "cancelled" | "referred";
+  referralFacility?: string;
+  referralReason?: string;
+  referralOutcome?: string;
+  isEmergency?: boolean;
+  emergencyDetails?: string;
+  guardianNotifiedAt?: string;
+  closedAt?: string;
   isActive: boolean;
 }
 
@@ -44,9 +83,14 @@ export interface Appointment {
   doctorId?: Doctor | string | null;
   appointmentDate: string;
   reason: string;
-  status: "pending" | "confirmed" | "cancelled" | "completed";
+  status: "pending" | "confirmed" | "checked_in" | "cancelled" | "completed";
   notes: string;
   reminderSent?: boolean;
+  durationMinutes?: number;
+  type?: "regular" | "follow_up";
+  sourceVisitId?: string;
+  visitId?: string;
+  checkedInAt?: string;
 }
 
 export type MedicineStatus = "Available" | "Low Stock" | "Out of Stock" | "Expired";
@@ -95,12 +139,15 @@ export interface MedicalHistory {
   dateRecorded: string;
 }
 
-export type PurchaseRequestStatus = "pending" | "approved" | "rejected";
+export type PurchaseRequestStatus = "pending" | "approved" | "ordered" | "received" | "rejected" | "cancelled";
 
 export interface PurchaseRequest {
   _id: string;
-  medicineId: { _id: string; name: string; unit: string } | string;
+  medicineId?: { _id: string; name: string; unit: string } | string | null;
+  requestType?: "restock" | "new_item";
   itemName: string;
+  unit?: string;
+  category?: string;
   quantityRequested: number;
   reason: string;
   status: PurchaseRequestStatus;
@@ -108,6 +155,10 @@ export interface PurchaseRequest {
   reviewedBy?: { _id: string; name: string; role: string } | string | null;
   reviewNotes?: string;
   reviewedAt?: string;
+  orderedAt?: string;
+  receivedAt?: string;
+  supplier?: string;
+  estimatedCost?: number;
   createdAt: string;
 }
 
@@ -124,12 +175,34 @@ export interface DashboardStats {
   totalStudents: number;
   usersByRole: { doctor: number; nurse: number; staff: number; admin: number };
   todaysAppointments: number;
+  todayVisits: number;
+  consultationsToday: number;
+  emergencyCasesToday: number;
+  pendingAppointments: number;
   waitingPatients: number;
   monthlyConsultations: number;
   lowStockCount: number;
   outOfStockCount: number;
   expiredCount: number;
   pendingPurchaseRequests: number;
+  activeUsers: {
+    id: string;
+    name: string;
+    email: string;
+    role: "doctor" | "nurse" | "staff";
+    scheduleNotes?: string;
+  }[];
+  commonComplaints: { label: string; count: number }[];
+  monthlyVisits: { key: string; month: string; visits: number }[];
+  recentCases: {
+    id: string;
+    date: string;
+    student: { id: string; name: string; studentId: string } | null;
+    complaint: string;
+    assessment: string;
+    treatment: string;
+    provider: { id: string; name: string; role: "doctor" | "nurse" } | null;
+  }[];
   recentActivity: {
     action: string;
     resource: string;
@@ -137,4 +210,25 @@ export interface DashboardStats {
     performedBy: { _id: string; name: string; role: string } | string | null;
     createdAt: string;
   }[];
+}
+
+export interface SystemSettings {
+  schoolYear: string;
+  clinicOpenTime: string;
+  clinicCloseTime: string;
+  emailNotificationsEnabled: boolean;
+  appointmentRemindersEnabled: boolean;
+  stockAlertsEnabled: boolean;
+}
+
+export interface InventoryBatch {
+  _id: string;
+  medicineId: string;
+  batchNumber: string;
+  quantityReceived: number;
+  quantityRemaining: number;
+  expiryDate?: string;
+  supplier?: string;
+  receivedAt: string;
+  notes?: string;
 }

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { getCurrentRole } from "../../utils/auth";
 import { useFormErrors } from "../../hooks/useFormErrors";
 import Modal from "../../components/Modal";
-import { useToast } from "../../components/Toast";
+import { useToast } from "../../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { ClinicVisit } from "../../utils/types";
 
@@ -14,6 +14,14 @@ const empty = {
   bloodPressure: "",
   temperature: "",
   pulseRate: "",
+  respiratoryRate: "",
+  heightCm: "",
+  weightKg: "",
+  nursingAssessment: "",
+  consultationFindings: "",
+  nursingInterventions: "",
+  nursingRecommendations: "",
+  clinicProtocolReference: "",
 };
 
 const FORM_FIELDS = ["patientId", ...Object.keys(empty)];
@@ -33,12 +41,16 @@ function PatientVisits({ patientId }: { patientId: string }) {
   const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
     useFormErrors();
 
-  const reload = () =>
-    api.get(`/visits/patient/${patientId}`).then((r) => setVisits(r.data)).catch(() => {});
+  const reload = useCallback(
+    () => api.get<ClinicVisit[]>(`/visits/patient/${patientId}`)
+      .then((response) => setVisits(response.data))
+      .catch(() => {}),
+    [patientId],
+  );
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
-  }, [patientId]);
+  }, [reload]);
 
   const openCreate = () => { setEditing(null); setForm(empty); resetFormErrors(); setOpen(true); };
   const openEdit = (v: ClinicVisit) => {
@@ -50,6 +62,14 @@ function PatientVisits({ patientId }: { patientId: string }) {
       bloodPressure: v.bloodPressure ?? "",
       temperature: v.temperature != null ? String(v.temperature) : "",
       pulseRate: v.pulseRate != null ? String(v.pulseRate) : "",
+      respiratoryRate: v.respiratoryRate != null ? String(v.respiratoryRate) : "",
+      heightCm: v.heightCm != null ? String(v.heightCm) : "",
+      weightKg: v.weightKg != null ? String(v.weightKg) : "",
+      nursingAssessment: v.nursingAssessment ?? "",
+      consultationFindings: v.consultationFindings ?? "",
+      nursingInterventions: v.nursingInterventions ?? "",
+      nursingRecommendations: v.nursingRecommendations ?? "",
+      clinicProtocolReference: v.clinicProtocolReference ?? "",
     });
     resetFormErrors();
     setOpen(true);
@@ -66,6 +86,14 @@ function PatientVisits({ patientId }: { patientId: string }) {
       bloodPressure: form.bloodPressure || undefined,
       temperature: form.temperature ? Number(form.temperature) : undefined,
       pulseRate: form.pulseRate ? Number(form.pulseRate) : undefined,
+      respiratoryRate: form.respiratoryRate ? Number(form.respiratoryRate) : undefined,
+      heightCm: form.heightCm ? Number(form.heightCm) : undefined,
+      weightKg: form.weightKg ? Number(form.weightKg) : undefined,
+      nursingAssessment: form.nursingAssessment || undefined,
+      consultationFindings: form.consultationFindings || undefined,
+      nursingInterventions: form.nursingInterventions || undefined,
+      nursingRecommendations: form.nursingRecommendations || undefined,
+      clinicProtocolReference: form.clinicProtocolReference || undefined,
     };
     if (!editing) body.patientId = patientId;
     try {
@@ -89,7 +117,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
 
   return (
     <section>
-      <div className="flex justify-between items-center mb-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-gray-700">Clinic Visits</h3>
         {canEdit && (
           <button onClick={openCreate} className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded hover:bg-blue-700">
@@ -101,8 +129,8 @@ function PatientVisits({ patientId }: { patientId: string }) {
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : (
-        <div className="bg-white rounded shadow overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded bg-white shadow">
+          <table className="w-full min-w-[680px] text-sm">
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
                 <th className="text-left px-4 py-3">Date</th>
@@ -145,8 +173,8 @@ function PatientVisits({ patientId }: { patientId: string }) {
         <Modal title={editing ? "Edit Visit" : "New Visit"} onClose={() => setOpen(false)}>
           {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
           <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Complaint *</label>
               <input
                 value={form.complaint}
@@ -156,7 +184,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
               />
               <FieldError message={fieldErrors.complaint} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Treatment</label>
               <input
                 value={form.treatment}
@@ -187,16 +215,43 @@ function PatientVisits({ patientId }: { patientId: string }) {
               <FieldError message={fieldErrors.temperature} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Pulse Rate</label>
-              <input
-                type="number"
-                value={form.pulseRate}
-                onChange={(e) => f("pulseRate", e.target.value)}
-                className={`input ${fieldErrors.pulseRate ? "input-error" : ""}`}
-              />
-              <FieldError message={fieldErrors.pulseRate} />
+              <label className="block text-xs text-gray-500 mb-1">Respiratory Rate</label>
+              <input type="number" min={1} value={form.respiratoryRate} onChange={(e) => f("respiratoryRate", e.target.value)} className="input" />
             </div>
-            <div className="col-span-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Pulse Rate</label>
+              <input type="number" min={1} value={form.pulseRate} onChange={(e) => f("pulseRate", e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Height (cm)</label>
+              <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(e) => f("heightCm", e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+              <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(e) => f("weightKg", e.target.value)} className="input" />
+            </div>
+            <div className="mt-1 border-t pt-3 sm:col-span-2">
+              <p className="text-xs font-semibold text-sky-700 mb-2">Nursing Assessment — not a physician diagnosis</p>
+              <label className="block text-xs text-gray-500 mb-1">Nursing Assessment</label>
+              <textarea rows={2} value={form.nursingAssessment} onChange={(e) => f("nursingAssessment", e.target.value)} className="input w-full" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Consultation Findings</label>
+              <textarea rows={2} value={form.consultationFindings} onChange={(e) => f("consultationFindings", e.target.value)} className="input w-full" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Nursing Interventions Performed</label>
+              <textarea rows={2} value={form.nursingInterventions} onChange={(e) => f("nursingInterventions", e.target.value)} className="input w-full" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Recommendations / Home-care Advice</label>
+              <textarea rows={2} value={form.nursingRecommendations} onChange={(e) => f("nursingRecommendations", e.target.value)} className="input w-full" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Approved Clinic Protocol Reference</label>
+              <input value={form.clinicProtocolReference} onChange={(e) => f("clinicProtocolReference", e.target.value)} placeholder="Required for OTC medicine recommendations" className="input w-full" />
+            </div>
+            <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Notes</label>
               <textarea
                 rows={2}
@@ -206,7 +261,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
               />
               <FieldError message={fieldErrors.notes} />
             </div>
-            <div className="col-span-2 flex justify-end gap-2 mt-1">
+            <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
                 {saving ? "Saving…" : "Save"}

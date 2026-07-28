@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useFormErrors } from "../hooks/useFormErrors";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
 import type { Patient, Appointment, Doctor } from "../utils/types";
+import type { ReactNode } from "react";
 
-const STATUSES = ["pending", "confirmed", "cancelled", "completed"];
-const FORM_FIELDS = ["patientId", "doctorId", "appointmentDate", "reason", "notes", "status"];
+const STATUSES = ["pending", "confirmed", "checked_in", "cancelled", "completed"];
+const FORM_FIELDS = ["patientId", "doctorId", "appointmentDate", "reason", "notes", "durationMinutes", "status"];
 
 const emptyForm = {
   patientId: "",
@@ -19,6 +21,7 @@ const emptyForm = {
   appointmentDate: "",
   reason: "",
   notes: "",
+  durationMinutes: "30",
 };
 
 function patientIdToString(patientId: Patient | string | null): string {
@@ -33,13 +36,19 @@ function doctorIdToString(doctorId: Doctor | string | null | undefined): string 
   return doctorId;
 }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+function localDateStr(date = new Date()): string {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
-function AppointmentsPage() {
+function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
+  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
+}
+
+function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   const { role, can, user } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const canManage = can("manageAppointments");
   const isDoctor = role === "doctor";
 
@@ -49,11 +58,8 @@ function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Doctors land on "today only" by default - a real clinic doctor cares
-  // about who's coming in today, not a full historical list. Other roles
-  // (staff/nurse/admin) see everything by default, matching their broader
-  // scheduling responsibilities.
-  const [dateFilter, setDateFilter] = useState(isDoctor ? todayStr() : "");
+  // Doctors default to today's schedule; scheduling roles see all dates.
+  const [dateFilter, setDateFilter] = useState(isDoctor ? localDateStr() : "");
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -68,6 +74,7 @@ function AppointmentsPage() {
 
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [checkingInId, setCheckingInId] = useState("");
 
   const limit = 10;
 
@@ -77,7 +84,7 @@ function AppointmentsPage() {
     try {
       const params = new URLSearchParams({ page: String(p), limit: String(limit) });
       if (dateFilter) params.set("date", dateFilter);
-      const res = await api.get(`/appointments?${params.toString()}`);
+      const res = await api.get<Appointment[]>(`/appointments?${params.toString()}`);
       setAppointments(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
@@ -125,6 +132,7 @@ function AppointmentsPage() {
       appointmentDate: a.appointmentDate.slice(0, 16),
       reason: a.reason,
       notes: a.notes ?? "",
+      durationMinutes: String(a.durationMinutes ?? 30),
     });
     resetFormErrors();
     setShowModal(true);
@@ -141,6 +149,7 @@ function AppointmentsPage() {
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
+          durationMinutes: Number(form.durationMinutes),
           status: editStatus,
         });
         showToast(res.message);
@@ -151,6 +160,7 @@ function AppointmentsPage() {
           appointmentDate: form.appointmentDate,
           reason: form.reason,
           notes: form.notes || undefined,
+          durationMinutes: Number(form.durationMinutes),
         });
         showToast(res.message);
       }
@@ -168,9 +178,7 @@ function AppointmentsPage() {
     clearField(key);
   };
 
-  // Only appointments that haven't already run their course make sense to
-  // cancel - a completed or already-cancelled appointment has nothing left
-  // to undo.
+  // Only active appointments can be cancelled.
   const isCancellable = (a: Appointment) => a.status === "pending" || a.status === "confirmed";
 
   const handleCancel = async () => {
@@ -189,18 +197,37 @@ function AppointmentsPage() {
     }
   };
 
+  const handleCheckIn = async (appointment: Appointment) => {
+    setCheckingInId(appointment._id);
+    setError("");
+    try {
+      const res = await api.post<{ appointment: Appointment; visit: { _id: string } }>(
+        `/appointments/${appointment._id}/check-in`,
+        {},
+      );
+      showToast(res.message);
+      await fetchAppointments(page);
+      navigate("/patient-queue");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Check-in failed");
+    } finally {
+      setCheckingInId("");
+    }
+  };
+
   const totalPages = Math.ceil(total / limit);
 
   const statusColor: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-700",
     confirmed: "bg-blue-100 text-blue-700",
+    checked_in: "bg-purple-100 text-purple-700",
     cancelled: "bg-red-100 text-red-700",
     completed: "bg-green-100 text-green-700",
   };
 
   const patientName = (p: Patient | string | null) => {
     if (p && typeof p === "object") return `${p.firstName} ${p.lastName} (${p.studentId})`;
-    return p ? String(p) : "Unknown Patient";
+    return p ? String(p) : "Unknown Student";
   };
 
   const doctorName = (d: Doctor | string | null | undefined) => {
@@ -212,10 +239,10 @@ function AppointmentsPage() {
   };
 
   return (
-    <Layout>
+    <PageFrame embedded={embedded}>
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-lg font-semibold text-gray-700">
-          {isDoctor && dateFilter === todayStr() ? "Today's Patients" : "Appointments"}
+          {isDoctor && dateFilter === localDateStr() ? "Today's Students" : "Appointments"}
         </h2>
         {canManage && (
           <button
@@ -237,7 +264,7 @@ function AppointmentsPage() {
         />
         <button
           type="button"
-          onClick={() => changeDateFilter(todayStr())}
+          onClick={() => changeDateFilter(localDateStr())}
           className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
         >
           Today
@@ -263,7 +290,7 @@ function AppointmentsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
-                  <th className="text-left px-4 py-3">Patient</th>
+                  <th className="text-left px-4 py-3">Student</th>
                   <th className="text-left px-4 py-3">Doctor</th>
                   <th className="text-left px-4 py-3">Date</th>
                   <th className="text-left px-4 py-3">Reason</th>
@@ -278,7 +305,7 @@ function AppointmentsPage() {
                       {dateFilter ? (
                         <div className="text-sm text-gray-500">
                           <p className="mb-2">
-                            No appointments {dateFilter === todayStr() ? "today" : `on ${new Date(dateFilter).toLocaleDateString()}`}.
+                            No appointments {dateFilter === localDateStr() ? "today" : `on ${new Date(dateFilter).toLocaleDateString()}`}.
                           </p>
                           <button
                             onClick={() => changeDateFilter("")}
@@ -327,6 +354,24 @@ function AppointmentsPage() {
                       </td>
                       {canManage && (
                         <td className="px-4 py-3 text-right">
+                          {(a.status === "pending" || a.status === "confirmed") &&
+                            localDateStr(new Date(a.appointmentDate)) === localDateStr() && (
+                              <button
+                                onClick={() => handleCheckIn(a)}
+                                disabled={checkingInId === a._id}
+                                className="mr-3 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
+                              >
+                                {checkingInId === a._id ? "Checking In..." : "Check In"}
+                              </button>
+                            )}
+                          {a.status === "checked_in" && (
+                            <button
+                              onClick={() => navigate(embedded ? "/dashboard?view=visits" : "/patient-queue")}
+                              className="mr-3 text-xs font-medium text-purple-600 hover:underline"
+                            >
+                              View Queue
+                            </button>
+                          )}
                           <button
                             onClick={() => openEdit(a)}
                             className="text-gray-500 hover:underline text-xs mr-3"
@@ -381,14 +426,14 @@ function AppointmentsPage() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               {!editTarget && (
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Patient *</label>
+                  <label className="block text-xs text-gray-500 mb-1">Student *</label>
                   <select
                     value={form.patientId}
                     onChange={(e) => setField("patientId", e.target.value)}
                     required
                     className={`input w-full ${fieldErrors.patientId ? "input-error" : ""}`}
                   >
-                    <option value="">Select a patient…</option>
+                    <option value="">Select a student…</option>
                     {patients.map((p) => (
                       <option key={p._id} value={p._id}>
                         {p.firstName} {p.lastName} ({p.studentId})
@@ -440,6 +485,19 @@ function AppointmentsPage() {
                   className={`input w-full ${fieldErrors.reason ? "input-error" : ""}`}
                 />
                 <FieldError message={fieldErrors.reason} />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Duration (minutes) *</label>
+                <input
+                  type="number"
+                  min={5}
+                  max={480}
+                  value={form.durationMinutes}
+                  onChange={(e) => setField("durationMinutes", e.target.value)}
+                  required
+                  className={`input w-full ${fieldErrors.durationMinutes ? "input-error" : ""}`}
+                />
+                <FieldError message={fieldErrors.durationMinutes} />
               </div>
               {editTarget && (
                 <div>
@@ -501,7 +559,7 @@ function AppointmentsPage() {
                 dateStyle: "medium",
                 timeStyle: "short",
               })}
-              ? The patient will need to be notified separately.
+              ? The student will need to be notified separately.
             </>
           }
           confirmLabel="Cancel Appointment"
@@ -510,7 +568,7 @@ function AppointmentsPage() {
           onCancel={() => setCancelTarget(null)}
         />
       )}
-    </Layout>
+    </PageFrame>
   );
 }
 

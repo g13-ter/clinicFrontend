@@ -5,41 +5,44 @@ export const USER_ROLES: readonly UserRole[] = ["admin", "doctor", "nurse", "sta
 
 export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/dashboard": ["admin", "doctor", "nurse", "staff"],
+  "/clinical-workspace": ["doctor", "nurse"],
   "/patients": ["admin", "doctor", "nurse", "staff"],
-  "/patients/:id": ["admin", "doctor", "nurse"],
-  "/patient-queue": ["admin", "doctor", "nurse"],
+  "/patients/:id": ["staff", "admin", "doctor", "nurse"],
+  "/patient-queue": ["staff", "admin", "doctor", "nurse"],
   "/appointments": ["admin", "doctor", "nurse", "staff"],
-  "/medicines": ["admin", "doctor", "nurse"],
+  "/medicines": ["admin", "doctor", "nurse", "staff"],
   "/purchase-requests": ["admin", "nurse"],
   "/users": ["admin"],
-  "/reports": ["admin"],
+  "/reports": ["admin", "nurse"],
   "/audit-log": ["admin"],
+  "/settings": ["admin"],
 };
 
 export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] }[] = [
   { to: "/dashboard", label: "Dashboard", roles: ROUTE_ACCESS["/dashboard"] },
-  { to: "/patients", label: "Patients", roles: ROUTE_ACCESS["/patients"] },
-  { to: "/patient-queue", label: "Patient Queue", roles: ROUTE_ACCESS["/patient-queue"] },
+  { to: "/clinical-workspace", label: "Clinical Care", roles: ROUTE_ACCESS["/clinical-workspace"] },
+  { to: "/patients", label: "Students", roles: ROUTE_ACCESS["/patients"] },
+  { to: "/patient-queue", label: "Student Queue", roles: ROUTE_ACCESS["/patient-queue"] },
   { to: "/appointments", label: "Appointments", roles: ROUTE_ACCESS["/appointments"] },
-  { to: "/medicines", label: "Medicines", roles: ROUTE_ACCESS["/medicines"] },
+  { to: "/medicines", label: "Inventory", roles: ROUTE_ACCESS["/medicines"] },
   { to: "/purchase-requests", label: "Purchase Requests", roles: ROUTE_ACCESS["/purchase-requests"] },
   { to: "/users", label: "Users", roles: ROUTE_ACCESS["/users"] },
   { to: "/reports", label: "Reports", roles: ROUTE_ACCESS["/reports"] },
   { to: "/audit-log", label: "Audit Log", roles: ROUTE_ACCESS["/audit-log"] },
+  { to: "/settings", label: "Settings", roles: ROUTE_ACCESS["/settings"] },
 ];
 
 /** UI capabilities derived from the backend RBAC model. */
 export const CAPABILITIES = {
   manageAppointments: ["staff", "nurse"] as const satisfies readonly UserRole[],
-  editPatients: ["nurse"] as const satisfies readonly UserRole[],
-  viewFullPatients: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
-  // Broader than viewFullPatients - staff can search/browse basic student
-  // info (studentId/name/course/year only, via /patients/basic) even
-  // though they can't see full records or medical data.
+  editPatients: ["staff", "nurse"] as const satisfies readonly UserRole[],
+  viewFullPatients: ["staff", "admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
+  // Staff may browse basic student data without viewing full records.
   searchPatients: ["admin", "doctor", "nurse", "staff"] as const satisfies readonly UserRole[],
-  viewMedicines: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
+  viewMedicines: ["admin", "doctor", "nurse", "staff"] as const satisfies readonly UserRole[],
   viewVisits: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
-  manageQueue: ["nurse"] as const satisfies readonly UserRole[],
+  checkInPatients: ["staff", "nurse"] as const satisfies readonly UserRole[],
+  manageQueue: ["nurse", "doctor"] as const satisfies readonly UserRole[],
   editMedicines: ["nurse"] as const satisfies readonly UserRole[],
   editMedicalHistory: ["doctor"] as const satisfies readonly UserRole[],
   viewMedicalHistory: ["doctor", "nurse"] as const satisfies readonly UserRole[],

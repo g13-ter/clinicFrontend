@@ -10,6 +10,8 @@ import PurchaseRequestsPage from "./pages/PurchaseRequestsPage";
 import UsersPage from "./pages/UsersPage";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import ClinicalWorkspacePage from "./pages/ClinicalWorkspacePage";
+import SettingsPage from "./pages/SettingsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ROUTE_ACCESS } from "./config/permissions";
 
@@ -23,6 +25,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/dashboard"]}>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clinical-workspace"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/clinical-workspace"]}>
+              <ClinicalWorkspacePage />
             </ProtectedRoute>
           }
         />
@@ -95,6 +105,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/audit-log"]}>
               <AuditLogPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/settings"]}>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

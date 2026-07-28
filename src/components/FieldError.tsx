@@ -4,9 +4,7 @@ export function FieldError({ message }: { message?: string }) {
   return <p className="text-red-500 text-xs mt-1">{message}</p>;
 }
 
-// Fallback for backend field errors that don't correspond to any input
-// actually rendered on the form (e.g. a nested array path like
-// "prescribedItems.0.quantity"), so they're never silently dropped.
+// Show backend errors that do not map to rendered inputs.
 export function UnmatchedFieldErrors({ errors }: { errors: [string, string][] }) {
   if (errors.length === 0) return null;
   return (

@@ -3,18 +3,7 @@ import { ApiError } from "../services/api";
 
 export type FieldErrors = Record<string, string>;
 
-/**
- * Centralizes how forms turn a failed save into feedback:
- *  - `fieldErrors[fieldName]` for inline, per-input messages (from the
- *    backend's Zod `{ field, message }[]` array)
- *  - `formError` for a short banner above the form (a single message when
- *    there's only one thing wrong, or a "fix the highlighted fields" nudge
- *    when there are several)
- *
- * Any field the backend flagged that doesn't correspond to a rendered
- * input (e.g. a nested array path) still ends up in `fieldErrors`, so
- * pages can surface it via `unmatchedFieldErrors` rather than lose it.
- */
+/** Maps API validation failures to form-level and field-level errors. */
 export function useFormErrors() {
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -49,10 +38,7 @@ export function useFormErrors() {
     });
   }, []);
 
-  // Errors returned by the backend that don't map to any of the field
-  // names a given form actually renders (e.g. "prescribedItems.0.quantity").
-  // Pages pass in the field names they render inline; anything left over
-  // is shown as a plain list so it's never silently dropped.
+  // Preserve backend errors that do not map to rendered fields.
   const unmatchedFieldErrors = useCallback(
     (knownFields: string[]) =>
       Object.entries(fieldErrors).filter(([field]) => !knownFields.includes(field)),

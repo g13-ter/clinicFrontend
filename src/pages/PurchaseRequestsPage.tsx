@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useFormErrors } from "../hooks/useFormErrors";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Medicine, PurchaseRequest, PurchaseRequestStatus } from "../utils/types";
+import AdminSectionTabs from "../components/AdminSectionTabs";
 
 const emptyForm = {
+  requestType: "restock" as "restock" | "new_item",
   medicineId: "",
+  itemName: "",
+  unit: "",
+  category: "",
   quantityRequested: "",
   reason: "",
 };
@@ -23,10 +29,14 @@ function displayName(value: { name: string } | string | null | undefined, fallba
 }
 
 function PurchaseRequestsPage() {
-  const { can } = useAuth();
+  const { can, role } = useAuth();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const canSubmit = can("submitPurchaseRequest");
   const canReview = can("reviewPurchaseRequest");
+  const requestedMedicineId = searchParams.get("medicineId") ?? "";
+  const requestedType = searchParams.get("type") === "new" ? "new_item" : "restock";
+  const shouldOpenCreate = searchParams.get("new") === "1" && canSubmit;
 
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState<PurchaseRequestStatus | "">("");
@@ -35,8 +45,13 @@ function PurchaseRequestsPage() {
 
   const [medicines, setMedicines] = useState<Medicine[]>([]);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [showCreateModal, setShowCreateModal] = useState(shouldOpenCreate);
+  const [form, setForm] = useState({
+    ...emptyForm,
+    requestType: requestedMedicineId ? "restock" : requestedType,
+    medicineId: shouldOpenCreate ? requestedMedicineId : "",
+    reason: shouldOpenCreate ? "Restock required because the item is at or below its reorder level." : "",
+  });
   const {
     formError: createFormError,
     fieldErrors: createFieldErrors,
@@ -84,13 +99,13 @@ function PurchaseRequestsPage() {
       .catch(() => {});
   }, [canSubmit]);
 
-  const openCreate = () => {
-    setForm(emptyForm);
+  const openCreate = (requestType: "restock" | "new_item" = "new_item") => {
+    setForm({ ...emptyForm, requestType });
     resetCreateErrors();
     setShowCreateModal(true);
   };
 
-  const f = (k: keyof typeof emptyForm, v: string) => {
+  const f = <K extends keyof typeof emptyForm>(k: K, v: (typeof emptyForm)[K]) => {
     setForm((prev) => ({ ...prev, [k]: v }));
     clearCreateField(k);
   };
@@ -101,7 +116,13 @@ function PurchaseRequestsPage() {
     resetCreateErrors();
     try {
       const res = await api.post("/purchase-requests", {
-        medicineId: form.medicineId,
+        ...(form.requestType === "restock"
+          ? { medicineId: form.medicineId }
+          : {
+              itemName: form.itemName,
+              unit: form.unit,
+              category: form.category || undefined,
+            }),
         quantityRequested: Number(form.quantityRequested),
         reason: form.reason,
       });
@@ -143,25 +164,90 @@ function PurchaseRequestsPage() {
   const statusColor: Record<PurchaseRequestStatus, string> = {
     pending: "bg-yellow-100 text-yellow-700",
     approved: "bg-green-100 text-green-700",
+    ordered: "bg-blue-100 text-blue-700",
+    received: "bg-emerald-100 text-emerald-800",
     rejected: "bg-red-100 text-red-700",
+    cancelled: "bg-gray-100 text-gray-600",
+  };
+
+  const markOrdered = async (request: PurchaseRequest) => {
+    const supplier = window.prompt("Supplier (optional):") ?? "";
+    const estimatedCostText = window.prompt("Estimated total cost (optional):") ?? "";
+    try {
+      const response = await api.put(`/purchase-requests/${request._id}/order`, {
+        supplier: supplier || undefined,
+        estimatedCost: estimatedCostText ? Number(estimatedCostText) : undefined,
+      });
+      showToast(response.message);
+      fetchRequests();
+    } catch (requestError: unknown) {
+      showToast(requestError instanceof Error ? requestError.message : "Could not mark order");
+    }
+  };
+
+  const receiveDelivery = async (request: PurchaseRequest) => {
+    const batchNumber = window.prompt("Batch or lot number:");
+    if (!batchNumber) return;
+    const quantityText = window.prompt("Quantity received:", String(request.quantityRequested));
+    if (!quantityText) return;
+    const expiryDate = window.prompt("Expiry date (YYYY-MM-DD, optional):") ?? "";
+    const supplier = window.prompt("Supplier (optional):", request.supplier ?? "") ?? "";
+    try {
+      const response = await api.put(`/purchase-requests/${request._id}/receive`, {
+        batchNumber,
+        quantityReceived: Number(quantityText),
+        expiryDate: expiryDate || undefined,
+        supplier: supplier || undefined,
+      });
+      showToast(response.message);
+      fetchRequests();
+    } catch (requestError: unknown) {
+      showToast(requestError instanceof Error ? requestError.message : "Could not receive delivery");
+    }
+  };
+
+  const cancelRequest = async (request: PurchaseRequest) => {
+    const reviewNotes = window.prompt("Reason for cancellation (optional):") ?? "";
+    if (!window.confirm(`Cancel the request for ${request.itemName}?`)) return;
+    try {
+      const response = await api.put(`/purchase-requests/${request._id}/cancel`, {
+        reviewNotes: reviewNotes || undefined,
+      });
+      showToast(response.message);
+      fetchRequests();
+    } catch (requestError: unknown) {
+      showToast(requestError instanceof Error ? requestError.message : "Could not cancel request");
+    }
   };
 
   return (
     <Layout>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-700">Purchase Requests</h2>
+      {role === "admin" && <div className="mb-5"><AdminSectionTabs active="inventory" /></div>}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Purchase Requests</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Request approval to restock an existing item or purchase a medicine not yet in inventory.
+          </p>
+        </div>
         {canSubmit && (
           <button
-            onClick={openCreate}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+            onClick={() => openCreate("new_item")}
+            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
           >
-            + New Request
+            + Request Medicine
           </button>
         )}
       </div>
 
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+        <strong>Purchase request:</strong> asks the admin for approval before buying.
+        After delivery, use <strong>Receive Delivery</strong>. The system creates the
+        inventory batch and updates available stock automatically.
+      </div>
+
       <div className="flex gap-2 mb-4">
-        {(["", "pending", "approved", "rejected"] as const).map((s) => (
+        {(["", "pending", "approved", "ordered", "received", "rejected", "cancelled"] as const).map((s) => (
           <button
             key={s || "all"}
             onClick={() => setStatusFilter(s)}
@@ -186,18 +272,19 @@ function PurchaseRequestsPage() {
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
                 <th className="text-left px-4 py-3">Item</th>
+                <th className="text-left px-4 py-3">Request Type</th>
                 <th className="text-left px-4 py-3">Qty Requested</th>
                 <th className="text-left px-4 py-3">Reason</th>
                 <th className="text-left px-4 py-3">Requested By</th>
                 <th className="text-left px-4 py-3">Status</th>
                 <th className="text-left px-4 py-3">Reviewed By</th>
-                {canReview && <th className="px-4 py-3"></th>}
+                {(canReview || canSubmit) && <th className="px-4 py-3">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {requests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-gray-400">
+                  <td colSpan={8} className="text-center py-6 text-gray-400">
                     No purchase requests found.
                   </td>
                 </tr>
@@ -205,7 +292,12 @@ function PurchaseRequestsPage() {
                 requests.map((r) => (
                   <tr key={r._id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{r.itemName}</td>
-                    <td className="px-4 py-3">{r.quantityRequested}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                        {r.requestType === "new_item" ? "New medicine" : "Restock"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">{r.quantityRequested} {r.unit ?? ""}</td>
                     <td className="px-4 py-3 max-w-xs truncate" title={r.reason}>
                       {r.reason}
                     </td>
@@ -216,17 +308,34 @@ function PurchaseRequestsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">{displayName(r.reviewedBy)}</td>
-                    {canReview && (
+                    {(canReview || canSubmit) && (
                       <td className="px-4 py-3 text-right">
-                        {r.status === "pending" ? (
-                          <button
-                            onClick={() => openReview(r)}
-                            className="text-blue-600 hover:underline text-xs"
-                          >
-                            Review
+                        {canReview && r.status === "pending" ? (
+                          <div className="flex justify-end gap-3">
+                            <button onClick={() => openReview(r)} className="text-blue-600 hover:underline text-xs">
+                              Review
+                            </button>
+                            <button onClick={() => cancelRequest(r)} className="text-red-600 hover:underline text-xs">
+                              Cancel
+                            </button>
+                          </div>
+                        ) : canReview && (r.status === "approved" || r.status === "ordered") ? (
+                          <div className="flex justify-end gap-3">
+                            {r.status === "approved" && (
+                              <button onClick={() => markOrdered(r)} className="text-blue-600 hover:underline text-xs">
+                                Mark Ordered
+                              </button>
+                            )}
+                            <button onClick={() => cancelRequest(r)} className="text-red-600 hover:underline text-xs">
+                              Cancel
+                            </button>
+                          </div>
+                        ) : canSubmit && (r.status === "approved" || r.status === "ordered") ? (
+                          <button onClick={() => receiveDelivery(r)} className="text-emerald-700 hover:underline text-xs">
+                            Receive Delivery
                           </button>
                         ) : (
-                          <span className="text-gray-300 text-xs">Reviewed</span>
+                          <span className="text-gray-300 text-xs">No action</span>
                         )}
                       </td>
                     )}
@@ -244,7 +353,27 @@ function PurchaseRequestsPage() {
           <UnmatchedFieldErrors errors={unmatchedCreateErrors(CREATE_FORM_FIELDS)} />
           <form onSubmit={handleCreate} className="flex flex-col gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Item *</label>
+              <label className="mb-1 block text-xs text-gray-500">What do you want to request?</label>
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => f("requestType", "restock")}
+                  className={`rounded-md px-3 py-2 text-sm font-medium ${form.requestType === "restock" ? "bg-white shadow-sm" : "text-gray-600"}`}
+                >
+                  Restock Existing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => f("requestType", "new_item")}
+                  className={`rounded-md px-3 py-2 text-sm font-medium ${form.requestType === "new_item" ? "bg-white shadow-sm" : "text-gray-600"}`}
+                >
+                  New Medicine
+                </button>
+              </div>
+            </div>
+            {form.requestType === "restock" ? (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Existing Inventory Item *</label>
               <select
                 value={form.medicineId}
                 onChange={(e) => f("medicineId", e.target.value)}
@@ -260,6 +389,41 @@ function PurchaseRequestsPage() {
               </select>
               <FieldError message={createFieldErrors.medicineId} />
             </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs text-gray-500">Medicine Name *</label>
+                  <input
+                    value={form.itemName}
+                    onChange={(e) => f("itemName", e.target.value)}
+                    required
+                    placeholder="e.g. Cetirizine"
+                    className={`input w-full ${createFieldErrors.itemName ? "input-error" : ""}`}
+                  />
+                  <FieldError message={createFieldErrors.itemName} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Unit *</label>
+                  <input
+                    value={form.unit}
+                    onChange={(e) => f("unit", e.target.value)}
+                    required
+                    placeholder="tablets, bottles, boxes"
+                    className={`input w-full ${createFieldErrors.unit ? "input-error" : ""}`}
+                  />
+                  <FieldError message={createFieldErrors.unit} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Category</label>
+                  <input
+                    value={form.category}
+                    onChange={(e) => f("category", e.target.value)}
+                    placeholder="e.g. Antihistamine"
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-xs text-gray-500 mb-1">Quantity Requested *</label>
               <input

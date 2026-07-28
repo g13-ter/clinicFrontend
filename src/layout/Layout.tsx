@@ -1,24 +1,28 @@
-import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { NAV_ITEMS, can } from "../config/permissions";
 import { useAuth } from "../hooks/useAuth";
 import { useSessionExpiryWarning } from "../hooks/useSessionExpiryWarning";
+import { api } from "../services/api";
+import type { User } from "../utils/types";
 import {
-  DashboardIcon,
-  PatientsIcon,
-  VisitsIcon,
-  CalendarIcon,
-  MedicineIcon,
-  StaffIcon,
-  ReportsIcon,
   AuditIcon,
-  SearchIcon,
+  CalendarIcon,
   CartIcon,
+  CloseIcon,
+  DashboardIcon,
+  MenuIcon,
+  MedicineIcon,
+  PatientsIcon,
+  ReportsIcon,
+  SearchIcon,
+  StaffIcon,
+  VisitsIcon,
 } from "../components/icons";
-import NotificationBell from "../components/NotificationBell";
 
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/dashboard": DashboardIcon,
+  "/clinical-workspace": VisitsIcon,
   "/patients": PatientsIcon,
   "/patient-queue": VisitsIcon,
   "/appointments": CalendarIcon,
@@ -27,115 +31,246 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/users": StaffIcon,
   "/reports": ReportsIcon,
   "/audit-log": AuditIcon,
+  "/settings": StaffIcon,
 };
 
 function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { role } = useAuth();
+  const hasSidebar = role === "admin";
   const minutesLeft = useSessionExpiryWarning();
   const [search, setSearch] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState<User | null>(null);
+
+  useEffect(() => {
+    api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
     if (search.trim()) {
       navigate(`/patients?search=${encodeURIComponent(search.trim())}`);
     }
   };
 
-  const visible = NAV_ITEMS.filter((item) => role && item.roles.includes(role));
-  const canSearchPatients = can(role, "searchPatients");
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (!role || !item.roles.includes(role)) return false;
+    if (role === "admin") {
+      return item.to === "/dashboard" || item.to === "/audit-log";
+    }
+    return true;
+  });
+  const canSearchStudents = can(role, "searchPatients") && role !== "doctor";
+  const isClinicalRole = role === "doctor" || role === "nurse";
+  const clinicalTabs = [
+    { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
+    { id: "records", label: "Student Records", icon: PatientsIcon },
+    { id: "consultation", label: "New Consultation", icon: VisitsIcon },
+    { id: "followups", label: "Follow-Ups", icon: CalendarIcon },
+  ] as const;
+
+  const closeSidebar = () => setSidebarOpen(false);
+
+  const navigation = (
+    <nav aria-label="Main navigation" className="space-y-1 p-4">
+      <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+        Navigation
+      </p>
+      {visibleItems.map((item) => {
+        const Icon = NAV_ICONS[item.to] ?? DashboardIcon;
+
+        if (item.to === "/clinical-workspace" && isClinicalRole) {
+          const clinicalActive = location.pathname === "/clinical-workspace";
+          const selectedTab = new URLSearchParams(location.search).get("tab") ?? "appointments";
+
+          return (
+            <div key={item.to} className="space-y-1">
+              <Link
+                to="/clinical-workspace?tab=appointments"
+                onClick={closeSidebar}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  clinicalActive
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+                Clinical Care
+              </Link>
+              <div className="ml-5 space-y-1 border-l border-gray-200 pl-3">
+                {clinicalTabs.map((tab) => {
+                  const TabIcon = tab.icon;
+                  const tabActive = clinicalActive && selectedTab === tab.id;
+                  return (
+                    <Link
+                      key={tab.id}
+                      to={`/clinical-workspace?tab=${tab.id}`}
+                      onClick={closeSidebar}
+                      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                        tabActive
+                          ? "bg-blue-600 font-medium text-white"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`}
+                    >
+                      <TabIcon className="h-4 w-4" />
+                      {tab.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            onClick={closeSidebar}
+            className={({ isActive }) =>
+              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`
+            }
+          >
+            <Icon className="h-[18px] w-[18px]" />
+            {item.label}
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-100 print:bg-white">
-      <div className="h-1.5 bg-slate-800 print:hidden" />
-      <div className="flex">
-        <aside className="w-56 min-h-[calc(100vh-6px)] bg-white shadow flex flex-col print:hidden">
-          <div className="px-5 py-5 border-b flex items-center gap-2">
-            <span className="text-3xl font-bold text-slate-800 leading-none shrink-0">+</span>
-            <div className="leading-tight">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                School Clinic
-              </p>
-              <h1 className="text-sm font-bold text-slate-800">Health System</h1>
-            </div>
-          </div>
-          <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
-            {visible.map((item) => {
-              const Icon = NAV_ICONS[item.to] ?? DashboardIcon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-sky-500 text-white"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  {item.label}
-                </NavLink>
-              );
-            })}
-          </nav>
-          <div className="px-4 py-4 border-t">
-            <span className="block text-xs text-gray-400 mb-2 uppercase tracking-wide">{role}</span>
+    <div className="min-h-screen bg-gray-50 print:bg-white">
+      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white print:hidden">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-3 py-3 sm:px-6">
+          {hasSidebar && (
             <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open navigation"
+              className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 lg:hidden"
+            >
+              <MenuIcon />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="flex shrink-0 items-center gap-3 text-left"
+          >
+            {hasSidebar && (
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-xl font-bold text-white">
+                +
+              </span>
+            )}
+            <span className="leading-tight">
+              <span className="block text-sm font-bold text-gray-900 sm:text-base">
+                School Clinic Management
+              </span>
+              <span className="block text-xs capitalize text-gray-500">{role} dashboard</span>
+            </span>
+          </button>
+
+          {canSearchStudents && (
+            <form
+              onSubmit={handleSearch}
+              className="relative order-last w-full sm:order-none sm:ml-auto sm:max-w-xs"
+            >
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search students..."
+                className="input pr-9"
+              />
+              <button
+                type="submit"
+                aria-label="Search students"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
+              >
+                <SearchIcon />
+              </button>
+            </form>
+          )}
+
+          <div className={`${canSearchStudents ? "" : "ml-auto"} flex items-center gap-3`}>
+            {profile && (
+              <div className="hidden text-right sm:block">
+                <p className="text-sm font-semibold text-gray-900">{profile.name}</p>
+                <p className="text-xs text-gray-500">{profile.email}</p>
+              </div>
+            )}
+            <button
+              type="button"
               onClick={handleLogout}
-              className="text-sm text-red-500 hover:underline"
+              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
               Logout
             </button>
           </div>
-        </aside>
-
-        <div className="flex-1 flex flex-col min-w-0 print:block">
-          <header className="bg-white shadow-sm px-6 py-3 flex justify-end items-center gap-4 print:hidden">
-            {canSearchPatients && (
-              <form onSubmit={handleSearch} className="relative w-72">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search students..."
-                  className="input pr-9"
-                />
-                <button
-                  type="submit"
-                  aria-label="Search students"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-sky-600"
-                >
-                  <SearchIcon />
-                </button>
-              </form>
-            )}
-            <NotificationBell />
-          </header>
-
-          <main className="flex-1 p-6 overflow-auto print:p-0 print:overflow-visible">
-            {minutesLeft !== null && (
-              <div className="mb-4 bg-amber-100 text-amber-800 text-sm px-4 py-2 rounded flex justify-between items-center print:hidden">
-                <span>
-                  Your session will expire in {minutesLeft} minute{minutesLeft === 1 ? "" : "s"}. Please save your work.
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-amber-900 underline text-xs"
-                >
-                  Log in again
-                </button>
-              </div>
-            )}
-            {children}
-          </main>
         </div>
+      </header>
+
+      {hasSidebar && sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden print:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={closeSidebar}
+            className="absolute inset-0 bg-slate-950/40"
+          />
+          <aside className="relative h-full w-[min(85vw,300px)] overflow-y-auto border-r border-gray-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <p className="font-semibold text-gray-900">School Clinic</p>
+                <p className="text-xs capitalize text-gray-500">{role} workspace</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSidebar}
+                aria-label="Close navigation"
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            {navigation}
+          </aside>
+        </div>
+      )}
+
+      <div className="mx-auto flex max-w-[1800px] items-start">
+        {hasSidebar && (
+          <aside className="sticky top-[65px] hidden h-[calc(100vh-65px)] w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-white lg:block print:hidden">
+            {navigation}
+          </aside>
+        )}
+
+        <main className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
+          {minutesLeft !== null && (
+            <div className="mb-4 flex flex-col gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between print:hidden">
+              <span>
+                Your session will expire in {minutesLeft} minute{minutesLeft === 1 ? "" : "s"}.
+                Please save your work.
+              </span>
+              <button onClick={handleLogout} className="self-start text-xs underline sm:self-auto">
+                Log in again
+              </button>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

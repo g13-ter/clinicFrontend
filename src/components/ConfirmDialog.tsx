@@ -12,10 +12,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-// Shared confirmation step for any destructive action (delete, cancel,
-// archive, etc.) so the "are you sure?" experience - copy, button color,
-// disabled-while-busy behavior - is the same everywhere it's used, rather
-// than each page inventing its own.
+// Shared confirmation dialog for destructive actions.
 function ConfirmDialog({
   title,
   message,

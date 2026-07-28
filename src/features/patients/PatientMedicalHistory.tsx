@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { useFormErrors } from "../../hooks/useFormErrors";
 import Modal from "../../components/Modal";
-import { useToast } from "../../components/Toast";
+import { useToast } from "../../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { MedicalHistory, Medicine } from "../../utils/types";
 
@@ -41,19 +41,21 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
   const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
     useFormErrors();
 
-  // Only in-stock medicines are offerable - a doctor can't prescribe what
-  // the system doesn't actually have. Only fetched when this user can
-  // actually create entries (only doctors do).
+  // Only doctors need the list of medicines available to prescribe.
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [prescribedRows, setPrescribedRows] = useState<PrescribedItemRow[]>([]);
 
-  const reload = () =>
-    api.get(`/medical-history/patient/${patientId}`).then((r) => setHistory(r.data)).catch(() => {});
+  const reload = useCallback(
+    () => api.get<MedicalHistory[]>(`/medical-history/patient/${patientId}`)
+      .then((response) => setHistory(response.data))
+      .catch(() => {}),
+    [patientId],
+  );
 
   useEffect(() => {
-    if (!canView) { setLoading(false); return; }
+    if (!canView) return;
     reload().finally(() => setLoading(false));
-  }, [patientId]);
+  }, [canView, reload]);
 
   useEffect(() => {
     if (!canEdit) return;
@@ -78,11 +80,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
       familyHistory: h.familyHistory ?? "",
       allergies: h.allergies ?? "",
     });
-    // Prescribed items are only settable at creation time - the backend
-    // deducts stock once, at creation, and doesn't support editing them
-    // afterward (that would require re-validating/re-deducting stock in
-    // a way that's easy to get wrong). Past items still display below,
-    // read-only, in the table.
+    // Prescribed items are immutable after stock is deducted.
     setPrescribedRows([]);
     resetFormErrors();
     setOpen(true);
@@ -95,9 +93,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
   const updateRow = (i: number, patch: Partial<PrescribedItemRow>) =>
     setPrescribedRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
-  // Client-side check so a doctor gets instant feedback, before even
-  // submitting - the backend re-validates this regardless, since stock
-  // could change between page load and submit.
+  // Give immediate feedback; the backend revalidates current stock.
   const rowExceedsStock = (row: PrescribedItemRow): boolean => {
     if (!row.medicineId || !row.quantity) return false;
     const med = medicineById(row.medicineId);
@@ -109,9 +105,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
     (r) => (r.medicineId && !r.quantity) || rowExceedsStock(r)
   );
 
-  // Backend validation errors for prescribed items come back keyed like
-  // "prescribedItems.0.quantity" (matching the array index); map those onto
-  // the row they belong to so each row can show its own message.
+  // Map indexed backend errors to their prescription rows.
   const rowFieldError = (i: number, key: "medicineId" | "quantity" | "instructions") =>
     fieldErrors[`prescribedItems.${i}.${key}`];
 
@@ -139,7 +133,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
       setOpen(false);
       reload();
       if (!editing && prescribedRows.length > 0) {
-        // Stock changed - refresh the dropdown data for next time.
+        // Refresh available stock.
         api.get<Medicine[]>("/medicines?limit=200").then((r) => setMedicines(r.data)).catch(() => {});
       }
     } catch (err: unknown) {
@@ -156,7 +150,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
   return (
     <section className="mt-8">
-      <div className="flex justify-between items-center mb-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-gray-700">Medical History</h3>
         {canEdit && (
           <button onClick={openCreate} className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded hover:bg-blue-700">
@@ -168,8 +162,8 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : (
-        <div className="bg-white rounded shadow overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded bg-white shadow">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
                 <th className="text-left px-4 py-3">Date</th>
@@ -269,7 +263,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                     const instructionsError = rowFieldError(i, "instructions");
                     return (
                       <div key={i} className="border rounded p-2 flex flex-col gap-2">
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <div className="flex-1">
                             <select
                               value={row.medicineId}
@@ -290,7 +284,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                             </select>
                             <FieldError message={medicineIdError} />
                           </div>
-                          <div className="w-20">
+                          <div className="sm:w-20">
                             <input
                               type="number"
                               min={1}
@@ -301,14 +295,14 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                                 updateRow(i, { quantity: e.target.value });
                                 clearField(`prescribedItems.${i}.quantity`);
                               }}
-                              className={`input w-20 text-sm ${quantityError ? "input-error" : ""}`}
+                              className={`input text-sm ${quantityError ? "input-error" : ""}`}
                             />
                             <FieldError message={quantityError} />
                           </div>
                           <button
                             type="button"
                             onClick={() => removeRow(i)}
-                            className="text-red-500 text-xs px-2"
+                            className="self-start px-2 py-2 text-xs text-red-500"
                           >
                             Remove
                           </button>
@@ -335,7 +329,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 mt-1">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
               <button
                 type="submit"

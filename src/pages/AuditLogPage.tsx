@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
 import type { AuditLog } from "../utils/types";
@@ -19,11 +19,11 @@ function AuditLogPage() {
 
   const limit = 20;
 
-  const fetchLogs = async (p = page) => {
+  const fetchLogs = useCallback(async (p: number) => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get(`/audit-logs?page=${p}&limit=${limit}`);
+      const res = await api.get<AuditLog[]>(`/audit-logs?page=${p}&limit=${limit}`);
       setLogs(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
@@ -31,11 +31,11 @@ function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchLogs(page);
-  }, [page]);
+  }, [fetchLogs, page]);
 
   const totalPages = Math.ceil(total / limit);
 
