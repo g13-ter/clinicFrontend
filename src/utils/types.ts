@@ -83,6 +83,7 @@ export interface Appointment {
   doctorId?: Doctor | string | null;
   appointmentDate: string;
   reason: string;
+  cancellationReason?: string;
   status: "pending" | "confirmed" | "checked_in" | "cancelled" | "completed";
   notes: string;
   reminderSent?: boolean;
@@ -116,6 +117,7 @@ export interface User {
   name: string;
   email: string;
   role: "admin" | "doctor" | "nurse" | "staff";
+  isActive: boolean;
   isAvailable?: boolean;
   scheduleNotes?: string;
 }
@@ -164,10 +166,18 @@ export interface PurchaseRequest {
 
 export interface AuditLog {
   _id: string;
-  action: "create" | "update" | "delete" | "view";
+  action: "create" | "update" | "delete" | "deactivate" | "reactivate" | "view";
   resource: string;
   resourceId: string;
-  performedBy: { _id: string; name: string } | string | null;
+  performedBy:
+    | { _id: string; name: string; email: string; role: string }
+    | string;
+  actorSnapshot?: {
+    userId: string;
+    name: string;
+    email: string;
+    role: string;
+  };
   createdAt: string;
 }
 

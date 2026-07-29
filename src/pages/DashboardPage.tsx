@@ -96,30 +96,57 @@ function DashboardPage() {
   const isClinicalRole = role === "doctor" || role === "nurse";
   const isAdmin = role === "admin";
   const isDoctor = role === "doctor";
+  const isStaff = role === "staff";
+  const dashboardDate = new Intl.DateTimeFormat("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
 
   return (
     <Layout>
       <div className="mx-auto w-full max-w-[1600px] space-y-5">
-        <div className="z-30 space-y-4 bg-gray-50/95 pb-1 backdrop-blur lg:sticky lg:top-[65px] lg:pb-4">
+        <div className="space-y-4 pb-1 lg:pb-4">
           <div>
-            {!isDoctor && <p className="text-sm text-gray-500">School Clinic Management</p>}
-            <h2 className={`${isDoctor ? "" : "mt-1 "}text-2xl font-bold text-gray-900`}>{dashboardTitle}</h2>
+            {isStaff ? (
+              <>
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                  Good morning
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">{dashboardDate}</p>
+              </>
+            ) : (
+              <>
+                {!isDoctor && <p className="text-sm text-gray-500">School Clinic Management</p>}
+                <h2 className={`${isDoctor ? "" : "mt-1 "}text-2xl font-semibold tracking-tight text-slate-900`}>
+                  {dashboardTitle}
+                </h2>
+              </>
+            )}
           </div>
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {isClinicalRole ? (
               <>
-                <StatCard label="Today's Appointments" value={stats.todaysAppointments} icon={<CalendarIcon />} tone="blue" />
-                <StatCard label="Students Waiting" value={stats.waitingPatients} icon={<PatientsIcon />} tone="orange" />
-                <StatCard label="Consultations Today" value={stats.consultationsToday} icon={<VisitsIcon />} tone="green" />
-                <StatCard label="Emergency Cases" value={stats.emergencyCasesToday} icon={<VisitsIcon />} tone="red" />
+                <StatCard label="Today's Appointments" value={stats.todaysAppointments} caption="Scheduled today" icon={<CalendarIcon />} tone="blue" />
+                <StatCard label="Students Waiting" value={stats.waitingPatients} caption="In the clinic queue" icon={<PatientsIcon />} tone="orange" />
+                <StatCard label="Consultations Today" value={stats.consultationsToday} caption="Started or completed" icon={<VisitsIcon />} tone="green" />
+                <StatCard label="Emergency Cases" value={stats.emergencyCasesToday} caption="Recorded today" icon={<VisitsIcon />} tone="red" />
+              </>
+            ) : isStaff ? (
+              <>
+                <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+                <StatCard label="Visits Today" value={stats.todayVisits} caption="Recorded today" icon={<VisitsIcon />} tone="green" />
+                <StatCard label="Students Waiting" value={stats.waitingPatients} caption="In the clinic queue" icon={<StaffIcon />} tone="purple" />
+                <StatCard label="Pending Appointments" value={stats.pendingAppointments} caption="Awaiting confirmation" icon={<CalendarIcon />} tone="orange" />
               </>
             ) : (
               <>
-                <StatCard label="Total Students" value={stats.totalStudents} icon={<PatientsIcon />} tone="blue" />
-                <StatCard label="Clinic Visits Today" value={stats.todayVisits} icon={<VisitsIcon />} tone="green" />
-                <StatCard label="Active Doctor / Nurse" value={activeClinicalTeam} icon={<StaffIcon />} tone="purple" />
-                <StatCard label="Pending Appointments" value={stats.pendingAppointments} icon={<CalendarIcon />} tone="orange" />
+                <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+                <StatCard label="Clinic Visits Today" value={stats.todayVisits} caption="Recorded today" icon={<VisitsIcon />} tone="green" />
+                <StatCard label="Active Doctor / Nurse" value={activeClinicalTeam} caption="Currently available" icon={<StaffIcon />} tone="purple" />
+                <StatCard label="Pending Appointments" value={stats.pendingAppointments} caption="Awaiting confirmation" icon={<CalendarIcon />} tone="orange" />
               </>
             )}
           </section>
@@ -147,13 +174,11 @@ function DashboardPage() {
             </section>
           ) : workspaceView === "inventory" ? (
             <MedicinesPage embedded />
+          ) : workspaceView === "appointments" ? (
+            <AppointmentsPage embedded />
           ) : (
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-              {workspaceView === "appointments" ? (
-                <AppointmentsPage embedded />
-              ) : (
-                <PatientQueuePage embedded />
-              )}
+              <PatientQueuePage embedded />
             </section>
           )
         ) : isDoctor ? (
@@ -219,16 +244,16 @@ function RoleWorkspaceTabs({
 
   return (
     <nav aria-label="Workspace shortcuts" className="overflow-x-auto">
-      <div className="flex w-fit min-w-max gap-1 rounded-xl bg-gray-200/70 p-1">
+      <div className="flex min-w-max rounded-xl border border-slate-200 bg-white px-2">
         {tabs.map((tab) => (
           <Link
             key={tab.to}
             to={tab.to}
             aria-current={"view" in tab && activeView === tab.view ? "page" : undefined}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+            className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
               "view" in tab && activeView === tab.view
-                ? "bg-white text-gray-950 shadow-sm"
-                : "text-gray-700 hover:bg-white/80 hover:text-gray-950 hover:shadow-sm"
+                ? "border-blue-600 bg-blue-50/70 text-blue-700"
+                : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             }`}
           >
             {tab.label}
@@ -237,10 +262,10 @@ function RoleWorkspaceTabs({
         <button
           type="button"
           onClick={onOpenNotifications}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
+          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
             activeView === "notifications"
-              ? "bg-white text-gray-950 shadow-sm"
-              : "text-gray-700 hover:bg-white hover:text-gray-950 hover:shadow-sm"
+              ? "border-blue-600 bg-blue-50/70 text-blue-700"
+              : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
           }`}
         >
           Notifications
@@ -296,11 +321,13 @@ function StatCard({
   value,
   icon,
   tone,
+  caption,
 }: {
   label: string;
   value: number;
   icon: React.ReactNode;
   tone: "blue" | "green" | "purple" | "orange" | "red";
+  caption: string;
 }) {
   const tones = {
     blue: "bg-blue-50 text-blue-600",
@@ -311,12 +338,15 @@ function StatCard({
   };
 
   return (
-    <article className="flex h-40 flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <article className="flex h-36 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm font-medium text-gray-600">{label}</p>
         <span className={`rounded-lg p-2 ${tones[tone]}`}>{icon}</span>
       </div>
-      <p className="mt-auto text-3xl font-bold tracking-tight text-gray-900">{value}</p>
+      <div className="mt-auto">
+        <p className="text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
+        <p className="mt-1 text-xs text-slate-400">{caption}</p>
+      </div>
     </article>
   );
 }
@@ -470,6 +500,8 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [startingId, setStartingId] = useState("");
+  const [confirmingId, setConfirmingId] = useState("");
+  const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
   const activeAppointments = appointments.filter(
     (appointment) => appointment.status !== "cancelled" && appointment.status !== "completed",
   );
@@ -507,12 +539,29 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
     }
   };
 
+  const confirmAppointment = async (appointment: Appointment) => {
+    setConfirmingId(appointment._id);
+    try {
+      const response = await api.put(`/appointments/${appointment._id}/confirm`, {});
+      setConfirmedIds((current) =>
+        current.includes(appointment._id)
+          ? current
+          : [...current, appointment._id],
+      );
+      showToast(response.message);
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Failed to confirm appointment");
+    } finally {
+      setConfirmingId("");
+    }
+  };
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 px-5 py-4">
         <h3 className="font-semibold text-gray-900">Today&apos;s Appointments</h3>
         <p className="mt-1 text-xs text-gray-500">
-          Scheduled appointments for {new Date().toLocaleDateString()}
+          Confirm pending appointments, then start the consultation when the student is ready.
         </p>
       </div>
       {activeAppointments.length === 0 ? (
@@ -532,6 +581,9 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
             </thead>
             <tbody className="divide-y">
               {activeAppointments.map((appointment) => {
+                const effectiveStatus = confirmedIds.includes(appointment._id)
+                  ? "confirmed"
+                  : appointment.status;
                 const student =
                   appointment.patientId && typeof appointment.patientId === "object"
                     ? appointment.patientId as Patient
@@ -544,16 +596,39 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
                     <td className="px-5 py-4">{student ? `${student.firstName} ${student.lastName}` : "Unknown student"}</td>
                     <td className="px-5 py-4 font-mono text-xs">{student?.studentId ?? "—"}</td>
                     <td className="px-5 py-4">{appointment.reason}</td>
-                    <td className="px-5 py-4"><span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs capitalize text-amber-700">{appointment.status}</span></td>
                     <td className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => startConsultation(appointment, student)}
-                        disabled={startingId === appointment._id}
-                        className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50"
-                      >
-                        {startingId === appointment._id ? "Starting..." : "Start Consultation"}
-                      </button>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                        effectiveStatus === "confirmed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : effectiveStatus === "checked_in"
+                            ? "bg-violet-100 text-violet-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {effectiveStatus.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      {effectiveStatus === "pending" ? (
+                        <button
+                          type="button"
+                          onClick={() => confirmAppointment(appointment)}
+                          disabled={confirmingId === appointment._id}
+                          className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          {confirmingId === appointment._id
+                            ? "Confirming..."
+                            : "Confirm Appointment"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startConsultation(appointment, student)}
+                          disabled={startingId === appointment._id}
+                          className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          {startingId === appointment._id ? "Starting..." : "Start Consultation"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

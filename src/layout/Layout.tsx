@@ -5,6 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSessionExpiryWarning } from "../hooks/useSessionExpiryWarning";
 import { api } from "../services/api";
 import type { User } from "../utils/types";
+import { clearCurrentSession } from "../utils/auth";
 import {
   AuditIcon,
   CalendarIcon,
@@ -48,8 +49,13 @@ function Layout({ children }: { children: React.ReactNode }) {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      await api.post("/auth/logout", {});
+    } catch {
+      // Local cleanup still signs the user out if the server is unavailable.
+    }
+    clearCurrentSession();
     navigate("/login");
   };
 
@@ -152,7 +158,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 print:bg-white">
-      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white print:hidden">
+      <header className="border-b border-gray-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-3 py-3 sm:px-6">
           {hasSidebar && (
             <button

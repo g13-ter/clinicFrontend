@@ -10,7 +10,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/patients/:id": ["staff", "admin", "doctor", "nurse"],
   "/patient-queue": ["staff", "admin", "doctor", "nurse"],
   "/appointments": ["admin", "doctor", "nurse", "staff"],
-  "/medicines": ["admin", "doctor", "nurse", "staff"],
+  "/medicines": ["admin", "doctor", "nurse"],
   "/purchase-requests": ["admin", "nurse"],
   "/users": ["admin"],
   "/reports": ["admin", "nurse"],
@@ -39,7 +39,7 @@ export const CAPABILITIES = {
   viewFullPatients: ["staff", "admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
   // Staff may browse basic student data without viewing full records.
   searchPatients: ["admin", "doctor", "nurse", "staff"] as const satisfies readonly UserRole[],
-  viewMedicines: ["admin", "doctor", "nurse", "staff"] as const satisfies readonly UserRole[],
+  viewMedicines: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
   viewVisits: ["admin", "doctor", "nurse"] as const satisfies readonly UserRole[],
   checkInPatients: ["staff", "nurse"] as const satisfies readonly UserRole[],
   manageQueue: ["nurse", "doctor"] as const satisfies readonly UserRole[],

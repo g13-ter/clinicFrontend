@@ -1,4 +1,5 @@
-// Base API utility - attaches auth token and handles responses centrally.
+// Base API utility - uses the server-managed HttpOnly session cookie.
+import { clearCurrentSession } from "../utils/auth";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -27,11 +28,9 @@ export interface ApiSuccess<T = unknown> {
 const BASE = "/api";
 
 const getHeaders = (isJson = true): HeadersInit => {
-  const token = localStorage.getItem("token");
   const headers: Record<string, string> = {};
 
   if (isJson) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   return headers;
 };
@@ -59,7 +58,7 @@ const parseJson = async (res: Response): Promise<unknown> => {
 
 const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
   if (res.status === 401) {
-    localStorage.removeItem("token");
+    clearCurrentSession();
     window.location.href = "/login";
     throw new ApiError("Session expired", 401);
   }
@@ -88,7 +87,10 @@ const getWithRetry = async <T>(path: string): Promise<ApiSuccess<T>> => {
 
   for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
     try {
-      const response = await fetch(`${BASE}${path}`, { headers: getHeaders() });
+      const response = await fetch(`${BASE}${path}`, {
+        headers: getHeaders(),
+        credentials: "include",
+      });
       const proxyUnavailable =
         response.status === 502 ||
         response.status === 503 ||
@@ -120,6 +122,7 @@ export const api = {
     fetch(`${BASE}${path}`, {
       method: "POST",
       headers: getHeaders(),
+      credentials: "include",
       body: JSON.stringify(body),
     }).then((res) => handleResponse<T>(res)),
 
@@ -127,6 +130,7 @@ export const api = {
     fetch(`${BASE}${path}`, {
       method: "PUT",
       headers: getHeaders(),
+      credentials: "include",
       body: JSON.stringify(body),
     }).then((res) => handleResponse<T>(res)),
 
@@ -134,10 +138,12 @@ export const api = {
     fetch(`${BASE}${path}`, {
       method: "DELETE",
       headers: getHeaders(),
+      credentials: "include",
     }).then((res) => handleResponse<T>(res)),
 
   download: (path: string) =>
     fetch(`${BASE}${path}`, {
       headers: getHeaders(false),
+      credentials: "include",
     }),
 };

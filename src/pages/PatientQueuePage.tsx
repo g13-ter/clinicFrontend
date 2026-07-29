@@ -103,6 +103,17 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     unmatchedFieldErrors: unmatchedVitalsErrors,
   } = useFormErrors();
   const [savingVitals, setSavingVitals] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<{
+    visit: ClinicVisit;
+    status: "completed" | "cancelled" | "referred";
+  } | null>(null);
+  const [statusForm, setStatusForm] = useState({
+    referralFacility: "",
+    referralReason: "",
+    closureOutcome: "",
+  });
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusError, setStatusError] = useState("");
 
   const fetchQueue = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
@@ -149,11 +160,19 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       const res = await api.post("/visits", {
         patientId: checkInForm.patientId,
         complaint: checkInForm.complaint,
-        bloodPressure: checkInForm.bloodPressure || undefined,
-        temperature: checkInForm.temperature ? Number(checkInForm.temperature) : undefined,
-      pulseRate: checkInForm.pulseRate ? Number(checkInForm.pulseRate) : undefined,
         isEmergency: checkInForm.isEmergency,
         emergencyDetails: checkInForm.emergencyDetails || undefined,
+        ...(role !== "staff"
+          ? {
+              bloodPressure: checkInForm.bloodPressure || undefined,
+              temperature: checkInForm.temperature
+                ? Number(checkInForm.temperature)
+                : undefined,
+              pulseRate: checkInForm.pulseRate
+                ? Number(checkInForm.pulseRate)
+                : undefined,
+            }
+          : {}),
       });
       showToast(res.message);
       setShowCheckIn(false);
@@ -217,21 +236,12 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
-  const handleStatus = async (v: ClinicVisit, status: "in_consultation" | "paused" | "completed" | "cancelled" | "referred") => {
-    const body: Record<string, string> = { status };
-    if (status === "referred") {
-      const referralFacility = window.prompt("Referral facility:");
-      const referralReason = window.prompt("Referral reason:");
-      if (!referralFacility || !referralReason) return;
-      body.referralFacility = referralFacility;
-      body.referralReason = referralReason;
-    }
-    if (status === "completed") {
-      const closureOutcome = window.prompt("Closure outcome: returned_to_class, sent_home, or guardian_pickup");
-      if (!closureOutcome) return;
-      body.closureOutcome = closureOutcome;
-    }
-    if (status === "cancelled") body.closureOutcome = "cancelled";
+  const handleStatus = async (
+    v: ClinicVisit,
+    status: "in_consultation" | "paused" | "completed" | "cancelled" | "referred",
+    details: Record<string, string> = {},
+  ) => {
+    const body: Record<string, string> = { status, ...details };
     try {
       const res = await api.put(`/visits/${v._id}/status`, body);
       showToast(res.message);
@@ -245,9 +255,37 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           );
         }
       }
+      setStatusTarget(null);
       fetchQueue(false);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Failed to update visit status");
+    }
+  };
+
+  const openStatusWorkflow = (
+    visit: ClinicVisit,
+    status: "completed" | "cancelled" | "referred",
+  ) => {
+    setStatusTarget({ visit, status });
+    setStatusForm({
+      referralFacility: "",
+      referralReason: "",
+      closureOutcome: status === "cancelled" ? "cancelled" : "",
+    });
+    setStatusError("");
+  };
+
+  const submitStatusWorkflow = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!statusTarget) return;
+    setSavingStatus(true);
+    setStatusError("");
+    try {
+      await handleStatus(statusTarget.visit, statusTarget.status, statusForm);
+    } catch {
+      // handleStatus presents request failures; this keeps the modal usable.
+    } finally {
+      setSavingStatus(false);
     }
   };
 
@@ -298,14 +336,14 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           <>
             <button onClick={() => openConsultation(v)} className="text-xs text-blue-600 hover:underline">Open Consultation</button>
             <button onClick={() => handleStatus(v, "paused")} className="text-xs text-amber-600 hover:underline">Pause</button>
-            <button onClick={() => handleStatus(v, "completed")} className="text-xs text-green-600 hover:underline">Complete</button>
-            <button onClick={() => handleStatus(v, "referred")} className="text-xs text-red-600 hover:underline">Refer</button>
+            <button onClick={() => openStatusWorkflow(v, "completed")} className="text-xs text-green-600 hover:underline">Complete</button>
+            <button onClick={() => openStatusWorkflow(v, "referred")} className="text-xs text-red-600 hover:underline">Refer</button>
           </>
         )}
         {v.status === "paused" && (
           <>
             <button onClick={() => handleStatus(v, "in_consultation")} className="text-xs text-blue-600 hover:underline">Resume</button>
-            <button onClick={() => handleStatus(v, "cancelled")} className="text-xs text-red-600 hover:underline">Cancel</button>
+            <button onClick={() => openStatusWorkflow(v, "cancelled")} className="text-xs text-red-600 hover:underline">Cancel</button>
           </>
         )}
       </>
@@ -316,15 +354,19 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     <PageFrame embedded={embedded}>
       <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-700">Student Queue</h2>
-          <p className="mt-0.5 text-sm text-gray-500">Check in, triage, and move students through the clinic.</p>
+          <h2 className="text-lg font-semibold text-slate-900">
+            {embedded ? "Student Visits" : "Student Queue"}
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Check in, triage, and move students through the clinic.
+          </p>
         </div>
         {canCheckIn && (
           <button
             onClick={() => openCheckIn()}
-            className="self-start rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 sm:self-auto"
+            className="self-start rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 sm:self-auto"
           >
-            + Check In Student
+            + Register Visit
           </button>
         )}
       </div>
@@ -389,9 +431,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
 
-          <div className="hidden overflow-x-auto rounded bg-white shadow md:block">
+          <div className={`hidden overflow-x-auto rounded-lg bg-white md:block ${
+            embedded ? "border border-slate-200" : "shadow"
+          }`}>
           <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+            <thead className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-medium text-slate-500">
               <tr>
                 <th className="text-left px-4 py-3">Student</th>
                 <th className="text-left px-4 py-3">Arrived</th>
@@ -412,7 +456,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 queue.map((v) => {
                   const link = patientLink(v.patientId);
                   return (
-                    <tr key={v._id} className={`hover:bg-gray-50 ${v.readyForDoctor ? "" : "bg-amber-50"}`}>
+                    <tr key={v._id} className={`transition-colors hover:bg-blue-50/40 ${v.readyForDoctor ? "" : "bg-amber-50/50"}`}>
                       <td className="px-4 py-3 font-medium">
                         {link ? (
                           <Link to={link} className="text-blue-600 hover:underline">
@@ -483,11 +527,12 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               />
               <FieldError message={checkInFieldErrors.complaint} />
             </div>
-            <p className="text-xs text-gray-400 -mt-1">
-              Vitals are optional here — you can check the student in now and record vitals in a moment,
-              or fill them in below right away.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {role !== "staff" && (
+              <>
+                <p className="-mt-1 text-xs text-gray-400">
+                  Vitals are optional here—you can check the student in now and record them during triage.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Blood Pressure</label>
                 <input
@@ -519,7 +564,9 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 />
                 <FieldError message={checkInFieldErrors.pulseRate} />
               </div>
-            </div>
+                </div>
+              </>
+            )}
             <label className="flex items-center gap-2 text-sm text-red-700">
               <input type="checkbox" checked={checkInForm.isEmergency} onChange={(e) => ci("isEmergency", e.target.checked)} />
               Emergency case
@@ -629,6 +676,92 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
                 {savingVitals ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {statusTarget && (
+        <Modal
+          title={
+            statusTarget.status === "referred"
+              ? "Refer Student"
+              : statusTarget.status === "completed"
+                ? "Complete Visit"
+                : "Cancel Visit"
+          }
+          onClose={() => setStatusTarget(null)}
+        >
+          <form onSubmit={submitStatusWorkflow} className="space-y-4">
+            <p className="text-sm text-gray-600">
+              {patientLabel(statusTarget.visit.patientId)}
+            </p>
+            {statusError && <p className="text-sm text-red-600">{statusError}</p>}
+            {statusTarget.status === "referred" && (
+              <>
+                <label className="block text-xs font-medium text-gray-600">
+                  Referral facility *
+                  <input
+                    value={statusForm.referralFacility}
+                    onChange={(event) => setStatusForm((current) => ({
+                      ...current,
+                      referralFacility: event.target.value,
+                    }))}
+                    required
+                    placeholder="Hospital or health facility"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-gray-600">
+                  Clinical reason for referral *
+                  <textarea
+                    value={statusForm.referralReason}
+                    onChange={(event) => setStatusForm((current) => ({
+                      ...current,
+                      referralReason: event.target.value,
+                    }))}
+                    required
+                    rows={3}
+                    className="input mt-1"
+                  />
+                </label>
+              </>
+            )}
+            {statusTarget.status === "completed" && (
+              <label className="block text-xs font-medium text-gray-600">
+                Student disposition *
+                <select
+                  value={statusForm.closureOutcome}
+                  onChange={(event) => setStatusForm((current) => ({
+                    ...current,
+                    closureOutcome: event.target.value,
+                  }))}
+                  required
+                  className="input mt-1"
+                >
+                  <option value="">Select an outcome</option>
+                  <option value="returned_to_class">Returned to class</option>
+                  <option value="sent_home">Sent home</option>
+                  <option value="guardian_pickup">Guardian pickup</option>
+                </select>
+              </label>
+            )}
+            {statusTarget.status === "cancelled" && (
+              <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                This removes the visit from the active queue. The visit remains in the audit history.
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setStatusTarget(null)} className="rounded-lg border px-4 py-2 text-sm">
+                Go Back
+              </button>
+              <button
+                type="submit"
+                disabled={savingStatus}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {savingStatus ? "Saving..." : "Confirm"}
               </button>
             </div>
           </form>

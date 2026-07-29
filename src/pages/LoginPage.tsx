@@ -3,6 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { ApiError } from "../services/api";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { FieldError } from "../components/FieldError";
+import { saveCurrentSession } from "../utils/auth";
+import type { UserRole } from "../config/permissions";
+
+interface LoginResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: { id: string; role: UserRole };
+    expiresAt: string;
+  };
+}
 
 // LoginPage handles user authentication and token storage.
 function LoginPage() {
@@ -31,9 +42,12 @@ function LoginPage() {
       const data = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       }).then(async (res) => {
-        const json = await res.json();
+        const json = await res.json() as LoginResponse & {
+          errors?: { field: string; message: string }[];
+        };
         if (!res.ok) {
           if (res.status === 429) {
             setCooldownSeconds(parseRetryAfter(res.headers.get("Retry-After")) ?? 120);
@@ -43,7 +57,7 @@ function LoginPage() {
         return json;
       });
 
-      localStorage.setItem("token", data.token);
+      saveCurrentSession(data.data.user, data.data.expiresAt);
       navigate("/dashboard");
     } catch (err: unknown) {
       applyError(err, "Login failed");

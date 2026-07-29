@@ -7,6 +7,8 @@ const ACTION_COLORS: Record<string, string> = {
   create: "bg-green-100 text-green-700",
   update: "bg-blue-100 text-blue-700",
   delete: "bg-red-100 text-red-700",
+  deactivate: "bg-red-100 text-red-700",
+  reactivate: "bg-emerald-100 text-emerald-700",
   view: "bg-gray-100 text-gray-600",
 };
 
@@ -39,10 +41,32 @@ function AuditLogPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  const performerName = (p: AuditLog["performedBy"]) => {
-    if (p == null) return "Deleted user";
-    if (typeof p === "object") return p.name;
-    return p;
+  const performer = (log: AuditLog) => {
+    if (log.actorSnapshot) {
+      return {
+        name: log.actorSnapshot.name,
+        email: log.actorSnapshot.email,
+        role: log.actorSnapshot.role,
+        former: typeof log.performedBy === "string",
+        userId: log.actorSnapshot.userId,
+      };
+    }
+    if (typeof log.performedBy === "object") {
+      return {
+        name: log.performedBy.name,
+        email: log.performedBy.email,
+        role: log.performedBy.role,
+        former: false,
+        userId: log.performedBy._id,
+      };
+    }
+    return {
+      name: "Former account",
+      email: "",
+      role: "unknown",
+      former: true,
+      userId: log.performedBy,
+    };
   };
 
   return (
@@ -73,7 +97,9 @@ function AuditLogPage() {
                     </td>
                   </tr>
                 ) : (
-                  logs.map((log) => (
+                  logs.map((log) => {
+                    const actor = performer(log);
+                    return (
                     <tr key={log._id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 whitespace-nowrap text-gray-500">
                         {new Date(log.createdAt).toLocaleString([], {
@@ -96,9 +122,29 @@ function AuditLogPage() {
                           #{log.resourceId.slice(-6)}
                         </span>
                       </td>
-                      <td className="px-4 py-3">{performerName(log.performedBy)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-gray-900">{actor.name}</p>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              {actor.email || `Account ID: ${actor.userId}`}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium capitalize text-slate-600">
+                              {actor.role}
+                            </span>
+                            {actor.former && (
+                              <span className="text-[11px] font-medium text-amber-700">
+                                Former account
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

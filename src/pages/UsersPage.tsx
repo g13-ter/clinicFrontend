@@ -145,7 +145,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
-  const deleteUser = async () => {
+  const deactivateUser = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
@@ -158,6 +158,17 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
       setDeleteTarget(null);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const reactivateUser = async (user: User) => {
+    setError("");
+    try {
+      const response = await api.put(`/users/${user._id}`, { isActive: true });
+      showToast(response.message);
+      await fetchManagementData();
+    } catch (requestError: unknown) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to reactivate account");
     }
   };
 
@@ -263,7 +274,10 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                         <p className="font-medium text-gray-900">{user.name}</p>
                         <p className="text-xs text-gray-500">{user.email}</p>
                       </div>
-                      <RoleBadge role={user.role} />
+                      <div className="flex flex-col items-end gap-1">
+                        <RoleBadge role={user.role} />
+                        <AccessBadge active={user.isActive} />
+                      </div>
                     </div>
                     <div className="flex items-center justify-between border-t pt-3">
                       <AvailabilityBadge available={user.isAvailable !== false} />
@@ -272,6 +286,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                         currentUserId={currentUser?.id}
                         onEdit={openEdit}
                         onDelete={setDeleteTarget}
+                        onReactivate={reactivateUser}
                       />
                     </div>
                   </article>
@@ -284,6 +299,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                       <th className="px-5 py-3">Name</th>
                       <th className="px-5 py-3">Role</th>
                       <th className="px-5 py-3">Email</th>
+                      <th className="px-5 py-3">Access</th>
                       <th className="px-5 py-3">Availability</th>
                       <th className="px-5 py-3">Actions</th>
                     </tr>
@@ -294,6 +310,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                         <td className="px-5 py-4 font-medium text-gray-900">{user.name}</td>
                         <td className="px-5 py-4"><RoleBadge role={user.role} /></td>
                         <td className="px-5 py-4 text-gray-600">{user.email}</td>
+                        <td className="px-5 py-4"><AccessBadge active={user.isActive} /></td>
                         <td className="px-5 py-4"><AvailabilityBadge available={user.isAvailable !== false} /></td>
                         <td className="px-5 py-4">
                           <UserActions
@@ -301,6 +318,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                             currentUserId={currentUser?.id}
                             onEdit={openEdit}
                             onDelete={setDeleteTarget}
+                            onReactivate={reactivateUser}
                           />
                         </td>
                       </tr>
@@ -344,11 +362,11 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
 
       {deleteTarget && (
         <ConfirmDialog
-          title="Delete clinic user"
-          message={<>Delete <strong>{deleteTarget.name}</strong> ({deleteTarget.email})? They will immediately lose system access.</>}
-          confirmLabel="Delete"
+          title="Deactivate clinic user"
+          message={<>Deactivate <strong>{deleteTarget.name}</strong> ({deleteTarget.email})? Their sessions will be revoked immediately, while their history and audit ownership are preserved.</>}
+          confirmLabel="Deactivate"
           busy={deleting}
-          onConfirm={deleteUser}
+          onConfirm={deactivateUser}
           onCancel={() => setDeleteTarget(null)}
         />
       )}
@@ -387,19 +405,34 @@ function AvailabilityBadge({ available }: { available: boolean }) {
   );
 }
 
-function UserActions({ user, currentUserId, onEdit, onDelete }: {
+function AccessBadge({ active }: { active: boolean }) {
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+      active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+    }`}>
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+function UserActions({ user, currentUserId, onEdit, onDelete, onReactivate }: {
   user: User;
   currentUserId?: string;
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
+  onReactivate: (user: User) => void;
 }) {
   return (
     <div className="flex items-center gap-3 text-xs font-medium">
       <button type="button" onClick={() => onEdit(user)} className="text-blue-600 hover:text-blue-800">Edit</button>
-      {currentUserId === user._id ? (
-        <span className="cursor-not-allowed text-gray-300" title="You cannot delete your own account">Delete</span>
+      {!user.isActive ? (
+        <button type="button" onClick={() => onReactivate(user)} className="text-emerald-600 hover:text-emerald-800">
+          Reactivate
+        </button>
+      ) : currentUserId === user._id ? (
+        <span className="cursor-not-allowed text-gray-300" title="You cannot deactivate your own account">Deactivate</span>
       ) : (
-        <button type="button" onClick={() => onDelete(user)} className="text-red-500 hover:text-red-700">Delete</button>
+        <button type="button" onClick={() => onDelete(user)} className="text-red-500 hover:text-red-700">Deactivate</button>
       )}
     </div>
   );

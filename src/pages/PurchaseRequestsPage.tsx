@@ -71,6 +71,20 @@ function PurchaseRequestsPage() {
     unmatchedFieldErrors: unmatchedReviewErrors,
   } = useFormErrors();
   const [reviewing, setReviewing] = useState(false);
+  const [operation, setOperation] = useState<{
+    mode: "order" | "receive" | "cancel";
+    request: PurchaseRequest;
+  } | null>(null);
+  const [operationForm, setOperationForm] = useState({
+    supplier: "",
+    estimatedCost: "",
+    batchNumber: "",
+    quantityReceived: "",
+    expiryDate: "",
+    reviewNotes: "",
+  });
+  const [operationError, setOperationError] = useState("");
+  const [operationBusy, setOperationBusy] = useState(false);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -170,53 +184,57 @@ function PurchaseRequestsPage() {
     cancelled: "bg-gray-100 text-gray-600",
   };
 
-  const markOrdered = async (request: PurchaseRequest) => {
-    const supplier = window.prompt("Supplier (optional):") ?? "";
-    const estimatedCostText = window.prompt("Estimated total cost (optional):") ?? "";
-    try {
-      const response = await api.put(`/purchase-requests/${request._id}/order`, {
-        supplier: supplier || undefined,
-        estimatedCost: estimatedCostText ? Number(estimatedCostText) : undefined,
-      });
-      showToast(response.message);
-      fetchRequests();
-    } catch (requestError: unknown) {
-      showToast(requestError instanceof Error ? requestError.message : "Could not mark order");
-    }
+  const openOperation = (
+    mode: "order" | "receive" | "cancel",
+    request: PurchaseRequest,
+  ) => {
+    setOperation({ mode, request });
+    setOperationForm({
+      supplier: request.supplier ?? "",
+      estimatedCost: "",
+      batchNumber: "",
+      quantityReceived: String(request.quantityRequested),
+      expiryDate: "",
+      reviewNotes: "",
+    });
+    setOperationError("");
   };
 
-  const receiveDelivery = async (request: PurchaseRequest) => {
-    const batchNumber = window.prompt("Batch or lot number:");
-    if (!batchNumber) return;
-    const quantityText = window.prompt("Quantity received:", String(request.quantityRequested));
-    if (!quantityText) return;
-    const expiryDate = window.prompt("Expiry date (YYYY-MM-DD, optional):") ?? "";
-    const supplier = window.prompt("Supplier (optional):", request.supplier ?? "") ?? "";
+  const submitOperation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!operation) return;
+    setOperationBusy(true);
+    setOperationError("");
     try {
-      const response = await api.put(`/purchase-requests/${request._id}/receive`, {
-        batchNumber,
-        quantityReceived: Number(quantityText),
-        expiryDate: expiryDate || undefined,
-        supplier: supplier || undefined,
-      });
+      const { mode, request } = operation;
+      const path = mode === "order"
+        ? `/purchase-requests/${request._id}/order`
+        : mode === "receive"
+          ? `/purchase-requests/${request._id}/receive`
+          : `/purchase-requests/${request._id}/cancel`;
+      const body = mode === "order"
+        ? {
+            supplier: operationForm.supplier || undefined,
+            estimatedCost: operationForm.estimatedCost
+              ? Number(operationForm.estimatedCost)
+              : undefined,
+          }
+        : mode === "receive"
+          ? {
+              batchNumber: operationForm.batchNumber,
+              quantityReceived: Number(operationForm.quantityReceived),
+              expiryDate: operationForm.expiryDate || undefined,
+              supplier: operationForm.supplier || undefined,
+            }
+          : { reviewNotes: operationForm.reviewNotes || undefined };
+      const response = await api.put(path, body);
       showToast(response.message);
+      setOperation(null);
       fetchRequests();
     } catch (requestError: unknown) {
-      showToast(requestError instanceof Error ? requestError.message : "Could not receive delivery");
-    }
-  };
-
-  const cancelRequest = async (request: PurchaseRequest) => {
-    const reviewNotes = window.prompt("Reason for cancellation (optional):") ?? "";
-    if (!window.confirm(`Cancel the request for ${request.itemName}?`)) return;
-    try {
-      const response = await api.put(`/purchase-requests/${request._id}/cancel`, {
-        reviewNotes: reviewNotes || undefined,
-      });
-      showToast(response.message);
-      fetchRequests();
-    } catch (requestError: unknown) {
-      showToast(requestError instanceof Error ? requestError.message : "Could not cancel request");
+      setOperationError(requestError instanceof Error ? requestError.message : "Could not update request");
+    } finally {
+      setOperationBusy(false);
     }
   };
 
@@ -315,23 +333,23 @@ function PurchaseRequestsPage() {
                             <button onClick={() => openReview(r)} className="text-blue-600 hover:underline text-xs">
                               Review
                             </button>
-                            <button onClick={() => cancelRequest(r)} className="text-red-600 hover:underline text-xs">
+                            <button onClick={() => openOperation("cancel", r)} className="text-red-600 hover:underline text-xs">
                               Cancel
                             </button>
                           </div>
                         ) : canReview && (r.status === "approved" || r.status === "ordered") ? (
                           <div className="flex justify-end gap-3">
                             {r.status === "approved" && (
-                              <button onClick={() => markOrdered(r)} className="text-blue-600 hover:underline text-xs">
+                              <button onClick={() => openOperation("order", r)} className="text-blue-600 hover:underline text-xs">
                                 Mark Ordered
                               </button>
                             )}
-                            <button onClick={() => cancelRequest(r)} className="text-red-600 hover:underline text-xs">
+                            <button onClick={() => openOperation("cancel", r)} className="text-red-600 hover:underline text-xs">
                               Cancel
                             </button>
                           </div>
                         ) : canSubmit && (r.status === "approved" || r.status === "ordered") ? (
-                          <button onClick={() => receiveDelivery(r)} className="text-emerald-700 hover:underline text-xs">
+                          <button onClick={() => openOperation("receive", r)} className="text-emerald-700 hover:underline text-xs">
                             Receive Delivery
                           </button>
                         ) : (
@@ -506,6 +524,116 @@ function PurchaseRequestsPage() {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {operation && (
+        <Modal
+          title={
+            operation.mode === "order"
+              ? `Record Order: ${operation.request.itemName}`
+              : operation.mode === "receive"
+                ? `Receive Delivery: ${operation.request.itemName}`
+                : `Cancel Request: ${operation.request.itemName}`
+          }
+          onClose={() => setOperation(null)}
+        >
+          <form onSubmit={submitOperation} className="space-y-4">
+            {operationError && <p className="text-sm text-red-600">{operationError}</p>}
+            {operation.mode === "order" && (
+              <>
+                <label className="block text-xs font-medium text-gray-600">
+                  Supplier
+                  <input
+                    value={operationForm.supplier}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, supplier: event.target.value }))}
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-gray-600">
+                  Estimated total cost
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={operationForm.estimatedCost}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, estimatedCost: event.target.value }))}
+                    className="input mt-1"
+                  />
+                </label>
+              </>
+            )}
+            {operation.mode === "receive" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-gray-600">
+                  Batch or lot number *
+                  <input
+                    value={operationForm.batchNumber}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, batchNumber: event.target.value }))}
+                    required
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-gray-600">
+                  Quantity received *
+                  <input
+                    type="number"
+                    min="1"
+                    value={operationForm.quantityReceived}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, quantityReceived: event.target.value }))}
+                    required
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-gray-600">
+                  Expiry date
+                  <input
+                    type="date"
+                    value={operationForm.expiryDate}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, expiryDate: event.target.value }))}
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-gray-600">
+                  Supplier
+                  <input
+                    value={operationForm.supplier}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, supplier: event.target.value }))}
+                    className="input mt-1"
+                  />
+                </label>
+              </div>
+            )}
+            {operation.mode === "cancel" && (
+              <>
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                  The request will remain in history with a cancelled status.
+                </p>
+                <label className="block text-xs font-medium text-gray-600">
+                  Cancellation reason
+                  <textarea
+                    rows={3}
+                    maxLength={500}
+                    value={operationForm.reviewNotes}
+                    onChange={(event) => setOperationForm((current) => ({ ...current, reviewNotes: event.target.value }))}
+                    className="input mt-1"
+                  />
+                </label>
+              </>
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setOperation(null)} className="rounded-lg border px-4 py-2 text-sm">
+                Go Back
+              </button>
+              <button
+                type="submit"
+                disabled={operationBusy}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {operationBusy ? "Saving..." : operation.mode === "cancel" ? "Cancel Request" : "Save"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </Layout>
