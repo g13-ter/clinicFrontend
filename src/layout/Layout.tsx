@@ -57,6 +57,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [emergencyVisits, setEmergencyVisits] = useState<ClinicVisit[]>([]);
+  const [openingEmergency, setOpeningEmergency] = useState(false);
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
@@ -152,6 +153,51 @@ function Layout({ children }: { children: React.ReactNode }) {
       document.title = previousTitle;
     };
   }, [emergencyVisits.length]);
+
+  const handleOpenEmergency = async () => {
+    const visit = emergencyVisits[0];
+    if (!visit || openingEmergency) return;
+
+    if (role !== "doctor") {
+      navigate(`/dashboard?view=visits&emergency=${visit._id}&focus=${Date.now()}`);
+      return;
+    }
+
+    if (!visit.patientId || typeof visit.patientId !== "object") {
+      showToast("The emergency student record could not be opened", "error");
+      return;
+    }
+
+    setOpeningEmergency(true);
+    try {
+      if (visit.status !== "in_consultation") {
+        await api.put(`/visits/${visit._id}/status`, { status: "in_consultation" });
+      }
+
+      const params = new URLSearchParams({
+        tab: "consultation",
+        visitId: visit._id,
+        patientId: visit.patientId._id,
+        complaint: visit.complaint,
+      });
+      if (visit.appointmentId) {
+        params.set(
+          "appointmentId",
+          typeof visit.appointmentId === "object"
+            ? visit.appointmentId._id
+            : visit.appointmentId,
+        );
+      }
+      navigate(`/clinical-workspace?${params}`);
+    } catch (error: unknown) {
+      showToast(
+        error instanceof Error ? error.message : "Failed to open the emergency consultation",
+        "error",
+      );
+    } finally {
+      setOpeningEmergency(false);
+    }
+  };
 
   const clinicalTabs = [
     { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
@@ -369,14 +415,11 @@ function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 type="button"
-                onClick={() => navigate(
-                  role === "doctor"
-                    ? `/dashboard?tab=visits&emergency=${emergencyVisits[0]!._id}&focus=${Date.now()}`
-                    : `/dashboard?view=visits&emergency=${emergencyVisits[0]!._id}&focus=${Date.now()}`,
-                )}
-                className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                onClick={handleOpenEmergency}
+                disabled={openingEmergency}
+                className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-70"
               >
-                Open Emergency
+                {openingEmergency ? "Opening..." : "Open Emergency"}
               </button>
             </div>
           )}
