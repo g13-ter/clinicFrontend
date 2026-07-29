@@ -546,27 +546,27 @@ function ConsultationForm({
 
         {isDoctor && (
           <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 md:col-span-2 xl:col-span-3">
-            Vitals are recorded by the nurse during triage. They are shown here for physician review and cannot be changed from the consultation.
+            Vitals are recorded by the nurse during triage. These fields are locked and available to the physician for review only.
           </div>
         )}
 
         <Field label="Temperature (°C)">
-          <input type="number" step="0.1" value={form.temperature} onChange={(event) => onChange("temperature", event.target.value)} readOnly={isDoctor} className={`input ${isDoctor ? "bg-gray-50 text-gray-600" : ""}`} />
+          <input type="number" step="0.1" value={form.temperature} onChange={(event) => onChange("temperature", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Blood Pressure">
-          <input value={form.bloodPressure} onChange={(event) => onChange("bloodPressure", event.target.value)} readOnly={isDoctor} className={`input ${isDoctor ? "bg-gray-50 text-gray-600" : ""}`} placeholder="120/80" />
+          <input value={form.bloodPressure} onChange={(event) => onChange("bloodPressure", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} placeholder="120/80" />
         </Field>
         <Field label="Pulse Rate (bpm)">
-          <input type="number" min={1} value={form.pulseRate} onChange={(event) => onChange("pulseRate", event.target.value)} readOnly={isDoctor} className={`input ${isDoctor ? "bg-gray-50 text-gray-600" : ""}`} />
+          <input type="number" min={1} value={form.pulseRate} onChange={(event) => onChange("pulseRate", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Respiratory Rate">
-          <input type="number" min={1} value={form.respiratoryRate} onChange={(event) => onChange("respiratoryRate", event.target.value)} readOnly={isDoctor} className={`input ${isDoctor ? "bg-gray-50 text-gray-600" : ""}`} />
+          <input type="number" min={1} value={form.respiratoryRate} onChange={(event) => onChange("respiratoryRate", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Height (cm)">
-          <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} readOnly={isDoctor} className={`input ${isDoctor ? "bg-gray-50 text-gray-600" : ""}`} />
+          <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Weight (kg)">
-          <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} readOnly={isDoctor} className={`input ${isDoctor ? "bg-gray-50 text-gray-600" : ""}`} />
+          <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
 
         {isDoctor ? (

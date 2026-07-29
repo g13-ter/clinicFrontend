@@ -33,6 +33,9 @@ const emptyVitalsForm = {
   bloodPressure: "",
   temperature: "",
   pulseRate: "",
+  respiratoryRate: "",
+  heightCm: "",
+  weightKg: "",
 };
 const VITALS_FORM_FIELDS = Object.keys(emptyVitalsForm);
 
@@ -209,6 +212,9 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       bloodPressure: v.bloodPressure ?? "",
       temperature: v.temperature != null ? String(v.temperature) : "",
       pulseRate: v.pulseRate != null ? String(v.pulseRate) : "",
+      respiratoryRate: v.respiratoryRate != null ? String(v.respiratoryRate) : "",
+      heightCm: v.heightCm != null ? String(v.heightCm) : "",
+      weightKg: v.weightKg != null ? String(v.weightKg) : "",
     });
     resetVitalsErrors();
   }, [resetVitalsErrors]);
@@ -254,6 +260,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
         bloodPressure: vitalsForm.bloodPressure || undefined,
         temperature: vitalsForm.temperature ? Number(vitalsForm.temperature) : undefined,
         pulseRate: vitalsForm.pulseRate ? Number(vitalsForm.pulseRate) : undefined,
+        respiratoryRate: vitalsForm.respiratoryRate
+          ? Number(vitalsForm.respiratoryRate)
+          : undefined,
+        heightCm: vitalsForm.heightCm ? Number(vitalsForm.heightCm) : undefined,
+        weightKg: vitalsForm.weightKg ? Number(vitalsForm.weightKg) : undefined,
       });
       showToast(res.message);
       setVitalsTarget(null);
@@ -749,6 +760,44 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 className={`input ${vitalsFieldErrors.pulseRate ? "input-error" : ""}`}
               />
               <FieldError message={vitalsFieldErrors.pulseRate} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Respiratory Rate</label>
+              <input
+                type="number"
+                min={5}
+                max={80}
+                value={vitalsForm.respiratoryRate}
+                onChange={(e) => vf("respiratoryRate", e.target.value)}
+                className={`input ${vitalsFieldErrors.respiratoryRate ? "input-error" : ""}`}
+              />
+              <FieldError message={vitalsFieldErrors.respiratoryRate} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Height (cm)</label>
+              <input
+                type="number"
+                min={30}
+                max={250}
+                step="0.1"
+                value={vitalsForm.heightCm}
+                onChange={(e) => vf("heightCm", e.target.value)}
+                className={`input ${vitalsFieldErrors.heightCm ? "input-error" : ""}`}
+              />
+              <FieldError message={vitalsFieldErrors.heightCm} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                step="0.1"
+                value={vitalsForm.weightKg}
+                onChange={(e) => vf("weightKg", e.target.value)}
+                className={`input ${vitalsFieldErrors.weightKg ? "input-error" : ""}`}
+              />
+              <FieldError message={vitalsFieldErrors.weightKg} />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Notes</label>

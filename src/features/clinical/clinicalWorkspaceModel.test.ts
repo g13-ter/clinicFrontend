@@ -24,6 +24,9 @@ describe("clinical workspace model", () => {
       nursingAssessment: undefined,
     }));
     expect(buildVisitPayload(form, true)).not.toHaveProperty("temperature");
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("respiratoryRate");
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("heightCm");
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("weightKg");
     expect(buildVisitPayload(form, false)).toMatchObject({
       consultationFindings: undefined,
       nursingAssessment: "Pain score 4",
