@@ -244,6 +244,37 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      {!hasSidebar && (
+        <nav
+          aria-label="Workspace navigation"
+          className="border-b border-gray-200 bg-white print:hidden"
+        >
+          <div className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3 sm:px-6">
+            {visibleItems.map((item) => {
+              const Icon = NAV_ICONS[item.to] ?? DashboardIcon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to === "/clinical-workspace"
+                    ? "/clinical-workspace?tab=appointments"
+                    : item.to}
+                  className={({ isActive }) =>
+                    `flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors ${
+                      isActive
+                        ? "border-blue-600 text-blue-700"
+                        : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900"
+                    }`
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </NavLink>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
       {hasSidebar && sidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden print:hidden">
           <button
