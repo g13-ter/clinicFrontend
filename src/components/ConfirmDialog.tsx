@@ -23,7 +23,7 @@ function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal title={title} onClose={onCancel}>
+    <Modal title={title} onClose={onCancel} closeDisabled={busy}>
       <div className="text-sm text-gray-600 mb-5">{message}</div>
       <div className="flex justify-end gap-2">
         <button

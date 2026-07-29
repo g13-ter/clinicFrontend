@@ -110,7 +110,9 @@ function PurchaseRequestsPage() {
     api
       .get<Medicine[]>("/medicines?limit=200")
       .then((res) => setMedicines(res.data))
-      .catch(() => {});
+      .catch((requestError: unknown) => {
+        setError(requestError instanceof Error ? requestError.message : "Failed to load inventory choices");
+      });
   }, [canSubmit]);
 
   const openCreate = (requestType: "restock" | "new_item" = "new_item") => {
@@ -366,7 +368,7 @@ function PurchaseRequestsPage() {
       )}
 
       {showCreateModal && (
-        <Modal title="New Purchase Request" onClose={() => setShowCreateModal(false)}>
+        <Modal title="New Purchase Request" onClose={() => setShowCreateModal(false)} closeDisabled={saving}>
           {createFormError && <p className="text-red-500 text-sm mb-3">{createFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedCreateErrors(CREATE_FORM_FIELDS)} />
           <form onSubmit={handleCreate} className="flex flex-col gap-3">
@@ -486,7 +488,7 @@ function PurchaseRequestsPage() {
       )}
 
       {reviewTarget && (
-        <Modal title={`Review Request: ${reviewTarget.itemName}`} onClose={() => setReviewTarget(null)}>
+        <Modal title={`Review Request: ${reviewTarget.itemName}`} onClose={() => setReviewTarget(null)} closeDisabled={reviewing}>
           {reviewFormError && <p className="text-red-500 text-sm mb-3">{reviewFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedReviewErrors(REVIEW_FORM_FIELDS)} />
           <div className="flex flex-col gap-3">
@@ -537,6 +539,7 @@ function PurchaseRequestsPage() {
                 : `Cancel Request: ${operation.request.itemName}`
           }
           onClose={() => setOperation(null)}
+          closeDisabled={operationBusy}
         >
           <form onSubmit={submitOperation} className="space-y-4">
             {operationError && <p className="text-sm text-red-600">{operationError}</p>}

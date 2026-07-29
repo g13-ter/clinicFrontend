@@ -21,6 +21,7 @@ function SettingsPage() {
   const [success, setSuccess] = useState("");
   const [advancing, setAdvancing] = useState(false);
   const [showRolloverConfirm, setShowRolloverConfirm] = useState(false);
+  const [deliveryError, setDeliveryError] = useState("");
   const [deliveries, setDeliveries] = useState<Array<{
     _id: string;
     kind: string;
@@ -44,7 +45,9 @@ function SettingsPage() {
   useEffect(() => {
     api.get<typeof deliveries>("/notifications/delivery-history?limit=10")
       .then((response) => setDeliveries(response.data))
-      .catch(() => {});
+      .catch((requestError: unknown) => {
+        setDeliveryError(requestError instanceof Error ? requestError.message : "Failed to load delivery history");
+      });
   }, []);
 
   useEffect(() => {
@@ -206,6 +209,7 @@ function SettingsPage() {
                   </tbody>
                 </table>
                 {deliveries.length === 0 && <p className="py-3 text-xs text-gray-400">No notification deliveries yet.</p>}
+                {deliveryError && <p className="py-3 text-xs text-red-600">{deliveryError}</p>}
               </div>
             </SettingsSection>
 

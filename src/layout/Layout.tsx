@@ -44,12 +44,27 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profile, setProfile] = useState<User | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const markOnline = () => setOnline(true);
+    const markOffline = () => setOnline(false);
+    window.addEventListener("online", markOnline);
+    window.addEventListener("offline", markOffline);
+    return () => {
+      window.removeEventListener("online", markOnline);
+      window.removeEventListener("offline", markOffline);
+    };
+  }, []);
+
   const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
     try {
       await api.post("/auth/logout", {});
     } catch {
@@ -220,9 +235,10 @@ function Layout({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={handleLogout}
+              disabled={loggingOut}
               className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
-              Logout
+              {loggingOut ? "Signing out..." : "Logout"}
             </button>
           </div>
         </div>
@@ -264,6 +280,14 @@ function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <main className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
+          {!online && (
+            <div
+              role="status"
+              className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 print:hidden"
+            >
+              You are offline. Existing information remains visible, but changes cannot be saved until your connection returns.
+            </div>
+          )}
           {minutesLeft !== null && (
             <div className="mb-4 flex flex-col gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between print:hidden">
               <span>

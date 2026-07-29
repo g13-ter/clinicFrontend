@@ -34,6 +34,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
 
   const [visits, setVisits] = useState<ClinicVisit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [editing, setEditing] = useState<ClinicVisit | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Form>(empty);
@@ -41,12 +42,14 @@ function PatientVisits({ patientId }: { patientId: string }) {
   const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
     useFormErrors();
 
-  const reload = useCallback(
-    () => api.get<ClinicVisit[]>(`/visits/patient/${patientId}`)
+  const reload = useCallback(() => {
+    setLoadError("");
+    return api.get<ClinicVisit[]>(`/visits/patient/${patientId}`)
       .then((response) => setVisits(response.data))
-      .catch(() => {}),
-    [patientId],
-  );
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "Failed to load visit history");
+      });
+  }, [patientId]);
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
@@ -128,6 +131,10 @@ function PatientVisits({ patientId }: { patientId: string }) {
 
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
+      ) : loadError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {loadError}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded bg-white shadow">
           <table className="w-full min-w-[680px] text-sm">
@@ -170,7 +177,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
       )}
 
       {open && (
-        <Modal title={editing ? "Edit Visit" : "New Visit"} onClose={() => setOpen(false)}>
+        <Modal title={editing ? "Edit Visit" : "New Visit"} onClose={() => setOpen(false)} closeDisabled={saving}>
           {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
           <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">

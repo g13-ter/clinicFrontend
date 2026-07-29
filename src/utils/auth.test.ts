@@ -1,8 +1,9 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearCurrentSession,
   getCurrentUser,
   getCurrentRole,
+  restoreCurrentSession,
   saveCurrentSession,
 } from "./auth";
 
@@ -41,6 +42,10 @@ describe("auth utils", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("rejects cached sessions with an invalid role", () => {
     sessionStorage.setItem("clinic_session", JSON.stringify({
       id: "abc123",
@@ -55,5 +60,32 @@ describe("auth utils", () => {
     localStorage.setItem("token", "legacy-token");
     clearCurrentSession();
     expect(localStorage.getItem("token")).toBeNull();
+  });
+
+  it("restores a valid server session and caches only safe metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: {
+        user: { id: "doctor-1", role: "doctor" },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })));
+
+    const result = await restoreCurrentSession();
+
+    expect(result).toEqual(expect.objectContaining({ status: "authenticated" }));
+    expect(getCurrentRole()).toBe("doctor");
+    expect(localStorage.getItem("token")).toBeNull();
+  });
+
+  it("distinguishes a service outage from an expired session", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+
+    await expect(restoreCurrentSession()).resolves.toEqual({
+      status: "unavailable",
+      message: "Cannot connect to the clinic service. Check your connection and try again.",
+    });
   });
 });

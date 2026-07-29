@@ -405,7 +405,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
 
       {/* Modal */}
       {showModal && (
-        <Modal title={editTarget ? "Edit Student" : "Register Student"} onClose={() => setShowModal(false)}>
+        <Modal title={editTarget ? "Edit Student" : "Register Student"} onClose={() => setShowModal(false)} closeDisabled={saving}>
             {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {!editTarget && (

@@ -451,7 +451,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {showModal && (
-        <Modal title={editTarget ? "Edit Inventory Item" : "Record Received Inventory Item"} onClose={() => setShowModal(false)}>
+        <Modal title={editTarget ? "Edit Inventory Item" : "Record Received Inventory Item"} onClose={() => setShowModal(false)} closeDisabled={saving}>
           {!editTarget && (
             <p className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
               Use this form only after medicine has been received. To ask for approval before buying,
@@ -490,7 +490,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {batchTarget && (
-        <Modal title={`Receive Stock: ${batchTarget.name}`} onClose={() => setBatchTarget(null)}>
+        <Modal title={`Receive Stock: ${batchTarget.name}`} onClose={() => setBatchTarget(null)} closeDisabled={receiving}>
           <form onSubmit={receiveBatch} className="space-y-4">
             <InventoryField label="Batch Number *"><input required value={batchForm.batchNumber} onChange={(event) => setBatchForm({ ...batchForm, batchNumber: event.target.value })} className="input" /></InventoryField>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -138,7 +138,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     if (!canCheckIn) return;
     const path = patientsListPath(role);
     if (!path) return;
-    api.get<Patient[]>(path).then((res) => setPatients(res.data)).catch(() => {});
+    api.get<Patient[]>(path)
+      .then((res) => setPatients(res.data))
+      .catch((requestError: unknown) => {
+        setError(requestError instanceof Error ? requestError.message : "Failed to load students");
+      });
   }, [canCheckIn, role]);
 
   const openCheckIn = (patientId = "") => {
@@ -496,7 +500,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {showCheckIn && (
-        <Modal title="Check In Student" onClose={() => setShowCheckIn(false)}>
+        <Modal title="Check In Student" onClose={() => setShowCheckIn(false)} closeDisabled={checkingIn}>
           {checkInFormError && <p className="text-red-500 text-sm mb-3">{checkInFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedCheckInErrors(CHECKIN_FORM_FIELDS)} />
           <form onSubmit={handleCheckIn} className="flex flex-col gap-3">
@@ -598,7 +602,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {vitalsTarget && (
-        <Modal title={`Vitals: ${patientLabel(vitalsTarget.patientId)}`} onClose={() => setVitalsTarget(null)}>
+        <Modal title={`Vitals: ${patientLabel(vitalsTarget.patientId)}`} onClose={() => setVitalsTarget(null)} closeDisabled={savingVitals}>
           {vitalsFormError && <p className="text-red-500 text-sm mb-3">{vitalsFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedVitalsErrors(VITALS_FORM_FIELDS)} />
           <form onSubmit={handleSaveVitals} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -692,6 +696,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 : "Cancel Visit"
           }
           onClose={() => setStatusTarget(null)}
+          closeDisabled={savingStatus}
         >
           <form onSubmit={submitStatusWorkflow} className="space-y-4">
             <p className="text-sm text-gray-600">

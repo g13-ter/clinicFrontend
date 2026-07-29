@@ -26,6 +26,7 @@ export interface ApiSuccess<T = unknown> {
 }
 
 const BASE = "/api";
+let redirectingToLogin = false;
 
 const getHeaders = (isJson = true): HeadersInit => {
   const headers: Record<string, string> = {};
@@ -59,7 +60,10 @@ const parseJson = async (res: Response): Promise<unknown> => {
 const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
   if (res.status === 401) {
     clearCurrentSession();
-    window.location.href = "/login";
+    if (!redirectingToLogin && window.location.pathname !== "/login") {
+      redirectingToLogin = true;
+      window.location.replace("/login?reason=session-expired");
+    }
     throw new ApiError("Session expired", 401);
   }
 
@@ -80,6 +84,14 @@ const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
 
 const wait = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+const connectionError = (error: unknown): ApiError =>
+  error instanceof ApiError
+    ? error
+    : new ApiError(
+        "Cannot connect to the clinic service. Check your connection and try again.",
+        503,
+      );
 
 const getWithRetry = async <T>(path: string): Promise<ApiSuccess<T>> => {
   const retryDelays = [300, 900];
@@ -105,41 +117,41 @@ const getWithRetry = async <T>(path: string): Promise<ApiSuccess<T>> => {
       return await handleResponse<T>(response);
     } catch (error: unknown) {
       lastError = error;
-      if (error instanceof ApiError || attempt === retryDelays.length) throw error;
+      if (error instanceof ApiError) throw error;
+      if (attempt === retryDelays.length) throw connectionError(error);
       await wait(retryDelays[attempt] ?? 0);
     }
   }
 
-  throw lastError instanceof Error
-    ? lastError
-    : new ApiError("The API is temporarily unavailable", 503);
+  throw connectionError(lastError);
+};
+
+const send = async <T>(
+  path: string,
+  method: "POST" | "PUT" | "DELETE",
+  body?: unknown,
+): Promise<ApiSuccess<T>> => {
+  try {
+    const response = await fetch(`${BASE}${path}`, {
+      method,
+      headers: getHeaders(),
+      credentials: "include",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return await handleResponse<T>(response);
+  } catch (error: unknown) {
+    throw connectionError(error);
+  }
 };
 
 export const api = {
   get: <T = unknown>(path: string) => getWithRetry<T>(path),
 
-  post: <T = unknown>(path: string, body: unknown) =>
-    fetch(`${BASE}${path}`, {
-      method: "POST",
-      headers: getHeaders(),
-      credentials: "include",
-      body: JSON.stringify(body),
-    }).then((res) => handleResponse<T>(res)),
+  post: <T = unknown>(path: string, body: unknown) => send<T>(path, "POST", body),
 
-  put: <T = unknown>(path: string, body: unknown) =>
-    fetch(`${BASE}${path}`, {
-      method: "PUT",
-      headers: getHeaders(),
-      credentials: "include",
-      body: JSON.stringify(body),
-    }).then((res) => handleResponse<T>(res)),
+  put: <T = unknown>(path: string, body: unknown) => send<T>(path, "PUT", body),
 
-  delete: <T = unknown>(path: string) =>
-    fetch(`${BASE}${path}`, {
-      method: "DELETE",
-      headers: getHeaders(),
-      credentials: "include",
-    }).then((res) => handleResponse<T>(res)),
+  delete: <T = unknown>(path: string) => send<T>(path, "DELETE"),
 
   download: (path: string) =>
     fetch(`${BASE}${path}`, {

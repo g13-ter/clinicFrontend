@@ -44,4 +44,18 @@ describe("API client recovery", () => {
       }),
     );
   });
+
+  it("normalizes mutation network failures without retrying the write", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.post("/appointments", { reason: "Checkup" })).rejects.toEqual(
+      expect.objectContaining({
+        name: "ApiError",
+        message: "Cannot connect to the clinic service. Check your connection and try again.",
+        status: 503,
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

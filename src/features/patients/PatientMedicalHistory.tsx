@@ -34,6 +34,8 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
   const [history, setHistory] = useState<MedicalHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [medicineLoadError, setMedicineLoadError] = useState("");
   const [editing, setEditing] = useState<MedicalHistory | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Form>(empty);
@@ -45,12 +47,14 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [prescribedRows, setPrescribedRows] = useState<PrescribedItemRow[]>([]);
 
-  const reload = useCallback(
-    () => api.get<MedicalHistory[]>(`/medical-history/patient/${patientId}`)
+  const reload = useCallback(() => {
+    setLoadError("");
+    return api.get<MedicalHistory[]>(`/medical-history/patient/${patientId}`)
       .then((response) => setHistory(response.data))
-      .catch(() => {}),
-    [patientId],
-  );
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "Failed to load medical history");
+      });
+  }, [patientId]);
 
   useEffect(() => {
     if (!canView) return;
@@ -59,7 +63,11 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
   useEffect(() => {
     if (!canEdit) return;
-    api.get<Medicine[]>("/medicines?limit=200").then((res) => setMedicines(res.data)).catch(() => {});
+    api.get<Medicine[]>("/medicines?limit=200")
+      .then((res) => setMedicines(res.data))
+      .catch((error: unknown) => {
+        setMedicineLoadError(error instanceof Error ? error.message : "Failed to load medicines");
+      });
   }, [canEdit]);
 
   if (!canView) return null;
@@ -161,6 +169,10 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
+      ) : loadError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {loadError}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded bg-white shadow">
           <table className="w-full min-w-[900px] text-sm">
@@ -214,8 +226,13 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
       )}
 
       {open && (
-        <Modal title={editing ? "Edit History" : "New History Entry"} onClose={() => setOpen(false)}>
+        <Modal title={editing ? "Edit History" : "New History Entry"} onClose={() => setOpen(false)} closeDisabled={saving}>
           {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
+          {medicineLoadError && (
+            <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Medicine inventory could not be loaded. Clinical notes can still be saved, but prescription items are unavailable.
+            </p>
+          )}
           <UnmatchedFieldErrors
             errors={unmatchedFieldErrors(FORM_FIELDS).filter(
               ([field]) => !field.startsWith("prescribedItems.")

@@ -332,7 +332,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {showModal && (
-        <Modal title={editTarget ? "Edit Clinic User" : "Add Clinic User"} onClose={() => setShowModal(false)}>
+        <Modal title={editTarget ? "Edit Clinic User" : "Add Clinic User"} onClose={() => setShowModal(false)} closeDisabled={saving}>
           {formError && <p className="mb-3 text-sm text-red-500">{formError}</p>}
           <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
           <form onSubmit={saveUser} className="space-y-3">

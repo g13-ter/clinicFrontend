@@ -700,6 +700,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
         <Modal
           title={`Reschedule ${patientName(rescheduleTarget.patientId)}`}
           onClose={() => setRescheduleTarget(null)}
+          closeDisabled={rescheduling}
         >
           <form onSubmit={handleReschedule} className="space-y-4">
             {formError && (
@@ -832,7 +833,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {cancelTarget && (
-        <Modal title="Cancel appointment" onClose={() => setCancelTarget(null)}>
+        <Modal title="Cancel appointment" onClose={() => setCancelTarget(null)} closeDisabled={cancelling}>
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
               Cancel the appointment for{" "}
