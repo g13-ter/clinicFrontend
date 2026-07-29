@@ -18,7 +18,6 @@ const empty = {
   heightCm: "",
   weightKg: "",
   nursingAssessment: "",
-  consultationFindings: "",
   nursingInterventions: "",
   nursingRecommendations: "",
   clinicProtocolReference: "",
@@ -69,7 +68,6 @@ function PatientVisits({ patientId }: { patientId: string }) {
       heightCm: v.heightCm != null ? String(v.heightCm) : "",
       weightKg: v.weightKg != null ? String(v.weightKg) : "",
       nursingAssessment: v.nursingAssessment ?? "",
-      consultationFindings: v.consultationFindings ?? "",
       nursingInterventions: v.nursingInterventions ?? "",
       nursingRecommendations: v.nursingRecommendations ?? "",
       clinicProtocolReference: v.clinicProtocolReference ?? "",
@@ -93,7 +91,6 @@ function PatientVisits({ patientId }: { patientId: string }) {
       heightCm: form.heightCm ? Number(form.heightCm) : undefined,
       weightKg: form.weightKg ? Number(form.weightKg) : undefined,
       nursingAssessment: form.nursingAssessment || undefined,
-      consultationFindings: form.consultationFindings || undefined,
       nursingInterventions: form.nursingInterventions || undefined,
       nursingRecommendations: form.nursingRecommendations || undefined,
       clinicProtocolReference: form.clinicProtocolReference || undefined,
@@ -241,10 +238,6 @@ function PatientVisits({ patientId }: { patientId: string }) {
               <p className="text-xs font-semibold text-sky-700 mb-2">Nursing Assessment — not a physician diagnosis</p>
               <label className="block text-xs text-gray-500 mb-1">Nursing Assessment</label>
               <textarea rows={2} value={form.nursingAssessment} onChange={(e) => f("nursingAssessment", e.target.value)} className="input w-full" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Consultation Findings</label>
-              <textarea rows={2} value={form.consultationFindings} onChange={(e) => f("consultationFindings", e.target.value)} className="input w-full" />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Nursing Interventions Performed</label>

@@ -90,7 +90,7 @@ export interface Appointment {
   durationMinutes?: number;
   type?: "regular" | "follow_up";
   sourceVisitId?: string;
-  visitId?: string;
+  visitId?: string | Pick<ClinicVisit, "_id" | "status" | "readyForDoctor">;
   checkedInAt?: string;
 }
 

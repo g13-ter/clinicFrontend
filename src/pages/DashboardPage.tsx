@@ -9,7 +9,7 @@ import {
   StaffIcon,
   VisitsIcon,
 } from "../components/icons";
-import type { Appointment, DashboardStats, Patient } from "../utils/types";
+import type { Appointment, ClinicVisit, DashboardStats, Patient } from "../utils/types";
 import {
   buildDashboardAlerts,
   dashboardAlertKey,
@@ -514,15 +514,25 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
 
     setStartingId(appointment._id);
     try {
-      let visitId = appointment.visitId;
+      const linkedVisit =
+        appointment.visitId && typeof appointment.visitId === "object"
+          ? appointment.visitId
+          : null;
+      const visitId =
+        typeof appointment.visitId === "string"
+          ? appointment.visitId
+          : linkedVisit?._id ?? "";
       if (!visitId) {
-        const response = await api.post<{ appointment: Appointment; visit: { _id: string } }>(
-          `/appointments/${appointment._id}/check-in`,
-          {},
-        );
-        visitId = response.data.visit._id;
+        showToast("Waiting for nurse check-in and triage before consultation");
+        return;
       }
 
+      const currentVisit = linkedVisit ??
+        (await api.get<ClinicVisit>(`/visits/${visitId}`)).data;
+      if (!currentVisit.readyForDoctor) {
+        showToast("A nurse must record triage and mark the student ready first");
+        return;
+      }
       await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
       const params = new URLSearchParams({
         tab: "consultation",
@@ -588,6 +598,13 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
                   appointment.patientId && typeof appointment.patientId === "object"
                     ? appointment.patientId as Patient
                     : null;
+                const linkedVisit =
+                  appointment.visitId && typeof appointment.visitId === "object"
+                    ? appointment.visitId
+                    : null;
+                const awaitingNurse =
+                  effectiveStatus !== "pending" &&
+                  (!appointment.visitId || (linkedVisit && !linkedVisit.readyForDoctor));
                 return (
                   <tr key={appointment._id}>
                     <td className="whitespace-nowrap px-5 py-4 font-medium">
@@ -619,6 +636,12 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
                             ? "Confirming..."
                             : "Confirm Appointment"}
                         </button>
+                      ) : awaitingNurse ? (
+                        <span className="text-xs font-medium text-amber-700">
+                          {!appointment.visitId
+                            ? "Awaiting nurse check-in"
+                            : "Awaiting nurse triage"}
+                        </span>
                       ) : (
                         <button
                           type="button"

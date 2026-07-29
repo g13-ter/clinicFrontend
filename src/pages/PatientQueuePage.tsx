@@ -69,6 +69,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const [searchParams] = useSearchParams();
   const canManage = can("manageQueue");
   const canCheckIn = can("checkInPatients");
+  const canRecordVitals = can("recordVitals");
   const requestedPatientId = searchParams.get("patientId") ?? "";
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
@@ -166,7 +167,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
         complaint: checkInForm.complaint,
         isEmergency: checkInForm.isEmergency,
         emergencyDetails: checkInForm.emergencyDetails || undefined,
-        ...(role !== "staff"
+        ...(role === "nurse"
           ? {
               bloodPressure: checkInForm.bloodPressure || undefined,
               temperature: checkInForm.temperature
@@ -323,9 +324,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     if (!canManage) return null;
     return (
       <>
-        <button onClick={() => openVitals(v)} className="text-xs text-gray-600 hover:underline">
-          Record Vitals
-        </button>
+        {canRecordVitals && (
+          <button onClick={() => openVitals(v)} className="text-xs text-gray-600 hover:underline">
+            Record Vitals
+          </button>
+        )}
         {!v.readyForDoctor && (
           <button onClick={() => handleMarkReady(v)} className="text-xs text-green-600 hover:underline">
             Ready for Consultation
@@ -531,7 +534,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               />
               <FieldError message={checkInFieldErrors.complaint} />
             </div>
-            {role !== "staff" && (
+            {role === "nurse" && (
               <>
                 <p className="-mt-1 text-xs text-gray-400">
                   Vitals are optional here—you can check the student in now and record them during triage.
