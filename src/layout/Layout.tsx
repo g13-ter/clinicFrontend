@@ -3,8 +3,9 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { NAV_ITEMS, can } from "../config/permissions";
 import { useAuth } from "../hooks/useAuth";
 import { useSessionExpiryWarning } from "../hooks/useSessionExpiryWarning";
+import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
-import type { User } from "../utils/types";
+import type { ClinicVisit, User } from "../utils/types";
 import { clearCurrentSession } from "../utils/auth";
 import {
   AuditIcon,
@@ -35,10 +36,19 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/settings": StaffIcon,
 };
 
+const EMERGENCY_POLL_INTERVAL_MS = 10_000;
+
+function emergencyStudentName(visit: ClinicVisit): string {
+  return visit.patientId && typeof visit.patientId === "object"
+    ? `${visit.patientId.firstName} ${visit.patientId.lastName}`
+    : "Student";
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
+  const { showToast } = useToast();
   const hasSidebar = role === "admin";
   const minutesLeft = useSessionExpiryWarning();
   const [search, setSearch] = useState("");
@@ -46,6 +56,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<User | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [emergencyVisits, setEmergencyVisits] = useState<ClinicVisit[]>([]);
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
@@ -90,6 +101,58 @@ function Layout({ children }: { children: React.ReactNode }) {
   });
   const canSearchStudents = can(role, "searchPatients") && role !== "doctor";
   const isClinicalRole = role === "doctor" || role === "nurse";
+
+  useEffect(() => {
+    if (!isClinicalRole) {
+      setEmergencyVisits([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchEmergencies = async () => {
+      try {
+        const response = await api.get<ClinicVisit[]>("/visits/queue");
+        if (cancelled) return;
+        const emergencies = response.data.filter((visit) => visit.isEmergency);
+        setEmergencyVisits(emergencies);
+
+        emergencies.forEach((visit) => {
+          const notificationKey = `clinic-emergency-notified:${visit._id}`;
+          if (sessionStorage.getItem(notificationKey)) return;
+          sessionStorage.setItem(notificationKey, "true");
+          showToast(
+            `Emergency case: ${emergencyStudentName(visit)} requires immediate attention`,
+            "error",
+          );
+        });
+      } catch {
+        // Page-level data remains usable if the background emergency check fails.
+      }
+    };
+
+    void fetchEmergencies();
+    const interval = window.setInterval(fetchEmergencies, EMERGENCY_POLL_INTERVAL_MS);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void fetchEmergencies();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [isClinicalRole, showToast]);
+
+  useEffect(() => {
+    if (emergencyVisits.length === 0) return;
+    const previousTitle = document.title;
+    document.title = `EMERGENCY (${emergencyVisits.length}) | School Clinic`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [emergencyVisits.length]);
+
   const clinicalTabs = [
     { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
     { id: "records", label: "Student Records", icon: PatientsIcon },
@@ -280,6 +343,43 @@ function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <main className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
+          {emergencyVisits.length > 0 && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="mb-4 flex flex-col gap-3 rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 text-red-950 shadow-sm sm:flex-row sm:items-center"
+            >
+              <span
+                aria-hidden="true"
+                className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-red-600"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">
+                  Emergency case requires immediate attention
+                  {emergencyVisits.length > 1 ? ` (${emergencyVisits.length} active)` : ""}
+                </p>
+                <p className="mt-0.5 text-sm">
+                  {emergencyStudentName(emergencyVisits[0]!)}
+                  {emergencyVisits[0]?.emergencyDetails
+                    ? ` — ${emergencyVisits[0].emergencyDetails}`
+                    : emergencyVisits[0]?.complaint
+                      ? ` — ${emergencyVisits[0].complaint}`
+                      : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(
+                  role === "doctor"
+                    ? `/dashboard?tab=visits&emergency=${emergencyVisits[0]!._id}`
+                    : `/dashboard?view=visits&emergency=${emergencyVisits[0]!._id}`,
+                )}
+                className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Open Emergency
+              </button>
+            </div>
+          )}
           {!hasSidebar && location.pathname !== "/dashboard" && (
             <Link
               to="/dashboard"

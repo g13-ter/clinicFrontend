@@ -75,6 +75,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const canCheckIn = can("checkInPatients");
   const canRecordVitals = can("recordVitals");
   const requestedPatientId = searchParams.get("patientId") ?? "";
+  const requestedEmergencyId = searchParams.get("emergency") ?? "";
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -403,7 +404,16 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               queue.map((v) => {
                 const link = patientLink(v.patientId);
                 return (
-                  <article key={v._id} className={`rounded-lg border-l-4 bg-white p-4 shadow ${v.readyForDoctor ? "border-l-green-500" : "border-l-amber-400"}`}>
+                  <article
+                    key={v._id}
+                    className={`rounded-lg border-l-4 bg-white p-4 shadow ${
+                      requestedEmergencyId === v._id
+                        ? "border-red-600 ring-2 ring-red-500"
+                        : v.readyForDoctor
+                          ? "border-l-green-500"
+                          : "border-l-amber-400"
+                    }`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 font-medium">
                         {link ? (
@@ -411,6 +421,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                             {patientLabel(v.patientId)}
                           </Link>
                         ) : patientLabel(v.patientId)}
+                        {v.isEmergency && (
+                          <span className="ml-2 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                            Emergency
+                          </span>
+                        )}
                         <p className="mt-1 text-xs font-normal text-gray-400">
                           Arrived {new Date(v.visitDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </p>
@@ -467,7 +482,16 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 queue.map((v) => {
                   const link = patientLink(v.patientId);
                   return (
-                    <tr key={v._id} className={`transition-colors hover:bg-blue-50/40 ${v.readyForDoctor ? "" : "bg-amber-50/50"}`}>
+                    <tr
+                      key={v._id}
+                      className={`transition-colors hover:bg-blue-50/40 ${
+                        requestedEmergencyId === v._id
+                          ? "bg-red-50 ring-2 ring-inset ring-red-500"
+                          : v.readyForDoctor
+                            ? ""
+                            : "bg-amber-50/50"
+                      }`}
+                    >
                       <td className="px-4 py-3 font-medium">
                         {link ? (
                           <Link to={link} className="text-blue-600 hover:underline">
@@ -475,6 +499,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                           </Link>
                         ) : (
                           patientLabel(v.patientId)
+                        )}
+                        {v.isEmergency && (
+                          <span className="ml-2 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                            Emergency
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
