@@ -97,33 +97,15 @@ function DashboardPage() {
   const isAdmin = role === "admin";
   const isDoctor = role === "doctor";
   const isStaff = role === "staff";
-  const dashboardDate = new Intl.DateTimeFormat("en-PH", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date());
 
   return (
     <Layout>
       <div className="mx-auto w-full max-w-[1600px] space-y-5">
         <div className="space-y-4 pb-1 lg:pb-4">
           <div>
-            {isStaff ? (
-              <>
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                  Good morning
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">{dashboardDate}</p>
-              </>
-            ) : (
-              <>
-                {!isDoctor && <p className="text-sm text-gray-500">School Clinic Management</p>}
-                <h2 className={`${isDoctor ? "" : "mt-1 "}text-2xl font-semibold tracking-tight text-slate-900`}>
-                  {dashboardTitle}
-                </h2>
-              </>
-            )}
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+              {dashboardTitle}
+            </h2>
           </div>
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
