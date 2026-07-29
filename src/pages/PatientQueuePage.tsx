@@ -58,6 +58,10 @@ function vitalsSummary(v: ClinicVisit): string {
   );
 }
 
+function hasRecordedVitals(v: ClinicVisit): boolean {
+  return Boolean(v.bloodPressure || v.temperature != null || v.pulseRate != null);
+}
+
 function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
@@ -326,7 +330,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       <>
         {canRecordVitals && (
           <button onClick={() => openVitals(v)} className="text-xs text-gray-600 hover:underline">
-            Record Vitals
+            {hasRecordedVitals(v) ? "Edit Vitals" : "Record Vitals"}
           </button>
         )}
         {!v.readyForDoctor && (
@@ -544,6 +548,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 <label className="block text-xs text-gray-500 mb-1">Blood Pressure</label>
                 <input
                   placeholder="e.g. 120/80"
+                  pattern="\d{2,3}/\d{2,3}"
+                  title="Use systolic/diastolic format, for example 120/80"
                   value={checkInForm.bloodPressure}
                   onChange={(e) => ci("bloodPressure", e.target.value)}
                   className={`input w-full ${checkInFieldErrors.bloodPressure ? "input-error" : ""}`}
@@ -555,6 +561,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 <input
                   type="number"
                   step="0.1"
+                  min={30}
+                  max={45}
                   value={checkInForm.temperature}
                   onChange={(e) => ci("temperature", e.target.value)}
                   className={`input w-full ${checkInFieldErrors.temperature ? "input-error" : ""}`}
@@ -565,6 +573,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 <label className="block text-xs text-gray-500 mb-1">Pulse</label>
                 <input
                   type="number"
+                  min={30}
+                  max={250}
                   value={checkInForm.pulseRate}
                   onChange={(e) => ci("pulseRate", e.target.value)}
                   className={`input w-full ${checkInFieldErrors.pulseRate ? "input-error" : ""}`}
@@ -605,7 +615,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {vitalsTarget && (
-        <Modal title={`Vitals: ${patientLabel(vitalsTarget.patientId)}`} onClose={() => setVitalsTarget(null)} closeDisabled={savingVitals}>
+        <Modal
+          title={`${hasRecordedVitals(vitalsTarget) ? "Edit" : "Record"} Vitals: ${patientLabel(vitalsTarget.patientId)}`}
+          onClose={() => setVitalsTarget(null)}
+          closeDisabled={savingVitals}
+        >
           {vitalsFormError && <p className="text-red-500 text-sm mb-3">{vitalsFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedVitalsErrors(VITALS_FORM_FIELDS)} />
           <form onSubmit={handleSaveVitals} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -632,6 +646,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               <label className="block text-xs text-gray-500 mb-1">Blood Pressure</label>
               <input
                 placeholder="e.g. 120/80"
+                pattern="\d{2,3}/\d{2,3}"
+                title="Use systolic/diastolic format, for example 120/80"
                 value={vitalsForm.bloodPressure}
                 onChange={(e) => vf("bloodPressure", e.target.value)}
                 className={`input ${vitalsFieldErrors.bloodPressure ? "input-error" : ""}`}
@@ -643,6 +659,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               <input
                 type="number"
                 step="0.1"
+                min={30}
+                max={45}
                 value={vitalsForm.temperature}
                 onChange={(e) => vf("temperature", e.target.value)}
                 className={`input ${vitalsFieldErrors.temperature ? "input-error" : ""}`}
@@ -653,6 +671,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               <label className="block text-xs text-gray-500 mb-1">Pulse Rate</label>
               <input
                 type="number"
+                min={30}
+                max={250}
                 value={vitalsForm.pulseRate}
                 onChange={(e) => vf("pulseRate", e.target.value)}
                 className={`input ${vitalsFieldErrors.pulseRate ? "input-error" : ""}`}
@@ -682,7 +702,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 disabled={savingVitals}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {savingVitals ? "Saving…" : "Save"}
+                {savingVitals ? "Saving…" : "Save Vitals"}
               </button>
             </div>
           </form>
