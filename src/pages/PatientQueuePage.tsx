@@ -62,6 +62,10 @@ function hasRecordedVitals(v: ClinicVisit): boolean {
   return Boolean(v.bloodPressure || v.temperature != null || v.pulseRate != null);
 }
 
+function hasCompleteCoreVitals(v: ClinicVisit): boolean {
+  return Boolean(v.bloodPressure && v.temperature != null && v.pulseRate != null);
+}
+
 function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
@@ -334,9 +338,18 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
             {hasRecordedVitals(v) ? "Edit Vitals" : "Record Vitals"}
           </button>
         )}
-        {!v.readyForDoctor && (
-          <button onClick={() => handleMarkReady(v)} className="text-xs text-green-600 hover:underline">
-            Ready for Consultation
+        {canRecordVitals && !v.readyForDoctor && (
+          <button
+            onClick={() => handleMarkReady(v)}
+            disabled={!hasCompleteCoreVitals(v)}
+            title={
+              hasCompleteCoreVitals(v)
+                ? "Send this triaged visit to the doctor"
+                : "Record blood pressure, temperature, and pulse rate first"
+            }
+            className="text-xs text-green-600 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+          >
+            Ready for Doctor
           </button>
         )}
         {v.readyForDoctor && v.status !== "in_consultation" && (
@@ -433,7 +446,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                       <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${
                         v.status === "in_consultation" ? "bg-blue-100 text-blue-700" : v.readyForDoctor ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
                       }`}>
-                        {v.status === "in_consultation" ? "In Consultation" : v.readyForDoctor ? "Ready for Consultation" : "Triage"}
+                        {v.status === "in_consultation" ? "In Consultation" : v.readyForDoctor ? "Ready for Doctor" : "Triage"}
                       </span>
                     </div>
                     <dl className="mt-3 grid gap-3 border-t pt-3 text-sm">
@@ -517,7 +530,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                             v.status === "in_consultation" ? "bg-blue-100 text-blue-700" : v.readyForDoctor ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
                           }`}
                         >
-                          {v.status === "in_consultation" ? "In Consultation" : v.readyForDoctor ? "Ready for Doctor / Nurse" : "Waiting for Triage"}
+                          {v.status === "in_consultation" ? "In Consultation" : v.readyForDoctor ? "Ready for Doctor" : "Waiting for Nurse Triage"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
