@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
@@ -80,6 +80,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const canRecordVitals = can("recordVitals");
   const requestedPatientId = searchParams.get("patientId") ?? "";
   const requestedEmergencyId = searchParams.get("emergency") ?? "";
+  const emergencyFocusToken = searchParams.get("focus") ?? "";
+  const handledEmergencyFocus = useRef("");
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,7 +200,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
-  const openVitals = (v: ClinicVisit) => {
+  const openVitals = useCallback((v: ClinicVisit) => {
     setVitalsTarget(v);
     setVitalsForm({
       complaint: v.complaint,
@@ -209,7 +211,30 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       pulseRate: v.pulseRate != null ? String(v.pulseRate) : "",
     });
     resetVitalsErrors();
-  };
+  }, [resetVitalsErrors]);
+
+  useEffect(() => {
+    if (!requestedEmergencyId || queue.length === 0) return;
+    const focusKey = `${requestedEmergencyId}:${emergencyFocusToken}`;
+    if (handledEmergencyFocus.current === focusKey) return;
+
+    const visit = queue.find((item) => item._id === requestedEmergencyId);
+    if (!visit) return;
+    handledEmergencyFocus.current = focusKey;
+
+    const elementId = window.matchMedia("(min-width: 768px)").matches
+      ? `visit-desktop-${visit._id}`
+      : `visit-mobile-${visit._id}`;
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(elementId);
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      target?.focus({ preventScroll: true });
+    });
+
+    if (role === "nurse" && !visit.readyForDoctor && visit.status === "triage") {
+      openVitals(visit);
+    }
+  }, [emergencyFocusToken, openVitals, queue, requestedEmergencyId, role]);
 
   const vf = (k: keyof typeof emptyVitalsForm, v: string) => {
     setVitalsForm((prev) => ({ ...prev, [k]: v }));
@@ -419,6 +444,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 return (
                   <article
                     key={v._id}
+                    id={`visit-mobile-${v._id}`}
+                    tabIndex={-1}
                     className={`rounded-lg border-l-4 bg-white p-4 shadow ${
                       requestedEmergencyId === v._id
                         ? "border-red-600 ring-2 ring-red-500"
@@ -497,6 +524,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                   return (
                     <tr
                       key={v._id}
+                      id={`visit-desktop-${v._id}`}
+                      tabIndex={-1}
                       className={`transition-colors hover:bg-blue-50/40 ${
                         requestedEmergencyId === v._id
                           ? "bg-red-50 ring-2 ring-inset ring-red-500"

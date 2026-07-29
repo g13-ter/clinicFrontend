@@ -371,8 +371,8 @@ function Layout({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => navigate(
                   role === "doctor"
-                    ? `/dashboard?tab=visits&emergency=${emergencyVisits[0]!._id}`
-                    : `/dashboard?view=visits&emergency=${emergencyVisits[0]!._id}`,
+                    ? `/dashboard?tab=visits&emergency=${emergencyVisits[0]!._id}&focus=${Date.now()}`
+                    : `/dashboard?view=visits&emergency=${emergencyVisits[0]!._id}&focus=${Date.now()}`,
                 )}
                 className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
               >
