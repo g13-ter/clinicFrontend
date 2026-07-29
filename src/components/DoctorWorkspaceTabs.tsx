@@ -1,9 +1,15 @@
 import { Link } from "react-router-dom";
 
-export type DoctorWorkspaceTab = "appointments" | "records" | "consultation" | "followups";
+export type DoctorWorkspaceTab =
+  | "appointments"
+  | "visits"
+  | "records"
+  | "consultation"
+  | "followups";
 
 const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
   { id: "appointments", label: "Appointments", to: "/dashboard" },
+  { id: "visits", label: "Student Visits", to: "/dashboard?tab=visits" },
   { id: "records", label: "Patient Records", to: "/dashboard?tab=records" },
   { id: "consultation", label: "New Consultation", to: "/dashboard?tab=consultation" },
   { id: "followups", label: "Follow-Ups", to: "/dashboard?tab=followups" },

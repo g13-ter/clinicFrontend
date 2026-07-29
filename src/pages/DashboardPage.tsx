@@ -53,6 +53,7 @@ function DashboardPage() {
       : "visits";
   const requestedDoctorTab = searchParams.get("tab");
   const doctorTab: DoctorWorkspaceTab =
+    requestedDoctorTab === "visits" ||
     requestedDoctorTab === "records" ||
     requestedDoctorTab === "consultation" ||
     requestedDoctorTab === "followups"
@@ -169,6 +170,10 @@ function DashboardPage() {
               <TodayAppointments appointments={todayAppointments} />
               <RecentCases cases={stats.recentCases} title="Recent Consultations" />
             </>
+          ) : doctorTab === "visits" ? (
+            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+              <PatientQueuePage embedded />
+            </section>
           ) : (
             <ClinicalWorkspacePage embedded />
           )
