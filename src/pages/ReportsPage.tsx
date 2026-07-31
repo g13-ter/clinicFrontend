@@ -14,6 +14,13 @@ import { reportFilename, saveBlobDownload } from "../utils/download";
 import type { ReactNode } from "react";
 
 type CsvReportType =
+  | "inventory-current"
+  | "inventory-movements"
+  | "inventory-batches"
+  | "inventory-reorder"
+  | "medication-consumption"
+  | "medication-usage-details"
+  | "medication-inventory"
   | "inventory-stock"
   | "inventory-usage"
   | "inventory-expiry"
@@ -73,18 +80,38 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
-  const downloadVisitReport = (period: "daily" | "weekly" | "monthly") => {
+  type ReportPeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+  const reportRange = (period: ReportPeriod): { start: string; end: string } => {
     const now = new Date();
     let from = new Date(now);
     if (period === "weekly") from.setDate(now.getDate() - 6);
     if (period === "monthly") from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const start = dateKey(from);
-    const end = dateKey(now);
+    if (period === "yearly") from = new Date(now.getFullYear(), 0, 1);
+    return { start: dateKey(from), end: dateKey(now) };
+  };
+
+  const applyPeriod = (period: ReportPeriod) => {
+    const range = reportRange(period);
+    setStartDate(range.start);
+    setEndDate(range.end);
+  };
+
+  const downloadVisitReport = (period: ReportPeriod) => {
+    const { start, end } = reportRange(period);
     const params = new URLSearchParams({ startDate: start, endDate: end });
     void download(
       `/reports/clinic-summary?${params}`,
       `Clinic_${period}_report_${end}.docx`,
       `visit-${period}`,
+    );
+  };
+
+  const downloadAnnualMedicationReport = () => {
+    void download(
+      "/reports/annual-medication",
+      "Annual_Medication_Report.xls",
+      "annual-medication",
     );
   };
 
@@ -118,27 +145,35 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
             <p className="text-sm text-gray-500">Reporting period</p>
             <h2 className="mt-1 text-2xl font-bold text-gray-900">Clinic Reports</h2>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="text-xs font-medium text-gray-600">
-              Start date
-              <input
-                type="date"
-                value={startDate}
-                max={endDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                className="input mt-1"
-              />
-            </label>
-            <label className="text-xs font-medium text-gray-600">
-              End date
-              <input
-                type="date"
-                value={endDate}
-                min={startDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="input mt-1"
-              />
-            </label>
+          <div className="space-y-2">
+            <div className="flex flex-wrap justify-end gap-2">
+              <PeriodButton label="Today" onClick={() => applyPeriod("daily")} />
+              <PeriodButton label="Last 7 Days" onClick={() => applyPeriod("weekly")} />
+              <PeriodButton label="This Month" onClick={() => applyPeriod("monthly")} />
+              <PeriodButton label="This Year" onClick={() => applyPeriod("yearly")} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium text-gray-600">
+                Start date
+                <input
+                  type="date"
+                  value={startDate}
+                  max={endDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="input mt-1"
+                />
+              </label>
+              <label className="text-xs font-medium text-gray-600">
+                End date
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  className="input mt-1"
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -159,16 +194,33 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
             <ActionButton label="Daily Report" loading={activeDownload === "visit-daily"} onClick={() => downloadVisitReport("daily")} />
             <ActionButton label="Weekly Report" loading={activeDownload === "visit-weekly"} onClick={() => downloadVisitReport("weekly")} />
             <ActionButton label="Monthly Report" loading={activeDownload === "visit-monthly"} onClick={() => downloadVisitReport("monthly")} />
+            <ActionButton label="Yearly Report" loading={activeDownload === "visit-yearly"} onClick={() => downloadVisitReport("yearly")} />
           </ReportCard>
 
           <ReportCard
             icon={<MedicineIcon />}
             title="Inventory Reports"
-            description="Export current stock, medicine usage, and expiry information."
+            description="Monitor current stock, movements, batch expiry, and items that need reordering."
           >
-            <ActionButton label="Stock Report" loading={activeDownload === "inventory-stock"} onClick={() => downloadCsv("inventory-stock", "Inventory_Stock")} />
-            <ActionButton label="Usage Report" loading={activeDownload === "inventory-usage"} onClick={() => downloadCsv("inventory-usage", "Medicine_Usage")} />
-            <ActionButton label="Expiry Report" loading={activeDownload === "inventory-expiry"} onClick={() => downloadCsv("inventory-expiry", "Medicine_Expiry")} />
+            <ActionButton label="Current Stock" loading={activeDownload === "inventory-current"} onClick={() => downloadCsv("inventory-current", "Current_Stock")} />
+            <ActionButton label="Stock Movement (Selected Period)" loading={activeDownload === "inventory-movements"} onClick={() => downloadCsv("inventory-movements", "Stock_Movement")} />
+            <ActionButton label="Expiry and Batch" loading={activeDownload === "inventory-batches"} onClick={() => downloadCsv("inventory-batches", "Expiry_and_Batch")} />
+            <ActionButton label="Reorder Recommendations" loading={activeDownload === "inventory-reorder"} onClick={() => downloadCsv("inventory-reorder", "Reorder_Report")} />
+          </ReportCard>
+
+          <ReportCard
+            icon={<MedicineIcon />}
+            title="Medication Reports"
+            description="Review medication consumption and student-level dispensing records."
+          >
+            <ActionButton label="Medication Report (Selected Period)" loading={activeDownload === "medication-inventory"} onClick={() => downloadCsv("medication-inventory", "Medication_Report")} />
+            <ActionButton label="Consumption Summary (Selected Period)" loading={activeDownload === "medication-consumption"} onClick={() => downloadCsv("medication-consumption", "Medication_Consumption")} />
+            <ActionButton label="Usage Details (Selected Period)" loading={activeDownload === "medication-usage-details"} onClick={() => downloadCsv("medication-usage-details", "Medication_Usage_Details")} />
+            <ActionButton
+              label="Annual Medication Report"
+              loading={activeDownload === "annual-medication"}
+              onClick={downloadAnnualMedicationReport}
+            />
           </ReportCard>
 
           <ReportCard
@@ -238,6 +290,18 @@ function ActionButton({
       className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
     >
       {loading ? "Generating..." : label}
+    </button>
+  );
+}
+
+function PeriodButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+    >
+      {label}
     </button>
   );
 }
