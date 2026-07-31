@@ -11,6 +11,8 @@ export interface CurrentUser {
 
 const SESSION_KEY = "clinic_session";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 const isUserRole = (value: unknown): value is UserRole =>
   typeof value === "string" && (USER_ROLES as readonly string[]).includes(value);
 
@@ -39,11 +41,15 @@ export type SessionRestoreResult =
 
 export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => {
   try {
-    const response = await fetch("/api/auth/session", { credentials: "include" });
+    const response = await fetch(`${API_URL}/api/auth/session`, {
+      credentials: "include",
+    });
+
     if (response.status === 401 || response.status === 403) {
       clearCurrentSession();
       return { status: "unauthenticated" };
     }
+
     if (!response.ok) {
       return {
         status: "unavailable",
@@ -51,15 +57,17 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
       };
     }
 
-    const payload = await response.json() as {
+    const payload = (await response.json()) as {
       data?: {
         user?: { id?: unknown; role?: unknown };
         expiresAt?: unknown;
       };
     };
+
     const id = payload.data?.user?.id;
     const role = payload.data?.user?.role;
     const expiresAt = payload.data?.expiresAt;
+
     if (
       typeof id !== "string" ||
       !isUserRole(role) ||
@@ -73,7 +81,9 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
     }
 
     saveCurrentSession({ id, role }, expiresAt);
+
     const user = getCurrentUser();
+
     return user
       ? { status: "authenticated", user }
       : { status: "unauthenticated" };
@@ -89,6 +99,7 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
 // HttpOnly session cookie and live account permissions on every API request.
 export const getCurrentUser = (): CurrentUser | null => {
   const serialized = sessionStorage.getItem(SESSION_KEY);
+
   if (!serialized) return null;
 
   try {
@@ -103,11 +114,16 @@ export const getCurrentUser = (): CurrentUser | null => {
       return null;
     }
 
-    return { id: payload.id, role: payload.role, exp: payload.exp as number | undefined };
+    return {
+      id: payload.id,
+      role: payload.role,
+      exp: payload.exp as number | undefined,
+    };
   } catch {
     clearCurrentSession();
     return null;
   }
 };
 
-export const getCurrentRole = (): UserRole | null => getCurrentUser()?.role ?? null;
+export const getCurrentRole = (): UserRole | null =>
+  getCurrentUser()?.role ?? null;
