@@ -11,8 +11,6 @@ export interface CurrentUser {
 
 const SESSION_KEY = "clinic_session";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
-
 const isUserRole = (value: unknown): value is UserRole =>
   typeof value === "string" && (USER_ROLES as readonly string[]).includes(value);
 
@@ -41,7 +39,7 @@ export type SessionRestoreResult =
 
 export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => {
   try {
-    const response = await fetch(`${API_URL}/api/auth/session`, {
+    const response = await fetch(`/api/auth/session`, {
       credentials: "include",
     });
 
