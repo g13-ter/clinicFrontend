@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../services/api";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { FieldError } from "../components/FieldError";
@@ -92,72 +92,119 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded shadow w-full max-w-sm">
-        <p className="text-center text-sm text-gray-500">School Clinic Management</p>
-        <h1 className="mb-6 mt-1 text-center text-2xl font-bold">Sign in</h1>
-
-        {searchParams.get("reason") === "session-expired" && (
-          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Your session ended. Sign in again to continue.
+    <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-slate-900/70 shadow-2xl shadow-slate-950/50 lg:flex-row">
+        <div className="flex-1 bg-gradient-to-br from-sky-500/20 via-slate-900 to-slate-950 p-8 sm:p-10 lg:p-12">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Secure access</p>
+          <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            Welcome back to your care workspace.
+          </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
+            Sign in to manage patients, appointments, medicines, and reporting from one calm, connected
+            platform.
           </p>
-        )}
 
-        {formError && (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {formError}
+          <div className="mt-8 space-y-3">
+            {[
+              "Patient journey visibility",
+              "Secure clinical operations",
+              "Real-time activity tracking",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-sm font-semibold text-sky-200">
+                  ✓
+                </span>
+                <span className="text-sm text-slate-200">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 border-t border-white/10 bg-slate-950/80 p-8 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">Clinic login</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">Sign in</h2>
+            </div>
+            <Link to="/" className="text-sm font-medium text-sky-300 transition hover:text-sky-200">
+              Back home
+            </Link>
+          </div>
+
+          {searchParams.get("reason") === "session-expired" && (
+            <p className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-200">
+              Your session ended. Sign in again to continue.
+            </p>
+          )}
+
+          {formError && (
+            <p className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">
+              {formError}
+            </p>
+          )}
+
+          <form onSubmit={handleLogin} className="mt-6 flex flex-col gap-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-300" htmlFor="email">
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@clinic.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearField("email");
+                }}
+                className={`w-full rounded-2xl border bg-slate-900/70 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
+                  fieldErrors.email ? "border-red-400 focus:ring-red-400/30" : "border-slate-700 focus:border-sky-400 focus:ring-sky-500/30"
+                }`}
+                required
+              />
+              <FieldError message={fieldErrors.email} />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-300" htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  clearField("password");
+                }}
+                className={`w-full rounded-2xl border bg-slate-900/70 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
+                  fieldErrors.password ? "border-red-400 focus:ring-red-400/30" : "border-slate-700 focus:border-sky-400 focus:ring-sky-500/30"
+                }`}
+                required
+              />
+              <FieldError message={fieldErrors.password} />
+            </div>
+            <button
+              type="submit"
+              disabled={loading || restoring || cooldownSeconds > 0}
+              className="rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {restoring
+                ? "Checking session..."
+                : loading
+                ? "Signing in..."
+                : cooldownSeconds > 0
+                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                  : "Sign in"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-sm text-slate-400">
+            Need access? Contact your clinic administrator to get started.
           </p>
-        )}
-
-        <form onSubmit={handleLogin} className="flex flex-col gap-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Email address
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                clearField("email");
-              }}
-              className={`mt-1 border rounded px-3 py-2 text-sm w-full ${
-                fieldErrors.email ? "input-error" : ""
-              }`}
-              required
-            />
-            <FieldError message={fieldErrors.email} />
-          </label>
-          <label className="block text-sm font-medium text-gray-700">
-            Password
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                clearField("password");
-              }}
-              className={`mt-1 border rounded px-3 py-2 text-sm w-full ${
-                fieldErrors.password ? "input-error" : ""
-              }`}
-              required
-            />
-            <FieldError message={fieldErrors.password} />
-          </label>
-          <button
-            type="submit"
-            disabled={loading || restoring || cooldownSeconds > 0}
-            className="bg-blue-600 text-white rounded py-2 text-sm font-medium disabled:opacity-50"
-          >
-            {restoring
-              ? "Checking session..."
-              : loading
-              ? "Logging in..."
-              : cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : "Login"}
-          </button>
-        </form>
+        </div>
       </div>
     </div>
   );

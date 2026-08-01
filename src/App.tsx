@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ROUTE_ACCESS, USER_ROLES } from "./config/permissions";
 
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const PatientsPage = lazy(() => import("./pages/PatientsPage"));
 const PatientDetailPage = lazy(() => import("./pages/PatientDetailPage"));
@@ -35,6 +36,7 @@ function App() {
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/dashboard"
