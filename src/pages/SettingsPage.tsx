@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
 import type { SystemSettings } from "../utils/types";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const defaultSettings: SystemSettings = {
   schoolYear: "",
@@ -19,6 +20,8 @@ function SettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [advancing, setAdvancing] = useState(false);
+  const [showRolloverConfirm, setShowRolloverConfirm] = useState(false);
+  const [deliveryError, setDeliveryError] = useState("");
   const [deliveries, setDeliveries] = useState<Array<{
     _id: string;
     kind: string;
@@ -42,7 +45,9 @@ function SettingsPage() {
   useEffect(() => {
     api.get<typeof deliveries>("/notifications/delivery-history?limit=10")
       .then((response) => setDeliveries(response.data))
-      .catch(() => {});
+      .catch((requestError: unknown) => {
+        setDeliveryError(requestError instanceof Error ? requestError.message : "Failed to load delivery history");
+      });
   }, []);
 
   useEffect(() => {
@@ -73,9 +78,6 @@ function SettingsPage() {
   };
 
   const advanceSchoolYear = async () => {
-    if (!window.confirm(
-      `Promote active students into ${settings.schoolYear} and graduate students currently in Year 4 or above?`,
-    )) return;
     setAdvancing(true);
     setError("");
     try {
@@ -84,6 +86,7 @@ function SettingsPage() {
         graduatingYearLevel: 4,
       });
       setSuccess(response.message);
+      setShowRolloverConfirm(false);
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "School-year rollover failed");
     } finally {
@@ -127,7 +130,7 @@ function SettingsPage() {
                 </p>
                 <button
                   type="button"
-                  onClick={advanceSchoolYear}
+                  onClick={() => setShowRolloverConfirm(true)}
                   disabled={advancing || !settings.schoolYear}
                   className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-900 disabled:opacity-50"
                 >
@@ -206,6 +209,7 @@ function SettingsPage() {
                   </tbody>
                 </table>
                 {deliveries.length === 0 && <p className="py-3 text-xs text-gray-400">No notification deliveries yet.</p>}
+                {deliveryError && <p className="py-3 text-xs text-red-600">{deliveryError}</p>}
               </div>
             </SettingsSection>
 
@@ -221,6 +225,21 @@ function SettingsPage() {
           </form>
         )}
       </div>
+      {showRolloverConfirm && (
+        <ConfirmDialog
+          title="Run school-year rollover"
+          message={
+            <>
+              Promote active students into <strong>{settings.schoolYear}</strong> and graduate
+              students currently in Year 4 or above? Clinic and medical history will be preserved.
+            </>
+          }
+          confirmLabel="Run Rollover"
+          busy={advancing}
+          onConfirm={advanceSchoolYear}
+          onCancel={() => setShowRolloverConfirm(false)}
+        />
+      )}
     </Layout>
   );
 }

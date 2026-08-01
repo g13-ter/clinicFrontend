@@ -5,8 +5,15 @@ import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import DoctorWorkspaceTabs from "../components/DoctorWorkspaceTabs";
-import type { Appointment, ClinicVisit, Medicine, Patient } from "../utils/types";
+import type {
+  Appointment,
+  ClinicVisit,
+  MedicalHistory,
+  Medicine,
+  Patient,
+} from "../utils/types";
 import { localDateKey } from "../utils/date";
+import { reportFilename, saveBlobDownload } from "../utils/download";
 import {
   activeFollowUps,
   buildMedicalHistoryPayload,
@@ -54,6 +61,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
     complaint: searchParams.get("complaint") ?? "",
   }));
   const [saving, setSaving] = useState(false);
+  const [generatingCertificate, setGeneratingCertificate] = useState(false);
   const [formError, setFormError] = useState("");
 
   const fetchWorkspace = async () => {
@@ -127,15 +135,28 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const startConsultation = async (appointment?: Appointment, patient?: Patient) => {
     const appointmentPatient = appointment ? patientDetails(appointment.patientId) : null;
     const selectedPatient = patient ?? appointmentPatient;
-    let visitId = appointment?.visitId ?? "";
+    const linkedVisit =
+      appointment?.visitId && typeof appointment.visitId === "object"
+        ? appointment.visitId
+        : null;
+    let visitId =
+      typeof appointment?.visitId === "string"
+        ? appointment.visitId
+        : linkedVisit?._id ?? "";
+    let currentVisit: ClinicVisit | null = null;
 
     if (appointment && !visitId) {
+      if (isDoctor) {
+        showToast("Waiting for nurse check-in and triage before consultation");
+        return;
+      }
       try {
         const response = await api.post<{ appointment: Appointment; visit: ClinicVisit }>(
           `/appointments/${appointment._id}/check-in`,
           {},
         );
         visitId = response.data.visit._id;
+        currentVisit = response.data.visit;
       } catch (error: unknown) {
         showToast(error instanceof Error ? error.message : "Check-in failed");
         return;
@@ -144,6 +165,11 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
 
     if (visitId) {
       try {
+        currentVisit = (await api.get<ClinicVisit>(`/visits/${visitId}`)).data;
+        if (isDoctor && !currentVisit.readyForDoctor) {
+          showToast("A nurse must record triage and mark the student ready first");
+          return;
+        }
         await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
       } catch (error: unknown) {
         showToast(error instanceof Error ? error.message : "Failed to start consultation");
@@ -155,7 +181,16 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       visitId,
       patientId: selectedPatient?._id ?? "",
       appointmentId: appointment?._id ?? "",
-      complaint: appointment?.reason ?? "",
+      complaint: currentVisit?.complaint ?? appointment?.reason ?? "",
+      temperature: currentVisit?.temperature != null ? String(currentVisit.temperature) : "",
+      bloodPressure: currentVisit?.bloodPressure ?? "",
+      pulseRate: currentVisit?.pulseRate != null ? String(currentVisit.pulseRate) : "",
+      respiratoryRate:
+        currentVisit?.respiratoryRate != null ? String(currentVisit.respiratoryRate) : "",
+      heightCm: currentVisit?.heightCm != null ? String(currentVisit.heightCm) : "",
+      weightKg: currentVisit?.weightKg != null ? String(currentVisit.weightKg) : "",
+      assessment: currentVisit?.nursingAssessment ?? "",
+      recommendations: currentVisit?.nursingRecommendations ?? "",
     }));
     setFormError("");
     changeTab("consultation");
@@ -167,10 +202,15 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
 
   const handleConsultation = async (event: React.FormEvent) => {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const shouldGenerateCertificate =
+      isDoctor && submitter?.value === "save-and-generate-certificate";
     setSaving(true);
+    setGeneratingCertificate(shouldGenerateCertificate);
     setFormError("");
 
     try {
+      const relatedWarnings: string[] = [];
       const visitPayload = buildVisitPayload(form, isDoctor);
       const visitResponse = form.visitId
         ? await api.put<ClinicVisit>(`/visits/${form.visitId}`, visitPayload)
@@ -179,8 +219,13 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       const visitId = form.visitId || (visitResponse.data._id as string);
       setForm((current) => ({ ...current, visitId }));
 
+      let savedHistory: MedicalHistory | null = null;
       if (isDoctor) {
-        await api.post("/medical-history", buildMedicalHistoryPayload(form, visitId));
+        const historyResponse = await api.post<MedicalHistory>(
+          "/medical-history",
+          buildMedicalHistoryPayload(form, visitId),
+        );
+        savedHistory = historyResponse.data;
       } else {
         await api.put(`/visits/${visitId}/status`, {
           status: "completed",
@@ -188,7 +233,6 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
         });
       }
 
-      const relatedWarnings: string[] = [];
       if (form.appointmentId) {
         try {
           await api.put(`/appointments/${form.appointmentId}/complete`, {});
@@ -213,10 +257,36 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
         }
       }
 
+      if (shouldGenerateCertificate && savedHistory) {
+        try {
+          const certificate = await api.download(
+            `/medical-history/${savedHistory._id}/certificate`,
+          );
+          if (!certificate.ok) {
+            const payload = await certificate.json().catch(() => null) as
+              | { message?: string }
+              | null;
+            throw new Error(payload?.message || "Certificate generation failed");
+          }
+          const blob = await certificate.blob();
+          saveBlobDownload(
+            blob,
+            reportFilename(
+              certificate.headers.get("Content-Disposition"),
+              `Consultation_Certificate_${form.patientId}.docx`,
+            ),
+          );
+        } catch {
+          relatedWarnings.push("the certificate could not be downloaded");
+        }
+      }
+
       showToast(
         relatedWarnings.length > 0
           ? `Consultation saved, but ${relatedWarnings.join(" and ")}.`
-          : "Consultation saved successfully",
+          : shouldGenerateCertificate
+            ? "Consultation saved and certificate generated"
+            : "Consultation saved successfully",
       );
       setForm(createEmptyConsultation());
       await fetchWorkspace();
@@ -225,6 +295,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       setFormError(error instanceof Error ? error.message : "Failed to save consultation");
     } finally {
       setSaving(false);
+      setGeneratingCertificate(false);
     }
   };
 
@@ -259,6 +330,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
             {activeTab === "appointments" && (
               <AppointmentsTab
                 appointments={todayAppointments}
+                isDoctor={isDoctor}
                 onStart={startConsultation}
               />
             )}
@@ -267,20 +339,33 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                 patients={filteredPatients}
                 search={recordSearch}
                 onSearch={setRecordSearch}
-                onStart={(patient) => startConsultation(undefined, patient)}
+                onStart={isDoctor ? undefined : (patient) => startConsultation(undefined, patient)}
               />
             )}
             {activeTab === "consultation" && (
-              <ConsultationForm
-                form={form}
-                patients={patients}
-                medicines={medicines}
-                isDoctor={isDoctor}
-                saving={saving}
-                error={formError}
-                onChange={updateForm}
-                onSubmit={handleConsultation}
-              />
+              isDoctor && !form.visitId ? (
+                <Panel
+                  title="Select a Triaged Student"
+                  subtitle="Physician consultations begin after the nurse records vitals and marks the student ready"
+                >
+                  <div className="rounded-lg bg-sky-50 p-5 text-sm text-sky-900">
+                    Open <Link to="/patient-queue" className="font-semibold underline">Student Queue</Link> or
+                    select a ready student from Today&apos;s Appointments to begin the consultation.
+                  </div>
+                </Panel>
+              ) : (
+                <ConsultationForm
+                  form={form}
+                  patients={patients}
+                  medicines={medicines}
+                  isDoctor={isDoctor}
+                  saving={saving}
+                  generatingCertificate={generatingCertificate}
+                  error={formError}
+                  onChange={updateForm}
+                  onSubmit={handleConsultation}
+                />
+              )
             )}
             {activeTab === "followups" && (
               <FollowUpsTab
@@ -297,9 +382,11 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
 
 function AppointmentsTab({
   appointments,
+  isDoctor,
   onStart,
 }: {
   appointments: Appointment[];
+  isDoctor: boolean;
   onStart: (appointment: Appointment) => void;
 }) {
   return (
@@ -322,6 +409,13 @@ function AppointmentsTab({
             <tbody className="divide-y">
               {appointments.map((appointment) => {
                 const student = patientDetails(appointment.patientId);
+                const linkedVisit =
+                  appointment.visitId && typeof appointment.visitId === "object"
+                    ? appointment.visitId
+                    : null;
+                const awaitingNurse =
+                  isDoctor &&
+                  (!appointment.visitId || (linkedVisit && !linkedVisit.readyForDoctor));
                 return (
                   <tr key={appointment._id}>
                     <td className="whitespace-nowrap px-3 py-4">
@@ -332,11 +426,17 @@ function AppointmentsTab({
                     <td className="px-3 py-4">{appointment.reason}</td>
                     <td className="px-3 py-4"><StatusBadge status={appointment.status} /></td>
                     <td className="px-3 py-4">
-                      {appointment.status !== "completed" && (
+                      {appointment.status !== "completed" && awaitingNurse ? (
+                        <span className="text-xs font-medium text-amber-700">
+                          {!appointment.visitId
+                            ? "Awaiting nurse check-in"
+                            : "Awaiting nurse triage"}
+                        </span>
+                      ) : appointment.status !== "completed" ? (
                         <button onClick={() => onStart(appointment)} className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50">
                           Start Consultation
                         </button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 );
@@ -358,10 +458,15 @@ function StudentRecordsTab({
   patients: Patient[];
   search: string;
   onSearch: (value: string) => void;
-  onStart: (patient: Patient) => void;
+  onStart?: (patient: Patient) => void;
 }) {
   return (
-    <Panel title="Search Student Records" subtitle="Open a student profile or begin a consultation">
+    <Panel
+      title="Search Student Records"
+      subtitle={onStart
+        ? "Open a student profile or begin a nursing assessment"
+        : "Review the student's clinic record"}
+    >
       <input
         type="search"
         value={search}
@@ -379,9 +484,11 @@ function StudentRecordsTab({
               <Link to={`/patients/${patient._id}`} className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50">
                 View Record
               </Link>
-              <button onClick={() => onStart(patient)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800">
-                New Consultation
-              </button>
+              {onStart && (
+                <button onClick={() => onStart(patient)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800">
+                  New Nursing Assessment
+                </button>
+              )}
             </div>
           </article>
         ))}
@@ -397,6 +504,7 @@ function ConsultationForm({
   medicines,
   isDoctor,
   saving,
+  generatingCertificate,
   error,
   onChange,
   onSubmit,
@@ -406,6 +514,7 @@ function ConsultationForm({
   medicines: Medicine[];
   isDoctor: boolean;
   saving: boolean;
+  generatingCertificate: boolean;
   error: string;
   onChange: (field: keyof typeof form, value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
@@ -435,23 +544,29 @@ function ConsultationForm({
           <textarea required rows={3} value={form.complaint} onChange={(event) => onChange("complaint", event.target.value)} className="input" placeholder="Describe the main reason for the visit..." />
         </Field>
 
+        {isDoctor && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 md:col-span-2 xl:col-span-3">
+            Vitals are recorded by the nurse during triage. These fields are locked and available to the physician for review only.
+          </div>
+        )}
+
         <Field label="Temperature (°C)">
-          <input type="number" step="0.1" value={form.temperature} onChange={(event) => onChange("temperature", event.target.value)} className="input" />
+          <input type="number" step="0.1" value={form.temperature} onChange={(event) => onChange("temperature", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Blood Pressure">
-          <input value={form.bloodPressure} onChange={(event) => onChange("bloodPressure", event.target.value)} className="input" placeholder="120/80" />
+          <input value={form.bloodPressure} onChange={(event) => onChange("bloodPressure", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} placeholder="120/80" />
         </Field>
         <Field label="Pulse Rate (bpm)">
-          <input type="number" min={1} value={form.pulseRate} onChange={(event) => onChange("pulseRate", event.target.value)} className="input" />
+          <input type="number" min={1} value={form.pulseRate} onChange={(event) => onChange("pulseRate", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Respiratory Rate">
-          <input type="number" min={1} value={form.respiratoryRate} onChange={(event) => onChange("respiratoryRate", event.target.value)} className="input" />
+          <input type="number" min={1} value={form.respiratoryRate} onChange={(event) => onChange("respiratoryRate", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Height (cm)">
-          <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} className="input" />
+          <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Weight (kg)">
-          <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} className="input" />
+          <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
 
         {isDoctor ? (
@@ -521,8 +636,27 @@ function ConsultationForm({
         </div>
 
         <div className="flex flex-col-reverse gap-2 md:col-span-2 md:flex-row md:justify-end xl:col-span-3">
-          <button type="submit" disabled={saving} className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">
-            {saving ? "Saving Consultation..." : "Save Consultation"}
+          {isDoctor && (
+            <button
+              type="submit"
+              value="save-and-generate-certificate"
+              disabled={saving}
+              className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 md:flex-1"
+            >
+              {generatingCertificate ? "Saving & Generating..." : "Save & Generate Certificate"}
+            </button>
+          )}
+          <button
+            type="submit"
+            value="save"
+            disabled={saving}
+            className={`rounded-lg px-5 py-2.5 text-sm font-medium disabled:opacity-50 ${
+              isDoctor
+                ? "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50"
+                : "bg-slate-950 text-white hover:bg-slate-800"
+            }`}
+          >
+            {saving && !generatingCertificate ? "Saving Consultation..." : "Save Consultation"}
           </button>
         </div>
       </form>

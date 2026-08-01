@@ -6,16 +6,41 @@
     scrollbar-gutter: stable;
     overflow-y: scroll;
   }
+  body {
+    @apply min-w-0 bg-gray-50 text-gray-900 antialiased;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+  }
+  button:disabled {
+    @apply cursor-not-allowed;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
   .input {
-    @apply w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400;
+    @apply w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400;
   }
   .input-error {
     @apply border-red-400 focus:ring-red-300;
   }
   .management-card-action {
     @apply block w-full rounded-lg bg-slate-950 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-slate-800;
+  }
+
+  .quick-action-link {
+    @apply text-sm font-medium text-gray-700 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 hover:border-blue-300 transition-colors;
   }
 }

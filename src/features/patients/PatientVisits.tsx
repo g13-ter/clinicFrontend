@@ -18,7 +18,6 @@ const empty = {
   heightCm: "",
   weightKg: "",
   nursingAssessment: "",
-  consultationFindings: "",
   nursingInterventions: "",
   nursingRecommendations: "",
   clinicProtocolReference: "",
@@ -34,6 +33,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
 
   const [visits, setVisits] = useState<ClinicVisit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [editing, setEditing] = useState<ClinicVisit | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Form>(empty);
@@ -41,12 +41,14 @@ function PatientVisits({ patientId }: { patientId: string }) {
   const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
     useFormErrors();
 
-  const reload = useCallback(
-    () => api.get<ClinicVisit[]>(`/visits/patient/${patientId}`)
+  const reload = useCallback(() => {
+    setLoadError("");
+    return api.get<ClinicVisit[]>(`/visits/patient/${patientId}`)
       .then((response) => setVisits(response.data))
-      .catch(() => {}),
-    [patientId],
-  );
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "Failed to load visit history");
+      });
+  }, [patientId]);
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
@@ -66,7 +68,6 @@ function PatientVisits({ patientId }: { patientId: string }) {
       heightCm: v.heightCm != null ? String(v.heightCm) : "",
       weightKg: v.weightKg != null ? String(v.weightKg) : "",
       nursingAssessment: v.nursingAssessment ?? "",
-      consultationFindings: v.consultationFindings ?? "",
       nursingInterventions: v.nursingInterventions ?? "",
       nursingRecommendations: v.nursingRecommendations ?? "",
       clinicProtocolReference: v.clinicProtocolReference ?? "",
@@ -90,7 +91,6 @@ function PatientVisits({ patientId }: { patientId: string }) {
       heightCm: form.heightCm ? Number(form.heightCm) : undefined,
       weightKg: form.weightKg ? Number(form.weightKg) : undefined,
       nursingAssessment: form.nursingAssessment || undefined,
-      consultationFindings: form.consultationFindings || undefined,
       nursingInterventions: form.nursingInterventions || undefined,
       nursingRecommendations: form.nursingRecommendations || undefined,
       clinicProtocolReference: form.clinicProtocolReference || undefined,
@@ -128,6 +128,10 @@ function PatientVisits({ patientId }: { patientId: string }) {
 
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
+      ) : loadError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {loadError}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded bg-white shadow">
           <table className="w-full min-w-[680px] text-sm">
@@ -170,7 +174,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
       )}
 
       {open && (
-        <Modal title={editing ? "Edit Visit" : "New Visit"} onClose={() => setOpen(false)}>
+        <Modal title={editing ? "Edit Visit" : "New Visit"} onClose={() => setOpen(false)} closeDisabled={saving}>
           {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
           <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -234,10 +238,6 @@ function PatientVisits({ patientId }: { patientId: string }) {
               <p className="text-xs font-semibold text-sky-700 mb-2">Nursing Assessment — not a physician diagnosis</p>
               <label className="block text-xs text-gray-500 mb-1">Nursing Assessment</label>
               <textarea rows={2} value={form.nursingAssessment} onChange={(e) => f("nursingAssessment", e.target.value)} className="input w-full" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Consultation Findings</label>
-              <textarea rows={2} value={form.consultationFindings} onChange={(e) => f("consultationFindings", e.target.value)} className="input w-full" />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Nursing Interventions Performed</label>

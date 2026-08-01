@@ -19,11 +19,14 @@ describe("clinical workspace model", () => {
       temperature: "37.2",
     });
 
-    expect(buildVisitPayload(form, true)).toMatchObject({
-      temperature: 37.2,
+    expect(buildVisitPayload(form, true)).toEqual(expect.objectContaining({
       consultationFindings: "Tension headache",
       nursingAssessment: undefined,
-    });
+    }));
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("temperature");
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("respiratoryRate");
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("heightCm");
+    expect(buildVisitPayload(form, true)).not.toHaveProperty("weightKg");
     expect(buildVisitPayload(form, false)).toMatchObject({
       consultationFindings: undefined,
       nursingAssessment: "Pain score 4",

@@ -3,8 +3,10 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { NAV_ITEMS, can } from "../config/permissions";
 import { useAuth } from "../hooks/useAuth";
 import { useSessionExpiryWarning } from "../hooks/useSessionExpiryWarning";
+import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
-import type { User } from "../utils/types";
+import type { ClinicVisit, User } from "../utils/types";
+import { clearCurrentSession } from "../utils/auth";
 import {
   AuditIcon,
   CalendarIcon,
@@ -34,22 +36,53 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/settings": StaffIcon,
 };
 
+const EMERGENCY_POLL_INTERVAL_MS = 10_000;
+
+function emergencyStudentName(visit: ClinicVisit): string {
+  return visit.patientId && typeof visit.patientId === "object"
+    ? `${visit.patientId.firstName} ${visit.patientId.lastName}`
+    : "Student";
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
+  const { showToast } = useToast();
   const hasSidebar = role === "admin";
   const minutesLeft = useSessionExpiryWarning();
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profile, setProfile] = useState<User | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [emergencyVisits, setEmergencyVisits] = useState<ClinicVisit[]>([]);
+  const [openingEmergency, setOpeningEmergency] = useState(false);
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  useEffect(() => {
+    const markOnline = () => setOnline(true);
+    const markOffline = () => setOnline(false);
+    window.addEventListener("online", markOnline);
+    window.addEventListener("offline", markOffline);
+    return () => {
+      window.removeEventListener("online", markOnline);
+      window.removeEventListener("offline", markOffline);
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await api.post("/auth/logout", {});
+    } catch {
+      // Local cleanup still signs the user out if the server is unavailable.
+    }
+    clearCurrentSession();
     navigate("/login");
   };
 
@@ -69,6 +102,103 @@ function Layout({ children }: { children: React.ReactNode }) {
   });
   const canSearchStudents = can(role, "searchPatients") && role !== "doctor";
   const isClinicalRole = role === "doctor" || role === "nurse";
+
+  useEffect(() => {
+    if (!isClinicalRole) {
+      setEmergencyVisits([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchEmergencies = async () => {
+      try {
+        const response = await api.get<ClinicVisit[]>("/visits/queue");
+        if (cancelled) return;
+        const emergencies = response.data.filter((visit) => visit.isEmergency);
+        setEmergencyVisits(emergencies);
+
+        emergencies.forEach((visit) => {
+          const notificationKey = `clinic-emergency-notified:${visit._id}`;
+          if (sessionStorage.getItem(notificationKey)) return;
+          sessionStorage.setItem(notificationKey, "true");
+          showToast(
+            `Emergency case: ${emergencyStudentName(visit)} requires immediate attention`,
+            "error",
+          );
+        });
+      } catch {
+        // Page-level data remains usable if the background emergency check fails.
+      }
+    };
+
+    void fetchEmergencies();
+    const interval = window.setInterval(fetchEmergencies, EMERGENCY_POLL_INTERVAL_MS);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void fetchEmergencies();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [isClinicalRole, showToast]);
+
+  useEffect(() => {
+    if (emergencyVisits.length === 0) return;
+    const previousTitle = document.title;
+    document.title = `EMERGENCY (${emergencyVisits.length}) | School Clinic`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [emergencyVisits.length]);
+
+  const handleOpenEmergency = async () => {
+    const visit = emergencyVisits[0];
+    if (!visit || openingEmergency) return;
+
+    if (role !== "doctor") {
+      navigate(`/dashboard?view=visits&emergency=${visit._id}&focus=${Date.now()}`);
+      return;
+    }
+
+    if (!visit.patientId || typeof visit.patientId !== "object") {
+      showToast("The emergency student record could not be opened", "error");
+      return;
+    }
+
+    setOpeningEmergency(true);
+    try {
+      if (visit.status !== "in_consultation") {
+        await api.put(`/visits/${visit._id}/status`, { status: "in_consultation" });
+      }
+
+      const params = new URLSearchParams({
+        tab: "consultation",
+        visitId: visit._id,
+        patientId: visit.patientId._id,
+        complaint: visit.complaint,
+      });
+      if (visit.appointmentId) {
+        params.set(
+          "appointmentId",
+          typeof visit.appointmentId === "object"
+            ? visit.appointmentId._id
+            : visit.appointmentId,
+        );
+      }
+      navigate(`/clinical-workspace?${params}`);
+    } catch (error: unknown) {
+      showToast(
+        error instanceof Error ? error.message : "Failed to open the emergency consultation",
+        "error",
+      );
+    } finally {
+      setOpeningEmergency(false);
+    }
+  };
+
   const clinicalTabs = [
     { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
     { id: "records", label: "Student Records", icon: PatientsIcon },
@@ -152,7 +282,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 print:bg-white">
-      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white print:hidden">
+      <header className="border-b border-gray-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-3 py-3 sm:px-6">
           {hasSidebar && (
             <button
@@ -214,9 +344,10 @@ function Layout({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={handleLogout}
+              disabled={loggingOut}
               className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
-              Logout
+              {loggingOut ? "Signing out..." : "Logout"}
             </button>
           </div>
         </div>
@@ -258,6 +389,57 @@ function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <main className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
+          {emergencyVisits.length > 0 && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="mb-4 flex flex-col gap-3 rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 text-red-950 shadow-sm sm:flex-row sm:items-center"
+            >
+              <span
+                aria-hidden="true"
+                className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-red-600"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">
+                  Emergency case requires immediate attention
+                  {emergencyVisits.length > 1 ? ` (${emergencyVisits.length} active)` : ""}
+                </p>
+                <p className="mt-0.5 text-sm">
+                  {emergencyStudentName(emergencyVisits[0]!)}
+                  {emergencyVisits[0]?.emergencyDetails
+                    ? ` — ${emergencyVisits[0].emergencyDetails}`
+                    : emergencyVisits[0]?.complaint
+                      ? ` — ${emergencyVisits[0].complaint}`
+                      : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenEmergency}
+                disabled={openingEmergency}
+                className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-70"
+              >
+                {openingEmergency ? "Opening..." : "Open Emergency"}
+              </button>
+            </div>
+          )}
+          {!hasSidebar && location.pathname !== "/dashboard" && (
+            <Link
+              to="/dashboard"
+              className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-blue-700 print:hidden"
+            >
+              <span aria-hidden="true">←</span>
+              Back to Dashboard
+            </Link>
+          )}
+          {!online && (
+            <div
+              role="status"
+              className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 print:hidden"
+            >
+              You are offline. Existing information remains visible, but changes cannot be saved until your connection returns.
+            </div>
+          )}
           {minutesLeft !== null && (
             <div className="mb-4 flex flex-col gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between print:hidden">
               <span>

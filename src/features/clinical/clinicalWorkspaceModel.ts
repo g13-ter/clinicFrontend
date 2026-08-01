@@ -62,12 +62,16 @@ export function buildVisitPayload(form: ConsultationForm, isDoctor: boolean) {
     patientId: form.patientId,
     complaint: form.complaint,
     treatment: form.treatment || undefined,
-    bloodPressure: form.bloodPressure || undefined,
-    temperature: optionalNumber(form.temperature),
-    pulseRate: optionalNumber(form.pulseRate),
-    respiratoryRate: optionalNumber(form.respiratoryRate),
-    heightCm: optionalNumber(form.heightCm),
-    weightKg: optionalNumber(form.weightKg),
+    ...(!isDoctor
+      ? {
+          bloodPressure: form.bloodPressure || undefined,
+          temperature: optionalNumber(form.temperature),
+          pulseRate: optionalNumber(form.pulseRate),
+          respiratoryRate: optionalNumber(form.respiratoryRate),
+          heightCm: optionalNumber(form.heightCm),
+          weightKg: optionalNumber(form.weightKg),
+        }
+      : {}),
     consultationFindings: isDoctor ? form.diagnosis || undefined : undefined,
     nursingAssessment: !isDoctor ? form.assessment || undefined : undefined,
     nursingInterventions: !isDoctor ? form.treatment || undefined : undefined,

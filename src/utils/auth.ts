@@ -1,33 +1,110 @@
-// Decodes the JWT payload to read user role without a server round-trip.
-
 import type { UserRole } from "../config/permissions";
 import { USER_ROLES } from "../config/permissions";
 
 export type { UserRole };
 
-interface TokenPayload {
+export interface CurrentUser {
   id: string;
   role: UserRole;
   exp?: number;
 }
 
+const SESSION_KEY = "clinic_session";
+
 const isUserRole = (value: unknown): value is UserRole =>
   typeof value === "string" && (USER_ROLES as readonly string[]).includes(value);
 
-// Returns the decoded payload, or null if there is no token, it is malformed, or it is expired.
-export const getCurrentUser = (): TokenPayload | null => {
-  const token = localStorage.getItem("token");
-  if (!token) return null;
+export const saveCurrentSession = (
+  user: { id: string; role: UserRole },
+  expiresAt: string
+): void => {
+  const expiry = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expiry)) return;
+  sessionStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ id: user.id, role: user.role, exp: Math.floor(expiry / 1000) })
+  );
+};
+
+export const clearCurrentSession = (): void => {
+  sessionStorage.removeItem(SESSION_KEY);
+  // Remove legacy JWTs left by older deployments.
+  localStorage.removeItem("token");
+};
+
+export type SessionRestoreResult =
+  | { status: "authenticated"; user: CurrentUser }
+  | { status: "unauthenticated" }
+  | { status: "unavailable"; message: string };
+
+export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => {
+  try {
+    const response = await fetch(`/api/auth/session`, {
+      credentials: "include",
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      clearCurrentSession();
+      return { status: "unauthenticated" };
+    }
+
+    if (!response.ok) {
+      return {
+        status: "unavailable",
+        message: "The clinic service is temporarily unavailable.",
+      };
+    }
+
+    const payload = (await response.json()) as {
+      data?: {
+        user?: { id?: unknown; role?: unknown };
+        expiresAt?: unknown;
+      };
+    };
+
+    const id = payload.data?.user?.id;
+    const role = payload.data?.user?.role;
+    const expiresAt = payload.data?.expiresAt;
+
+    if (
+      typeof id !== "string" ||
+      !isUserRole(role) ||
+      typeof expiresAt !== "string" ||
+      Number.isNaN(new Date(expiresAt).getTime())
+    ) {
+      return {
+        status: "unavailable",
+        message: "The server returned an invalid session response.",
+      };
+    }
+
+    saveCurrentSession({ id, role }, expiresAt);
+
+    const user = getCurrentUser();
+
+    return user
+      ? { status: "authenticated", user }
+      : { status: "unauthenticated" };
+  } catch {
+    return {
+      status: "unavailable",
+      message: "Cannot connect to the clinic service. Check your connection and try again.",
+    };
+  }
+};
+
+// This cached profile controls navigation only. The server validates the
+// HttpOnly session cookie and live account permissions on every API request.
+export const getCurrentUser = (): CurrentUser | null => {
+  const serialized = sessionStorage.getItem(SESSION_KEY);
+
+  if (!serialized) return null;
 
   try {
-    const payloadBase64 = token.split(".")[1];
-    if (!payloadBase64) return null;
-
-    const normalized = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
-    const payload = JSON.parse(atob(normalized)) as Record<string, unknown>;
+    const payload = JSON.parse(serialized) as Record<string, unknown>;
 
     if (typeof payload.exp === "number" && Date.now() / 1000 > payload.exp) {
-      localStorage.removeItem("token");
+      clearCurrentSession();
       return null;
     }
 
@@ -35,10 +112,16 @@ export const getCurrentUser = (): TokenPayload | null => {
       return null;
     }
 
-    return { id: payload.id, role: payload.role, exp: payload.exp as number | undefined };
+    return {
+      id: payload.id,
+      role: payload.role,
+      exp: payload.exp as number | undefined,
+    };
   } catch {
+    clearCurrentSession();
     return null;
   }
 };
 
-export const getCurrentRole = (): UserRole | null => getCurrentUser()?.role ?? null;
+export const getCurrentRole = (): UserRole | null =>
+  getCurrentUser()?.role ?? null;

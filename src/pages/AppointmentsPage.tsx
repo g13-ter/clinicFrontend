@@ -2,571 +2,886 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
-import ConfirmDialog from "../components/ConfirmDialog";
-import { api } from "../services/api";
+import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
+import { patientsListPath } from "../config/permissions";
 import { useAuth } from "../hooks/useAuth";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
-import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
-import { patientsListPath } from "../config/permissions";
-import type { Patient, Appointment, Doctor } from "../utils/types";
+import { api } from "../services/api";
+import type { Appointment, Doctor, Patient } from "../utils/types";
 import type { ReactNode } from "react";
 
-const STATUSES = ["pending", "confirmed", "checked_in", "cancelled", "completed"];
-const FORM_FIELDS = ["patientId", "doctorId", "appointmentDate", "reason", "notes", "durationMinutes", "status"];
+const ACTIVE_STATUSES = new Set(["pending", "confirmed"]);
+const FORM_FIELDS = [
+  "patientId",
+  "doctorId",
+  "appointmentDate",
+  "reason",
+  "notes",
+  "durationMinutes",
+  "cancellationReason",
+];
 
-const emptyForm = {
+const emptyScheduleForm = {
   patientId: "",
   doctorId: "",
-  appointmentDate: "",
+  date: "",
+  time: "",
+  reason: "",
+};
+
+const emptyRescheduleForm = {
+  doctorId: "",
+  date: "",
+  time: "",
   reason: "",
   notes: "",
   durationMinutes: "30",
 };
 
-function patientIdToString(patientId: Patient | string | null): string {
-  if (patientId == null) return "";
-  if (typeof patientId === "object") return patientId._id;
-  return patientId;
-}
-
-function doctorIdToString(doctorId: Doctor | string | null | undefined): string {
-  if (doctorId == null) return "";
-  if (typeof doctorId === "object") return doctorId._id;
-  return doctorId;
-}
-
-function localDateStr(date = new Date()): string {
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
-}
-
 function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
 
+function localDateKey(date = new Date()): string {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function localDateTimeParts(value: string): { date: string; time: string } {
+  const date = new Date(value);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+}
+
+function appointmentDate(date: string, time: string): string {
+  return new Date(`${date}T${time}`).toISOString();
+}
+
+function doctorIdValue(doctor: Doctor | string | null | undefined): string {
+  return doctor && typeof doctor === "object" ? doctor._id : doctor ?? "";
+}
+
+function patientName(patient: Patient | string | null): string {
+  if (patient && typeof patient === "object") {
+    return `${patient.firstName} ${patient.lastName}`;
+  }
+  return patient ? String(patient) : "Unknown student";
+}
+
+function doctorName(doctor: Doctor | string | null | undefined): string {
+  if (doctor && typeof doctor === "object") return doctor.name;
+  return doctor ? String(doctor) : "Unassigned";
+}
+
+function statusLabel(status: string): string {
+  return status.replaceAll("_", " ");
+}
+
+const statusTone: Record<string, string> = {
+  pending: "bg-slate-100 text-slate-700",
+  confirmed: "bg-slate-950 text-white",
+  checked_in: "bg-violet-100 text-violet-700",
+  cancelled: "bg-rose-100 text-rose-700",
+  completed: "bg-emerald-100 text-emerald-700",
+};
+
 function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
-  const { role, can, user } = useAuth();
+  const { role, can } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const canManage = can("manageAppointments");
   const isDoctor = role === "doctor";
-
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [optionsLoading, setOptionsLoading] = useState(canManage);
   const [error, setError] = useState("");
-
-  // Doctors default to today's schedule; scheduling roles see all dates.
-  const [dateFilter, setDateFilter] = useState(isDoctor ? localDateStr() : "");
-
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editTarget, setEditTarget] = useState<Appointment | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [editStatus, setEditStatus] = useState("pending");
+  const [scheduleForm, setScheduleForm] = useState(emptyScheduleForm);
   const [saving, setSaving] = useState(false);
-  const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField, unmatchedFieldErrors } =
-    useFormErrors();
-
+  const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
+  const [rescheduleForm, setRescheduleForm] = useState(emptyRescheduleForm);
+  const [rescheduling, setRescheduling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [cancellationError, setCancellationError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [checkingInId, setCheckingInId] = useState("");
+  const [confirmingId, setConfirmingId] = useState("");
+  const {
+    formError,
+    fieldErrors,
+    applyError,
+    reset: resetFormErrors,
+    clearField,
+    unmatchedFieldErrors,
+  } = useFormErrors();
 
   const limit = 10;
+  const totalPages = Math.ceil(total / limit);
 
-  const fetchAppointments = async (p = page) => {
+  const fetchAppointments = async (requestedPage = page) => {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ page: String(p), limit: String(limit) });
-      if (dateFilter) params.set("date", dateFilter);
-      const res = await api.get<Appointment[]>(`/appointments?${params.toString()}`);
-      setAppointments(res.data);
-      setTotal(res.pagination?.total ?? 0);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load appointments");
+      const params = new URLSearchParams({
+        page: String(requestedPage),
+        limit: String(limit),
+      });
+      const response = await api.get<Appointment[]>(`/appointments?${params}`);
+      setAppointments(response.data);
+      setTotal(response.pagination?.total ?? response.data.length);
+    } catch (requestError: unknown) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load appointments",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAppointments(page);
+    void fetchAppointments(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, dateFilter]);
-
-  const changeDateFilter = (value: string) => {
-    setDateFilter(value);
-    setPage(1);
-  };
+  }, [page]);
 
   useEffect(() => {
-    if (!canManage) return;
+    if (!canManage) {
+      setOptionsLoading(false);
+      return;
+    }
+
     const patientsPath = patientsListPath(role);
-    if (!patientsPath) return;
-    api.get<Patient[]>(patientsPath).then((res) => setPatients(res.data)).catch(() => {});
+    if (!patientsPath) {
+      setOptionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all([
+      api.get<Patient[]>(patientsPath),
+      api.get<Doctor[]>("/users/doctors"),
+    ])
+      .then(([patientResponse, doctorResponse]) => {
+        if (cancelled) return;
+        setPatients(patientResponse.data);
+        setDoctors(doctorResponse.data);
+      })
+      .catch((requestError: unknown) => {
+        if (!cancelled) {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Failed to load students and doctors",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOptionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [canManage, role]);
 
-  useEffect(() => {
-    if (!can("selectDoctorForAppointment")) return;
-    api.get<Doctor[]>("/users/doctors").then((res) => setDoctors(res.data)).catch(() => {});
-  }, [can]);
-
-  const openCreate = () => {
-    setEditTarget(null);
-    setForm(emptyForm);
-    resetFormErrors();
-    setShowModal(true);
+  const setScheduleField = (field: keyof typeof scheduleForm, value: string) => {
+    setScheduleForm((current) => ({ ...current, [field]: value }));
+    clearField(field === "date" || field === "time" ? "appointmentDate" : field);
   };
 
-  const openEdit = (a: Appointment) => {
-    setEditTarget(a);
-    setEditStatus(a.status);
-    setForm({
-      patientId: patientIdToString(a.patientId),
-      doctorId: doctorIdToString(a.doctorId),
-      appointmentDate: a.appointmentDate.slice(0, 16),
-      reason: a.reason,
-      notes: a.notes ?? "",
-      durationMinutes: String(a.durationMinutes ?? 30),
-    });
-    resetFormErrors();
-    setShowModal(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSchedule = async (event: React.FormEvent) => {
+    event.preventDefault();
     setSaving(true);
     resetFormErrors();
     try {
-      if (editTarget) {
-        const res = await api.put(`/appointments/${editTarget._id}`, {
-          doctorId: form.doctorId || undefined,
-          appointmentDate: form.appointmentDate,
-          reason: form.reason,
-          notes: form.notes || undefined,
-          durationMinutes: Number(form.durationMinutes),
-          status: editStatus,
-        });
-        showToast(res.message);
-      } else {
-        const res = await api.post("/appointments", {
-          patientId: form.patientId,
-          doctorId: form.doctorId || undefined,
-          appointmentDate: form.appointmentDate,
-          reason: form.reason,
-          notes: form.notes || undefined,
-          durationMinutes: Number(form.durationMinutes),
-        });
-        showToast(res.message);
-      }
-      setShowModal(false);
-      fetchAppointments(page);
-    } catch (err: unknown) {
-      applyError(err, "Save failed");
+      const response = await api.post("/appointments", {
+        patientId: scheduleForm.patientId,
+        doctorId: scheduleForm.doctorId || undefined,
+        appointmentDate: appointmentDate(scheduleForm.date, scheduleForm.time),
+        reason: scheduleForm.reason,
+        durationMinutes: 30,
+      });
+      showToast(response.message);
+      setScheduleForm(emptyScheduleForm);
+      setPage(1);
+      await fetchAppointments(1);
+    } catch (requestError: unknown) {
+      applyError(requestError, "Unable to schedule appointment");
     } finally {
       setSaving(false);
     }
   };
 
-  const setField = (key: keyof typeof form, value: string) => {
-    setForm((f) => ({ ...f, [key]: value }));
-    clearField(key);
+  const openReschedule = (item: Appointment) => {
+    const parts = localDateTimeParts(item.appointmentDate);
+    setRescheduleTarget(item);
+    setRescheduleForm({
+      doctorId: doctorIdValue(item.doctorId),
+      date: parts.date,
+      time: parts.time,
+      reason: item.reason,
+      notes: item.notes ?? "",
+      durationMinutes: String(item.durationMinutes ?? 30),
+    });
+    resetFormErrors();
   };
 
-  // Only active appointments can be cancelled.
-  const isCancellable = (a: Appointment) => a.status === "pending" || a.status === "confirmed";
+  const setRescheduleField = (
+    field: keyof typeof rescheduleForm,
+    value: string,
+  ) => {
+    setRescheduleForm((current) => ({ ...current, [field]: value }));
+    clearField(field === "date" || field === "time" ? "appointmentDate" : field);
+  };
+
+  const handleReschedule = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!rescheduleTarget) return;
+    setRescheduling(true);
+    resetFormErrors();
+    try {
+      const response = await api.put(`/appointments/${rescheduleTarget._id}`, {
+        doctorId: rescheduleForm.doctorId || undefined,
+        appointmentDate: appointmentDate(rescheduleForm.date, rescheduleForm.time),
+        reason: rescheduleForm.reason,
+        notes: rescheduleForm.notes || undefined,
+        durationMinutes: Number(rescheduleForm.durationMinutes),
+      });
+      showToast(response.message);
+      setRescheduleTarget(null);
+      await fetchAppointments(page);
+    } catch (requestError: unknown) {
+      applyError(requestError, "Unable to reschedule appointment");
+    } finally {
+      setRescheduling(false);
+    }
+  };
 
   const handleCancel = async () => {
     if (!cancelTarget) return;
+    if (cancellationReason.trim().length < 3) {
+      setCancellationError("Please enter a short reason for the cancellation.");
+      return;
+    }
     setCancelling(true);
     try {
-      const res = await api.put(`/appointments/${cancelTarget._id}`, { status: "cancelled" });
-      showToast(res.message);
+      const response = await api.put(`/appointments/${cancelTarget._id}`, {
+        status: "cancelled",
+        cancellationReason: cancellationReason.trim(),
+      });
+      showToast(response.message);
       setCancelTarget(null);
-      fetchAppointments(page);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Cancel failed");
+      setCancellationReason("");
+      setCancellationError("");
+      await fetchAppointments(page);
+    } catch (requestError: unknown) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to cancel appointment",
+      );
       setCancelTarget(null);
     } finally {
       setCancelling(false);
     }
   };
 
-  const handleCheckIn = async (appointment: Appointment) => {
-    setCheckingInId(appointment._id);
+  const handleCheckIn = async (item: Appointment) => {
+    setCheckingInId(item._id);
     setError("");
     try {
-      const res = await api.post<{ appointment: Appointment; visit: { _id: string } }>(
-        `/appointments/${appointment._id}/check-in`,
-        {},
-      );
-      showToast(res.message);
+      const response = await api.post(`/appointments/${item._id}/check-in`, {});
+      showToast(response.message);
       await fetchAppointments(page);
-      navigate("/patient-queue");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Check-in failed");
+      navigate(embedded ? "/dashboard?view=visits" : "/patient-queue");
+    } catch (requestError: unknown) {
+      setError(
+        requestError instanceof Error ? requestError.message : "Check-in failed",
+      );
     } finally {
       setCheckingInId("");
     }
   };
 
-  const totalPages = Math.ceil(total / limit);
-
-  const statusColor: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-700",
-    confirmed: "bg-blue-100 text-blue-700",
-    checked_in: "bg-purple-100 text-purple-700",
-    cancelled: "bg-red-100 text-red-700",
-    completed: "bg-green-100 text-green-700",
-  };
-
-  const patientName = (p: Patient | string | null) => {
-    if (p && typeof p === "object") return `${p.firstName} ${p.lastName} (${p.studentId})`;
-    return p ? String(p) : "Unknown Student";
-  };
-
-  const doctorName = (d: Doctor | string | null | undefined) => {
-    if (d && typeof d === "object") {
-      const isSelf = isDoctor && user?.id === d._id;
-      return isSelf ? `${d.name} (You)` : d.name;
+  const handleDoctorConfirm = async (item: Appointment) => {
+    setConfirmingId(item._id);
+    setError("");
+    try {
+      const response = await api.put(`/appointments/${item._id}/confirm`, {});
+      showToast(response.message);
+      await fetchAppointments(page);
+    } catch (requestError: unknown) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to confirm appointment",
+      );
+    } finally {
+      setConfirmingId("");
     }
-    return d ? String(d) : "—";
   };
+
+  const selectedPatient = patients.find(
+    (patient) => patient._id === scheduleForm.patientId,
+  );
+  const selectedDoctor = doctors.find(
+    (doctor) => doctor._id === scheduleForm.doctorId,
+  );
+  const scheduleComplete = Boolean(
+    selectedPatient &&
+    selectedDoctor &&
+    scheduleForm.date &&
+    scheduleForm.time &&
+    scheduleForm.reason.trim(),
+  );
 
   return (
     <PageFrame embedded={embedded}>
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-lg font-semibold text-gray-700">
-          {isDoctor && dateFilter === localDateStr() ? "Today's Students" : "Appointments"}
-        </h2>
-        {canManage && (
-          <button
-            onClick={openCreate}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
-          >
-            + New Appointment
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <label className="text-xs text-gray-500">Date:</label>
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => changeDateFilter(e.target.value)}
-          className="input text-sm"
-        />
-        <button
-          type="button"
-          onClick={() => changeDateFilter(localDateStr())}
-          className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
-        >
-          Today
-        </button>
-        {dateFilter && (
-          <button
-            type="button"
-            onClick={() => changeDateFilter("")}
-            className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
-          >
-            All Dates
-          </button>
-        )}
-      </div>
-
-      {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-
-      {loading ? (
-        <p className="text-gray-400 text-sm">Loading…</p>
-      ) : (
-        <>
-          <div className="bg-white rounded shadow overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-                <tr>
-                  <th className="text-left px-4 py-3">Student</th>
-                  <th className="text-left px-4 py-3">Doctor</th>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Reason</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  {canManage && <th className="px-4 py-3"></th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {appointments.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10">
-                      {dateFilter ? (
-                        <div className="text-sm text-gray-500">
-                          <p className="mb-2">
-                            No appointments {dateFilter === localDateStr() ? "today" : `on ${new Date(dateFilter).toLocaleDateString()}`}.
-                          </p>
-                          <button
-                            onClick={() => changeDateFilter("")}
-                            className="text-blue-600 hover:underline text-sm"
-                          >
-                            View all dates
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500">
-                          <p className="mb-3">No appointments scheduled yet.</p>
-                          {canManage ? (
-                            <button
-                              onClick={openCreate}
-                              className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
-                            >
-                              + Schedule the first appointment
-                            </button>
-                          ) : (
-                            <p className="text-gray-400">Check back once staff or nursing schedules a visit.</p>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  appointments.map((a) => (
-                    <tr key={a._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">{patientName(a.patientId)}</td>
-                      <td className="px-4 py-3">{doctorName(a.doctorId)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {new Date(a.appointmentDate).toLocaleString([], {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
-                      </td>
-                      <td className="px-4 py-3">{a.reason}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            statusColor[a.status] ?? "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {a.status}
-                        </span>
-                      </td>
-                      {canManage && (
-                        <td className="px-4 py-3 text-right">
-                          {(a.status === "pending" || a.status === "confirmed") &&
-                            localDateStr(new Date(a.appointmentDate)) === localDateStr() && (
-                              <button
-                                onClick={() => handleCheckIn(a)}
-                                disabled={checkingInId === a._id}
-                                className="mr-3 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
-                              >
-                                {checkingInId === a._id ? "Checking In..." : "Check In"}
-                              </button>
-                            )}
-                          {a.status === "checked_in" && (
-                            <button
-                              onClick={() => navigate(embedded ? "/dashboard?view=visits" : "/patient-queue")}
-                              className="mr-3 text-xs font-medium text-purple-600 hover:underline"
-                            >
-                              View Queue
-                            </button>
-                          )}
-                          <button
-                            onClick={() => openEdit(a)}
-                            className="text-gray-500 hover:underline text-xs mr-3"
-                          >
-                            Edit
-                          </button>
-                          {isCancellable(a) && (
-                            <button
-                              onClick={() => setCancelTarget(a)}
-                              className="text-red-500 hover:underline text-xs"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+      <div className="space-y-5">
+        {!embedded && (
+          <div>
+            <p className="text-sm text-slate-500">School Clinic Management</p>
+            <h2 className="mt-1 text-2xl font-semibold text-slate-900">
+              Appointments
+            </h2>
           </div>
+        )}
 
-          {totalPages > 1 && (
-            <div className="flex gap-2 mt-4 items-center text-sm">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="px-3 py-1 border rounded disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <span className="text-gray-500">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                disabled={page === totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1 border rounded disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
-      )}
+        {canManage && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Schedule New Appointment
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Complete the four steps below. The assigned doctor will receive the appointment for confirmation.
+            </p>
+            <form onSubmit={handleSchedule} className="mt-6 space-y-4">
+              {formError && (
+                <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+                  {formError}
+                </p>
+              )}
+              <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
 
-      {showModal && (
-        <Modal title={editTarget ? "Edit Appointment" : "New Appointment"} onClose={() => setShowModal(false)}>
-            {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
-            <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              {!editTarget && (
+              <div className="grid gap-4 lg:grid-cols-2">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Student *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-800">
+                    <span className="mr-2 text-blue-600">1.</span>Student
+                  </label>
                   <select
-                    value={form.patientId}
-                    onChange={(e) => setField("patientId", e.target.value)}
+                    value={scheduleForm.patientId}
+                    onChange={(event) =>
+                      setScheduleField("patientId", event.target.value)
+                    }
                     required
+                    disabled={optionsLoading}
                     className={`input w-full ${fieldErrors.patientId ? "input-error" : ""}`}
                   >
-                    <option value="">Select a student…</option>
-                    {patients.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.firstName} {p.lastName} ({p.studentId})
+                    <option value="" disabled>
+                      {optionsLoading ? "Loading students..." : "Select student..."}
+                    </option>
+                    {patients.map((patient) => (
+                      <option key={patient._id} value={patient._id}>
+                        {patient.firstName} {patient.lastName} ({patient.studentId})
                       </option>
                     ))}
                   </select>
                   <FieldError message={fieldErrors.patientId} />
                 </div>
-              )}
-              {can("selectDoctorForAppointment") && (
+
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Doctor</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-800">
+                    <span className="mr-2 text-blue-600">2.</span>Assigned Doctor
+                  </label>
                   <select
-                    value={form.doctorId}
-                    onChange={(e) => setField("doctorId", e.target.value)}
+                    value={scheduleForm.doctorId}
+                    onChange={(event) =>
+                      setScheduleField("doctorId", event.target.value)
+                    }
+                    disabled={optionsLoading}
+                    required
                     className={`input w-full ${fieldErrors.doctorId ? "input-error" : ""}`}
                   >
-                    <option value="">No preference / unassigned</option>
+                    <option value="" disabled>
+                      {optionsLoading ? "Loading doctors..." : "Select doctor..."}
+                    </option>
                     {doctors
-                      .filter((d) => d.isAvailable !== false || d._id === form.doctorId)
-                      .map((d) => (
-                        <option key={d._id} value={d._id}>
-                          {d.name}
-                          {d.isAvailable === false ? " (unavailable)" : ""}
-                          {d.scheduleNotes ? ` — ${d.scheduleNotes}` : ""}
+                      .filter((doctor) => doctor.isAvailable !== false)
+                      .map((doctor) => (
+                        <option key={doctor._id} value={doctor._id}>
+                          {doctor.name}
+                          {doctor.scheduleNotes ? ` — ${doctor.scheduleNotes}` : ""}
                         </option>
                       ))}
                   </select>
                   <FieldError message={fieldErrors.doctorId} />
                 </div>
-              )}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Appointment Date *</label>
-                <input
-                  type="datetime-local"
-                  value={form.appointmentDate}
-                  onChange={(e) => setField("appointmentDate", e.target.value)}
-                  required
-                  className={`input w-full ${fieldErrors.appointmentDate ? "input-error" : ""}`}
-                />
-                <FieldError message={fieldErrors.appointmentDate} />
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-800">
+                    <span className="mr-2 text-blue-600">3.</span>Date
+                  </label>
+                  <input
+                    type="date"
+                    min={localDateKey()}
+                    value={scheduleForm.date}
+                    onChange={(event) => setScheduleField("date", event.target.value)}
+                    required
+                    className={`input w-full ${fieldErrors.appointmentDate ? "input-error" : ""}`}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-800">
+                    <span className="mr-2 text-blue-600">3.</span>Time
+                  </label>
+                  <input
+                    type="time"
+                    value={scheduleForm.time}
+                    onChange={(event) => setScheduleField("time", event.target.value)}
+                    required
+                    className={`input w-full ${fieldErrors.appointmentDate ? "input-error" : ""}`}
+                  />
+                </div>
               </div>
+              <FieldError message={fieldErrors.appointmentDate} />
+
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Reason *</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-800">
+                  <span className="mr-2 text-blue-600">4.</span>Reason for Visit
+                </label>
                 <input
-                  value={form.reason}
-                  onChange={(e) => setField("reason", e.target.value)}
+                  value={scheduleForm.reason}
+                  onChange={(event) =>
+                    setScheduleField("reason", event.target.value)
+                  }
+                  placeholder="Reason for appointment..."
                   required
                   className={`input w-full ${fieldErrors.reason ? "input-error" : ""}`}
                 />
                 <FieldError message={fieldErrors.reason} />
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Duration (minutes) *</label>
-                <input
-                  type="number"
-                  min={5}
-                  max={480}
-                  value={form.durationMinutes}
-                  onChange={(e) => setField("durationMinutes", e.target.value)}
-                  required
-                  className={`input w-full ${fieldErrors.durationMinutes ? "input-error" : ""}`}
-                />
-                <FieldError message={fieldErrors.durationMinutes} />
-              </div>
-              {editTarget && (
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Status</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => {
-                      setEditStatus(e.target.value);
-                      clearField("status");
-                    }}
-                    className={`input w-full ${fieldErrors.status ? "input-error" : ""}`}
-                  >
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  <FieldError message={fieldErrors.status} />
+
+              {scheduleComplete && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+                  <p className="font-semibold text-slate-900">Appointment summary</p>
+                  <p className="mt-1">
+                    {selectedPatient?.firstName} {selectedPatient?.lastName} with{" "}
+                    {selectedDoctor?.name} on{" "}
+                    {new Date(
+                      `${scheduleForm.date}T${scheduleForm.time}`,
+                    ).toLocaleString([], {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-700">
+                    Status after sending: Pending doctor confirmation
+                  </p>
                 </div>
               )}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Notes</label>
-                <textarea
-                  rows={2}
-                  value={form.notes}
-                  onChange={(e) => setField("notes", e.target.value)}
-                  className={`input w-full ${fieldErrors.notes ? "input-error" : ""}`}
-                />
-                <FieldError message={fieldErrors.notes} />
-              </div>
-              <div className="flex justify-end gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              </div>
+
+              <button
+                type="submit"
+                disabled={saving || optionsLoading}
+                className="w-full rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? "Sending to doctor..." : "Send Appointment to Doctor"}
+              </button>
             </form>
+          </section>
+        )}
+
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Upcoming Appointments
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Review scheduled visits and manage appointment changes.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span><strong className="text-slate-700">Pending:</strong> waiting for doctor confirmation</span>
+              <span><strong className="text-slate-700">Confirmed:</strong> accepted by the doctor</span>
+              <span><strong className="text-slate-700">Checked in:</strong> student has arrived</span>
+            </div>
+          </div>
+
+          {error && (
+            <p className="mx-5 mt-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-700 sm:mx-7">
+              {error}
+            </p>
+          )}
+
+          {loading ? (
+            <p className="px-7 py-12 text-center text-sm text-slate-500">
+              Loading appointments...
+            </p>
+          ) : appointments.length === 0 ? (
+            <p className="px-7 py-12 text-center text-sm text-slate-500">
+              No appointments have been scheduled yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto px-5 pb-5 sm:px-7 sm:pb-7">
+              <table className="mt-3 w-full min-w-[980px] text-left text-sm">
+                <thead className="border-b border-slate-200 text-slate-700">
+                  <tr>
+                    <th className="px-2 py-3 font-medium">Date</th>
+                    <th className="px-2 py-3 font-medium">Time</th>
+                    <th className="px-2 py-3 font-medium">Student</th>
+                    <th className="px-2 py-3 font-medium">Doctor</th>
+                    <th className="px-2 py-3 font-medium">Reason</th>
+                    <th className="px-2 py-3 font-medium">Status</th>
+                    {(canManage || isDoctor) && (
+                      <th className="px-2 py-3 font-medium">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {appointments.map((item) => {
+                    const startsAt = new Date(item.appointmentDate);
+                    const canCheckIn =
+                      ACTIVE_STATUSES.has(item.status) &&
+                      localDateKey(startsAt) === localDateKey();
+                    const canReschedule =
+                      item.status !== "checked_in" && item.status !== "completed";
+                    return (
+                      <tr key={item._id} className="hover:bg-slate-50/70">
+                        <td className="whitespace-nowrap px-2 py-4">
+                          {startsAt.toLocaleDateString("en-CA")}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-4 font-medium">
+                          {startsAt.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="px-2 py-4">
+                          <p className="font-medium text-slate-900">
+                            {patientName(item.patientId)}
+                          </p>
+                          {item.patientId && typeof item.patientId === "object" && (
+                            <p className="mt-0.5 font-mono text-xs text-slate-400">
+                              {item.patientId.studentId}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-2 py-4 text-slate-600">
+                          {doctorName(item.doctorId)}
+                        </td>
+                        <td className="max-w-xs px-2 py-4 text-slate-700">
+                          {item.reason}
+                        </td>
+                        <td className="px-2 py-4">
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium capitalize ${
+                              statusTone[item.status] ?? "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {statusLabel(item.status)}
+                          </span>
+                        </td>
+                        {(canManage || isDoctor) && (
+                          <td className="whitespace-nowrap px-2 py-4">
+                            <div className="flex items-center gap-2">
+                              {canManage && canReschedule && (
+                                <button
+                                  type="button"
+                                  onClick={() => openReschedule(item)}
+                                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                                >
+                                  Reschedule
+                                </button>
+                              )}
+                              {canManage && ACTIVE_STATUSES.has(item.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCancelTarget(item);
+                                    setCancellationReason("");
+                                    setCancellationError("");
+                                  }}
+                                  className="px-2 py-2 text-xs font-medium text-rose-600 hover:text-rose-700"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              {canManage && canCheckIn && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCheckIn(item)}
+                                  disabled={checkingInId === item._id}
+                                  className="px-2 py-2 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                                >
+                                  {checkingInId === item._id
+                                    ? "Checking in..."
+                                    : "Check In"}
+                                </button>
+                              )}
+                              {canManage && item.status === "checked_in" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      embedded
+                                        ? "/dashboard?view=visits"
+                                        : "/patient-queue",
+                                    )
+                                  }
+                                  className="px-2 py-2 text-xs font-medium text-violet-600"
+                                >
+                                  View Queue
+                                </button>
+                              )}
+                              {isDoctor && item.status === "pending" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDoctorConfirm(item)}
+                                  disabled={confirmingId === item._id}
+                                  className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                                >
+                                  {confirmingId === item._id
+                                    ? "Confirming..."
+                                    : "Confirm Appointment"}
+                                </button>
+                              )}
+                              {isDoctor && item.status === "confirmed" && (
+                                <span className="text-xs font-medium text-emerald-700">
+                                  Ready for appointment
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-sm sm:px-7">
+              <button
+                type="button"
+                disabled={page === 1}
+                onClick={() => setPage((current) => current - 1)}
+                className="rounded-lg border px-3 py-2 disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-slate-500">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page === totalPages}
+                onClick={() => setPage((current) => current + 1)}
+                className="rounded-lg border px-3 py-2 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {rescheduleTarget && (
+        <Modal
+          title={`Reschedule ${patientName(rescheduleTarget.patientId)}`}
+          onClose={() => setRescheduleTarget(null)}
+          closeDisabled={rescheduling}
+        >
+          <form onSubmit={handleReschedule} className="space-y-4">
+            {formError && (
+              <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+                {formError}
+              </p>
+            )}
+            <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Doctor</label>
+              <select
+                value={rescheduleForm.doctorId}
+                onChange={(event) =>
+                  setRescheduleField("doctorId", event.target.value)
+                }
+                required
+                className={`input w-full ${fieldErrors.doctorId ? "input-error" : ""}`}
+              >
+                <option value="" disabled>Select doctor...</option>
+                {doctors
+                  .filter(
+                    (doctor) =>
+                      doctor.isAvailable !== false ||
+                      doctor._id === rescheduleForm.doctorId,
+                  )
+                  .map((doctor) => (
+                    <option key={doctor._id} value={doctor._id}>
+                      {doctor.name}
+                    </option>
+                  ))}
+              </select>
+              <FieldError message={fieldErrors.doctorId} />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Date</label>
+                <input
+                  type="date"
+                  min={localDateKey()}
+                  value={rescheduleForm.date}
+                  onChange={(event) =>
+                    setRescheduleField("date", event.target.value)
+                  }
+                  required
+                  className={`input w-full ${fieldErrors.appointmentDate ? "input-error" : ""}`}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Time</label>
+                <input
+                  type="time"
+                  value={rescheduleForm.time}
+                  onChange={(event) =>
+                    setRescheduleField("time", event.target.value)
+                  }
+                  required
+                  className={`input w-full ${fieldErrors.appointmentDate ? "input-error" : ""}`}
+                />
+              </div>
+            </div>
+            <FieldError message={fieldErrors.appointmentDate} />
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Reason</label>
+              <input
+                value={rescheduleForm.reason}
+                onChange={(event) =>
+                  setRescheduleField("reason", event.target.value)
+                }
+                required
+                className={`input w-full ${fieldErrors.reason ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.reason} />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Duration (minutes)
+              </label>
+              <input
+                type="number"
+                min={5}
+                max={480}
+                value={rescheduleForm.durationMinutes}
+                onChange={(event) =>
+                  setRescheduleField("durationMinutes", event.target.value)
+                }
+                required
+                className={`input w-full ${fieldErrors.durationMinutes ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.durationMinutes} />
+              <p className="mt-1 text-xs text-amber-700">
+                Rescheduling returns the appointment to pending so the doctor can confirm the new schedule.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Notes</label>
+              <textarea
+                rows={3}
+                value={rescheduleForm.notes}
+                onChange={(event) =>
+                  setRescheduleField("notes", event.target.value)
+                }
+                className={`input w-full ${fieldErrors.notes ? "input-error" : ""}`}
+              />
+              <FieldError message={fieldErrors.notes} />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRescheduleTarget(null)}
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button
+                type="submit"
+                disabled={rescheduling}
+                className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {rescheduling ? "Saving..." : "Save New Schedule"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 
       {cancelTarget && (
-        <ConfirmDialog
-          title="Cancel appointment"
-          message={
-            <>
-              Cancel the appointment for <strong>{patientName(cancelTarget.patientId)}</strong> on{" "}
+        <Modal title="Cancel appointment" onClose={() => setCancelTarget(null)} closeDisabled={cancelling}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Cancel the appointment for{" "}
+              <strong>{patientName(cancelTarget.patientId)}</strong> on{" "}
               {new Date(cancelTarget.appointmentDate).toLocaleString([], {
                 dateStyle: "medium",
                 timeStyle: "short",
               })}
-              ? The student will need to be notified separately.
-            </>
-          }
-          confirmLabel="Cancel Appointment"
-          busy={cancelling}
-          onConfirm={handleCancel}
-          onCancel={() => setCancelTarget(null)}
-        />
+              . The student will receive the reason below.
+            </p>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Cancellation reason
+              </label>
+              <textarea
+                rows={3}
+                maxLength={500}
+                value={cancellationReason}
+                onChange={(event) => {
+                  setCancellationReason(event.target.value);
+                  setCancellationError("");
+                }}
+                placeholder="Example: Doctor unavailable; please contact the clinic for a new schedule."
+                className={`input w-full ${cancellationError ? "input-error" : ""}`}
+              />
+              {cancellationError && (
+                <p className="mt-1 text-xs text-rose-600">{cancellationError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                Keep Appointment
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {cancelling ? "Cancelling..." : "Cancel Appointment"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </PageFrame>
   );

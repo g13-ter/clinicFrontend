@@ -3,15 +3,51 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../services/api";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { FieldError } from "../components/FieldError";
+import {
+  getCurrentUser,
+  restoreCurrentSession,
+  saveCurrentSession,
+} from "../utils/auth";
+import type { UserRole } from "../config/permissions";
+
+interface LoginResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: { id: string; role: UserRole };
+    expiresAt: string;
+  };
+}
 
 // LoginPage handles user authentication and token storage.
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField } = useFormErrors();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (getCurrentUser()) {
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+    let cancelled = false;
+    restoreCurrentSession().then((result) => {
+      if (cancelled) return;
+      if (result.status === "authenticated") {
+        navigate("/dashboard", { replace: true });
+      } else {
+        setRestoring(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -31,9 +67,12 @@ function LoginPage() {
       const data = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       }).then(async (res) => {
-        const json = await res.json();
+        const json = await res.json() as LoginResponse & {
+          errors?: { field: string; message: string }[];
+        };
         if (!res.ok) {
           if (res.status === 429) {
             setCooldownSeconds(parseRetryAfter(res.headers.get("Retry-After")) ?? 120);
@@ -43,7 +82,7 @@ function LoginPage() {
         return json;
       });
 
-      localStorage.setItem("token", data.token);
+      saveCurrentSession(data.data.user, data.data.expiresAt);
       navigate("/dashboard");
     } catch (err: unknown) {
       applyError(err, "Login failed");

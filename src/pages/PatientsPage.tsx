@@ -7,7 +7,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import type { Patient } from "../utils/types";
 import AdminSectionTabs from "../components/AdminSectionTabs";
-import { parseStudentCsv } from "../features/patients/studentCsv";
 import type { ReactNode } from "react";
 
 const emptyForm = {
@@ -63,8 +62,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
-  const [importing, setImporting] = useState(false);
-
   const limit = 10;
 
   const fetchPatients = async (p = page, q = search) => {
@@ -201,25 +198,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     );
   };
 
-  const importCsv = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setImporting(true);
-    try {
-      const students = parseStudentCsv(await file.text());
-      const response = await api.post("/patients/import", { students });
-      showToast(response.message);
-      await fetchPatients(1, "");
-      setPage(1);
-      setSearch("");
-    } catch (importError: unknown) {
-      showToast(importError instanceof Error ? importError.message : "Student import failed");
-    } finally {
-      setImporting(false);
-    }
-  };
-
   return (
     <PageFrame embedded={embedded}>
       {role === "admin" && !embedded && <div className="mb-5"><AdminSectionTabs active="management" /></div>}
@@ -234,10 +212,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
         </div>
         {canEdit && (
           <div className="flex flex-wrap gap-2 self-start sm:self-auto">
-            <label className="cursor-pointer rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-              {importing ? "Importing…" : "Import CSV"}
-              <input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={importing} className="sr-only" />
-            </label>
             <button
               onClick={openCreate}
               className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
@@ -431,7 +405,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
 
       {/* Modal */}
       {showModal && (
-        <Modal title={editTarget ? "Edit Student" : "Register Student"} onClose={() => setShowModal(false)}>
+        <Modal title={editTarget ? "Edit Student" : "Register Student"} onClose={() => setShowModal(false)} closeDisabled={saving}>
             {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {!editTarget && (

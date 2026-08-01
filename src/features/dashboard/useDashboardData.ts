@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { Appointment, DashboardStats } from "../../utils/types";
 import type { UserRole } from "../../config/permissions";
-import { localDateKey } from "../../utils/date";
+import { clinicDateKey } from "../../utils/date";
 
 type LegacyDashboardStats = Partial<DashboardStats> & { totalPatients?: number };
 
@@ -66,7 +66,7 @@ export function useDashboardData(role: UserRole | null, userId?: string) {
     }
 
     let cancelled = false;
-    const params = new URLSearchParams({ date: localDateKey(), limit: "100" });
+    const params = new URLSearchParams({ date: clinicDateKey(), limit: "100" });
     if (role === "doctor" && userId) params.set("doctorId", userId);
 
     api
