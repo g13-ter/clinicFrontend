@@ -1,6 +1,19 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
+import LandingPage from "./pages/LandingPage";
+import DashboardPage from "./pages/DashboardPage";
+import PatientsPage from "./pages/PatientsPage";
+import PatientDetailPage from "./pages/PatientDetailPage";
+import PatientQueuePage from "./pages/PatientQueuePage";
+import AppointmentsPage from "./pages/AppointmentsPage";
+import MedicinesPage from "./pages/MedicinesPage";
+import PurchaseRequestsPage from "./pages/PurchaseRequestsPage";
+import UsersPage from "./pages/UsersPage";
+import ReportsPage from "./pages/ReportsPage";
+import AuditLogPage from "./pages/AuditLogPage";
+import ClinicalWorkspacePage from "./pages/ClinicalWorkspacePage";
+import SettingsPage from "./pages/SettingsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ROUTE_ACCESS, USER_ROLES } from "./config/permissions";
 
@@ -33,8 +46,8 @@ function PageLoader() {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/dashboard"
@@ -132,16 +145,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-          <Route
-            path="*"
-            element={
-              <ProtectedRoute roles={USER_ROLES}>
-                <NotFoundPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Suspense>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </BrowserRouter>
   );
 }
