@@ -5,6 +5,7 @@ import LandingPage from "./pages/LandingPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ROUTE_ACCESS, USER_ROLES } from "./config/permissions";
 
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const PatientsPage = lazy(() => import("./pages/PatientsPage"));
 const PatientDetailPage = lazy(() => import("./pages/PatientDetailPage"));
