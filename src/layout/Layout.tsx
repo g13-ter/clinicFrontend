@@ -7,6 +7,7 @@ import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
 import type { ClinicVisit, User } from "../utils/types";
 import { clearCurrentSession } from "../utils/auth";
+import { BrandLogo } from "../components/BrandLogo";
 import {
   AuditIcon,
   CalendarIcon,
@@ -89,7 +90,14 @@ function Layout({ children }: { children: React.ReactNode }) {
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
     if (search.trim()) {
-      navigate(`/patients?search=${encodeURIComponent(search.trim())}`);
+      const encodedSearch = encodeURIComponent(search.trim());
+      if (role === "admin") {
+        navigate(`/dashboard?section=management&management=students&search=${encodedSearch}`);
+      } else if (role === "nurse" || role === "staff") {
+        navigate(`/dashboard?view=students&search=${encodedSearch}`);
+      } else {
+        navigate(`/patients?search=${encodedSearch}`);
+      }
     }
   };
 
@@ -299,11 +307,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             onClick={() => navigate("/dashboard")}
             className="flex shrink-0 items-center gap-3 text-left"
           >
-            {hasSidebar && (
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-xl font-bold text-white">
-                +
-              </span>
-            )}
+            <BrandLogo className="h-10 w-10 drop-shadow-[0_5px_8px_rgba(37,99,235,0.18)]" />
             <span className="leading-tight">
               <span className="block text-sm font-bold text-gray-900 sm:text-base">
                 School Clinic Management

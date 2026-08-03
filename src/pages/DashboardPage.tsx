@@ -191,7 +191,13 @@ function DashboardPage() {
                 <MonthlyVisitsChart items={stats.monthlyVisits} />
               </section>
               <ActiveTeam users={stats.activeUsers} counts={stats.usersByRole} />
-              <RecentCases cases={stats.recentCases} />
+              <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+                <h3 className="font-semibold text-emerald-950">Student privacy protected</h3>
+                <p className="mt-1 text-sm text-emerald-800">
+                  Admin analytics use aggregate clinic totals. Individual complaints, assessments,
+                  treatments, and medical histories are limited to authorized clinical roles.
+                </p>
+              </section>
             </>
           )
         ) : null}

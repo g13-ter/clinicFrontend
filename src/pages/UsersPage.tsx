@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AdminSectionTabs from "../components/AdminSectionTabs";
+import PatientsPage from "./PatientsPage";
 import { PatientsIcon, StaffIcon, VisitsIcon } from "../components/icons";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -13,7 +14,7 @@ import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Patient, User } from "../utils/types";
 import type { ReactNode } from "react";
 
-type TeamFilter = "all" | "doctor" | "staff";
+type ManagementView = "students" | "all" | "doctor" | "staff";
 
 const ROLES = ["admin", "doctor", "nurse", "staff"] as const;
 const FORM_FIELDS = ["name", "email", "password", "role"];
@@ -26,9 +27,9 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
 function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const { user: currentUser } = useAuth();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
   const [studentCount, setStudentCount] = useState(0);
-  const [teamFilter, setTeamFilter] = useState<TeamFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -90,12 +91,27 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
 
   const doctors = users.filter((user) => user.role === "doctor");
   const staffMembers = users.filter((user) => user.role === "nurse" || user.role === "staff");
-  const clinicTeam = users.filter((user) => user.role !== "admin");
+  const requestedManagementView = searchParams.get("management");
+  const managementView: ManagementView =
+    requestedManagementView === "students" ||
+    requestedManagementView === "doctor" ||
+    requestedManagementView === "staff"
+      ? requestedManagementView
+      : "all";
+  const clinicTeam = users;
   const filteredUsers = useMemo(() => {
-    if (teamFilter === "doctor") return doctors;
-    if (teamFilter === "staff") return staffMembers;
+    if (managementView === "doctor") return doctors;
+    if (managementView === "staff") return staffMembers;
     return clinicTeam;
-  }, [clinicTeam, doctors, staffMembers, teamFilter]);
+  }, [clinicTeam, doctors, staffMembers, managementView]);
+
+  const selectManagementView = (view: ManagementView) => {
+    const next = new URLSearchParams(searchParams);
+    if (view === "all") next.delete("management");
+    else next.set("management", view);
+    if (view !== "students") next.delete("search");
+    setSearchParams(next);
+  };
 
   const openCreate = (role: typeof emptyForm.role = "staff") => {
     setEditTarget(null);
@@ -182,13 +198,15 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             <p className="text-sm text-gray-500">Students and clinic accounts</p>
             <h2 className="mt-1 text-2xl font-bold text-gray-900">Management</h2>
           </div>
-          <button
-            type="button"
-            onClick={() => openCreate()}
-            className="self-start rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 sm:self-auto"
-          >
-            + Add Clinic User
-          </button>
+          {managementView !== "students" && (
+            <button
+              type="button"
+              onClick={() => openCreate(managementView === "doctor" ? "doctor" : "staff")}
+              className="self-start rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 sm:self-auto"
+            >
+              + Add {managementView === "doctor" ? "Doctor" : managementView === "staff" ? "Nurse / Staff" : "Clinic User"}
+            </button>
+          )}
         </div>
 
         {error && (
@@ -202,14 +220,30 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             label="Students"
             value={studentCount}
             icon={<PatientsIcon />}
-            action={<Link to="/patients" className="management-card-action">Manage Students</Link>}
+            selected={managementView === "students"}
+            action={
+              <button
+                type="button"
+                onClick={() => selectManagementView("students")}
+                className="management-card-action"
+                aria-pressed={managementView === "students"}
+              >
+                Manage Students
+              </button>
+            }
           />
           <ManagementCard
             label="Doctors"
             value={doctors.length}
             icon={<VisitsIcon />}
+            selected={managementView === "doctor"}
             action={
-              <button type="button" onClick={() => setTeamFilter("doctor")} className="management-card-action">
+              <button
+                type="button"
+                onClick={() => selectManagementView("doctor")}
+                className="management-card-action"
+                aria-pressed={managementView === "doctor"}
+              >
                 Manage Doctors
               </button>
             }
@@ -218,19 +252,30 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             label="Nurses and Staff"
             value={staffMembers.length}
             icon={<StaffIcon />}
+            selected={managementView === "staff"}
             action={
-              <button type="button" onClick={() => setTeamFilter("staff")} className="management-card-action">
+              <button
+                type="button"
+                onClick={() => selectManagementView("staff")}
+                className="management-card-action"
+                aria-pressed={managementView === "staff"}
+              >
                 Manage Staff
               </button>
             }
           />
         </section>
 
+        {managementView === "students" ? (
+          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <PatientsPage embedded />
+          </section>
+        ) : (
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-semibold text-gray-900">
-                {teamFilter === "doctor" ? "Doctors" : teamFilter === "staff" ? "Nurses and Staff" : "Clinic Team"}
+                {managementView === "doctor" ? "Doctors" : managementView === "staff" ? "Nurses and Staff" : "Clinic Team"}
               </h3>
               <p className="mt-1 text-xs text-gray-500">Manage access, roles, and availability.</p>
             </div>
@@ -243,9 +288,9 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setTeamFilter(id)}
+                  onClick={() => selectManagementView(id)}
                   className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
-                    teamFilter === id
+                    managementView === id
                       ? "border-slate-900 bg-slate-900 text-white"
                       : "border-gray-200 text-gray-600 hover:bg-gray-50"
                   }`}
@@ -329,6 +374,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             </>
           )}
         </section>
+        )}
       </div>
 
       {showModal && (
@@ -374,9 +420,17 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
   );
 }
 
-function ManagementCard({ label, value, icon, action }: { label: string; value: number; icon: React.ReactNode; action: React.ReactNode }) {
+function ManagementCard({ label, value, icon, action, selected = false }: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  action: React.ReactNode;
+  selected?: boolean;
+}) {
   return (
-    <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <article className={`rounded-xl border bg-white p-5 shadow-sm transition ${
+      selected ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200"
+    }`}>
       <div className="flex items-start justify-between gap-3">
         <p className="font-semibold text-gray-900">{label}</p>
         <span className="text-gray-800">{icon}</span>

@@ -211,11 +211,15 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
           <ReportCard
             icon={<MedicineIcon />}
             title="Medication Reports"
-            description="Review medication consumption and student-level dispensing records."
+            description={role === "admin"
+              ? "Review aggregate medication consumption and inventory records."
+              : "Review medication consumption and student-level dispensing records."}
           >
             <ActionButton label="Medication Report (Selected Period)" loading={activeDownload === "medication-inventory"} onClick={() => downloadCsv("medication-inventory", "Medication_Report")} />
             <ActionButton label="Consumption Summary (Selected Period)" loading={activeDownload === "medication-consumption"} onClick={() => downloadCsv("medication-consumption", "Medication_Consumption")} />
-            <ActionButton label="Usage Details (Selected Period)" loading={activeDownload === "medication-usage-details"} onClick={() => downloadCsv("medication-usage-details", "Medication_Usage_Details")} />
+            {role !== "admin" && (
+              <ActionButton label="Usage Details (Selected Period)" loading={activeDownload === "medication-usage-details"} onClick={() => downloadCsv("medication-usage-details", "Medication_Usage_Details")} />
+            )}
             <ActionButton
               label="Annual Medication Report"
               loading={activeDownload === "annual-medication"}
@@ -229,7 +233,9 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
             description="Analyze student health trends using recorded clinical data."
           >
             <ActionButton label="Disease Trends" loading={activeDownload === "disease-trends"} onClick={() => downloadCsv("disease-trends", "Disease_Trends")} />
-            <ActionButton label="Vaccination Status" loading={activeDownload === "vaccination-status"} onClick={() => downloadCsv("vaccination-status", "Vaccination_Status")} />
+            {role !== "admin" && (
+              <ActionButton label="Vaccination Status" loading={activeDownload === "vaccination-status"} onClick={() => downloadCsv("vaccination-status", "Vaccination_Status")} />
+            )}
             <ActionButton label="Health Summary" loading={activeDownload === "health-summary"} onClick={downloadHealthSummary} />
           </ReportCard>
 

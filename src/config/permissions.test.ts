@@ -20,6 +20,9 @@ describe("permissions", () => {
     // Staff receive a basic read-only patient view.
     expect(hasRole("staff", ROUTE_ACCESS["/patients"])).toBe(true);
     expect(hasRole("admin", ROUTE_ACCESS["/audit-log"])).toBe(true);
+    expect(hasRole("admin", ROUTE_ACCESS["/patients/:id"])).toBe(false);
+    expect(hasRole("admin", ROUTE_ACCESS["/patient-queue"])).toBe(false);
+    expect(hasRole("admin", ROUTE_ACCESS["/appointments"])).toBe(false);
     expect(hasRole("doctor", ROUTE_ACCESS["/clinical-workspace"])).toBe(true);
     expect(hasRole("nurse", ROUTE_ACCESS["/clinical-workspace"])).toBe(true);
     expect(hasRole("staff", ROUTE_ACCESS["/clinical-workspace"])).toBe(false);

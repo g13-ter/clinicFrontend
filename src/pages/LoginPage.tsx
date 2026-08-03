@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../services/api";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { FieldError } from "../components/FieldError";
+import { BrandLogo } from "../components/BrandLogo";
 import {
   getCurrentUser,
   restoreCurrentSession,
@@ -250,12 +251,7 @@ function LoginPage() {
 }
 
 function LoginBrandMark() {
-  return (
-    <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20" aria-hidden="true">
-      <span className="absolute h-6 w-2.5 rounded bg-white" />
-      <span className="absolute h-2.5 w-6 rounded bg-white" />
-    </span>
-  );
+  return <BrandLogo className="h-11 w-11 drop-shadow-[0_7px_10px_rgba(37,99,235,0.22)]" />;
 }
 
 function LoginFeature({ value, label }: { value: string; label: string }) {

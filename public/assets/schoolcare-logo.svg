@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" fill="none">
+  <defs>
+    <linearGradient id="schoolcare-blue" x1="62" y1="38" x2="270" y2="288" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2B7FFF"/>
+      <stop offset="1" stop-color="#095AE8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- A wide, rounded medical cross that remains clear at small sizes. -->
+  <rect x="92" y="16" width="136" height="288" rx="46" fill="url(#schoolcare-blue)"/>
+  <rect x="16" y="92" width="288" height="136" rx="46" fill="url(#schoolcare-blue)"/>
+
+  <!-- The white center keeps the original simple cross identity. -->
+  <rect x="132" y="58" width="56" height="204" rx="20" fill="white"/>
+  <rect x="58" y="132" width="204" height="56" rx="20" fill="white"/>
+</svg>

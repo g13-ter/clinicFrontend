@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { BrandLogo } from "../components/BrandLogo";
 import {
   AuditIcon,
   CalendarIcon,
@@ -418,12 +419,7 @@ function LandingPage() {
 }
 
 function BrandMark() {
-  return (
-    <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-600 text-2xl font-black text-white shadow-lg shadow-blue-600/20" aria-hidden="true">
-      <span className="absolute h-6 w-2.5 rounded bg-white" />
-      <span className="absolute h-2.5 w-6 rounded bg-white" />
-    </span>
-  );
+  return <BrandLogo className="h-11 w-11 drop-shadow-[0_7px_10px_rgba(37,99,235,0.22)]" />;
 }
 
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
@@ -520,7 +516,7 @@ function RoleDashboardPreview({ role }: { role: ClinicRole }) {
   return (
     <article className="relative min-h-[560px] overflow-hidden rounded-[24px] border border-white bg-[#f8fafc] text-slate-950 shadow-[0_28px_70px_rgba(30,64,175,0.16)] ring-1 ring-blue-100/80">
       <div className="flex h-16 items-center border-b border-slate-200 bg-white px-4 sm:px-5">
-        {role === "admin" && <span className="mr-3 grid h-9 w-9 place-items-center rounded-lg bg-slate-900 text-lg font-light text-white">+</span>}
+        <BrandLogo className="mr-3 h-9 w-9" />
         <div className="leading-tight"><p className="text-[11px] font-extrabold sm:text-sm">School Clinic Management</p><p className="mt-1 text-[8px] capitalize text-slate-400 sm:text-[9px]">{role} dashboard</p></div>
         {showSearch && <div className="ml-auto hidden h-8 w-[34%] items-center rounded-md border border-slate-200 px-3 text-[8px] text-slate-400 sm:flex">Search students...<span className="ml-auto">⌕</span></div>}
         <div className={`${showSearch ? "ml-3" : "ml-auto"} hidden text-right xs:block sm:block`}><p className="text-[9px] font-bold sm:text-[10px]">{name}</p><p className="text-[7px] text-slate-400 sm:text-[8px]">{email}</p></div>
@@ -665,7 +661,7 @@ function AdminDashboardMock() {
   return (
     <div className="bg-[#f7faff] text-[#0f1930]">
       <div className="flex h-12 items-center border-b border-slate-200 bg-white px-3 sm:h-14 sm:px-4">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-900 text-lg font-light text-white">+</span>
+        <BrandLogo className="h-8 w-8" />
         <div className="ml-2 leading-tight">
           <p className="text-[9px] font-extrabold sm:text-[11px]">School Clinic Management</p>
           <p className="text-[7px] text-slate-400 sm:text-[8px]">Admin Dashboard</p>
@@ -723,7 +719,26 @@ function Metric({ value, label }: { value: string; label: string }) {
 }
 
 function FooterLinks({ title, links }: { title: string; links: [string, string][] }) {
-  return <div><h3 className="text-sm font-extrabold text-slate-950">{title}</h3><ul className="mt-4 grid gap-3">{links.map(([label, href]) => <li key={label}><a href={href} className="text-sm text-slate-500 transition hover:text-blue-600">{label}</a></li>)}</ul></div>;
+  return (
+    <div>
+      <h3 className="text-sm font-extrabold text-slate-950">{title}</h3>
+      <ul className="mt-4 grid gap-3">
+        {links.map(([label, href]) => (
+          <li key={label}>
+            {href.startsWith("/") ? (
+              <Link to={href} className="text-sm text-slate-500 transition hover:text-blue-600">
+                {label}
+              </Link>
+            ) : (
+              <a href={href} className="text-sm text-slate-500 transition hover:text-blue-600">
+                {label}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export default LandingPage;

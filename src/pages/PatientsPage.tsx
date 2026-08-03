@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
@@ -40,7 +40,8 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
 
 function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { can, role } = useAuth();
   const { showToast } = useToast();
   const canEdit = can("editPatients");
@@ -63,6 +64,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const limit = 10;
+  const requestedSearch = searchParams.get("search") ?? "";
 
   const fetchPatients = async (p = page, q = search) => {
     setLoading(true);
@@ -90,14 +92,22 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   };
 
   useEffect(() => {
-    fetchPatients(page, search);
+    setSearch(requestedSearch);
+    fetchPatients(page, requestedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, requestedSearch]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchPatients(1, search);
+    const next = new URLSearchParams(searchParams);
+    if (search.trim()) next.set("search", search.trim());
+    else next.delete("search");
+    if ((searchParams.get("search") ?? "") === search.trim()) {
+      fetchPatients(1, search.trim());
+    } else {
+      setSearchParams(next);
+    }
   };
 
   const openCreate = () => {
@@ -197,6 +207,10 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
         : `/patient-queue?patientId=${encodeURIComponent(patientId)}`,
     );
   };
+  const openStudentRecord = (patientId: string) => {
+    const returnTo = `${location.pathname}${location.search}`;
+    navigate(`/patients/${patientId}?returnTo=${encodeURIComponent(returnTo)}`);
+  };
 
   return (
     <PageFrame embedded={embedded}>
@@ -280,12 +294,14 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                         </div>
                       </dl>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => navigate(`/patients/${p._id}`)}
-                          className="rounded border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                        >
-                          View Record
-                        </button>
+                        {role !== "admin" && (
+                          <button
+                            onClick={() => openStudentRecord(p._id)}
+                            className="rounded border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                          >
+                            View Record
+                          </button>
+                        )}
                         {canCheckIn && (
                           <button
                             onClick={() => checkInPatient(p._id)}
@@ -345,12 +361,17 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                           <td className="px-4 py-3">{p.contactNumber}</td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-3 whitespace-nowrap">
-                            <button
-                              onClick={() => navigate(`/patients/${p._id}`)}
-                              className="text-xs text-blue-600 hover:underline"
-                            >
-                              View Record
-                            </button>
+                            {role !== "admin" && (
+                              <button
+                                onClick={() => openStudentRecord(p._id)}
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                View Record
+                              </button>
+                            )}
+                            {role === "admin" && (
+                              <span className="text-xs font-medium text-slate-400">Administrative view only</span>
+                            )}
                             {canCheckIn && (
                               <button
                                 onClick={() => checkInPatient(p._id)}

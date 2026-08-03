@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import PatientVisits from "../features/patients/PatientVisits";
 import PatientMedicalHistory from "../features/patients/PatientMedicalHistory";
@@ -11,7 +11,8 @@ import type { Patient, ClinicVisit, MedicalHistory } from "../utils/types";
 function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { can, role } = useAuth();
   const canViewMedicalHistory = can("viewMedicalHistory");
   const canCheckIn = can("checkInPatients");
 
@@ -22,6 +23,13 @@ function PatientDetailPage() {
   // Load independent data for the printable summary.
   const [printVisits, setPrintVisits] = useState<ClinicVisit[]>([]);
   const [printHistory, setPrintHistory] = useState<MedicalHistory[] | null>(null);
+  const requestedReturnTo = searchParams.get("returnTo");
+  const safeReturnTo =
+    requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+      ? requestedReturnTo
+      : role === "doctor"
+        ? "/dashboard?tab=records"
+        : "/dashboard?view=students";
 
   useEffect(() => {
     api.get<Patient>(`/patients/${id}`)
@@ -49,7 +57,7 @@ function PatientDetailPage() {
     <Layout>
       <div className="print:hidden">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <button onClick={() => navigate("/patients")} className="text-sm text-blue-600 hover:underline inline-block">
+          <button onClick={() => navigate(safeReturnTo)} className="text-sm text-blue-600 hover:underline inline-block">
             ← Back to Student Records
           </button>
           <div className="flex flex-wrap gap-2">
