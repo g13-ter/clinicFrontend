@@ -404,12 +404,25 @@ function LandingPage() {
               <div id="contact-details">
                 <h3 className="text-sm font-extrabold text-slate-950">Contact</h3>
                 <p className="mt-4 text-sm leading-6 text-slate-500">For account access or system assistance, contact your school clinic administrator.</p>
-                <p className="mt-3 text-sm font-bold text-blue-600">School Clinic Office</p>
+                <a
+                  href="https://benedictocollegeclinic.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex text-sm font-bold text-blue-600 transition hover:text-blue-700"
+                >
+                  School Clinic Office
+                </a>
               </div>
             </div>
             <div className="flex flex-col gap-2 py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
               <p>© {new Date().getFullYear()} SchoolCare. School Clinic Management System.</p>
-              <p>Secure care • Accurate records • Better decisions</p>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <a href="/privacy" className="transition hover:text-blue-600">Privacy Policy</a>
+                <span>|</span>
+                <a href="/terms" className="transition hover:text-blue-600">Terms of Service</a>
+                <span>|</span>
+                <a href="/license" className="transition hover:text-blue-600">Licensing</a>
+              </div>
             </div>
           </div>
         </section>
