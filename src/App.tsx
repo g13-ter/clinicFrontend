@@ -18,6 +18,7 @@ const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
 const ClinicalWorkspacePage = lazy(() => import("./pages/ClinicalWorkspacePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
 
 function PageLoader() {
   return (
@@ -38,6 +39,48 @@ function App() {
         <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/privacy"
+          element={
+            <TemporaryInfoPage
+              title="Privacy Policy"
+              description="This privacy policy page is currently being prepared for the clinic platform."
+              details={[
+                "This placeholder content will be replaced with the official policy text.",
+                "It is intended to provide a temporary route for the footer link.",
+                "You can update the wording once the final policy is ready."
+              ]}
+            />
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <TemporaryInfoPage
+              title="Terms of Service"
+              description="These terms of service are currently being drafted for the clinic system."
+              details={[
+                "This page serves as a temporary placeholder for the footer navigation.",
+                "It will be replaced with the final legal terms once approved.",
+                "The content is meant to keep the route functional during development."
+              ]}
+            />
+          }
+        />
+        <Route
+          path="/license"
+          element={
+            <TemporaryInfoPage
+              title="Licensing"
+              description="This licensing page is currently a temporary placeholder for the clinic platform."
+              details={[
+                "The licensing information will be finalized later.",
+                "This route is now available for the footer link.",
+                "You can add the official license terms when they are ready."
+              ]}
+            />
+          }
+        />
         <Route
           path="/dashboard"
           element={
