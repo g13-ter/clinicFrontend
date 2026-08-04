@@ -35,6 +35,24 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
         <SummaryField label="Address" value={patient.address} className="col-span-3" />
       </div>
 
+      <div className="mb-6">
+        <h3 className="text-sm font-bold uppercase border-b border-black pb-1 mb-2">Clinical Profile and Medical Alerts</h3>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <SummaryField label="Allergies" value={patient.medicalAlerts?.allergies?.join(", ") || "None recorded"} />
+          <SummaryField label="Chronic Conditions" value={patient.medicalAlerts?.chronicConditions?.join(", ") || "None recorded"} />
+          <SummaryField label="Current Medications" value={patient.medicalAlerts?.currentMedications?.join(", ") || "None recorded"} />
+          <SummaryField label="Family History" value={patient.familyHistory || "None recorded"} />
+          <SummaryField label="Past Medical History" value={patient.pastMedicalHistory || patient.healthConditions || "None recorded"} className="col-span-2" />
+          <SummaryField
+            label="Clinical Profile Verification"
+            value={patient.clinicalProfileVerifiedAt
+              ? `Verified ${new Date(patient.clinicalProfileVerifiedAt).toLocaleDateString()}`
+              : "Awaiting doctor verification"}
+            className="col-span-2"
+          />
+        </div>
+      </div>
+
       {latestVisit && (
         <div className="mb-6">
           <h3 className="text-sm font-bold uppercase border-b border-black pb-1 mb-2">
@@ -94,6 +112,7 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
                 <th className="py-1 pr-2">Prescription</th>
                 <th className="py-1 pr-2">Dispensed</th>
                 <th className="py-1 pr-2">Allergies</th>
+                <th className="py-1 pr-2">Family History</th>
               </tr>
             </thead>
             <tbody>
@@ -108,6 +127,7 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
                       : "—"}
                   </td>
                   <td className="py-1 pr-2">{h.allergies || "—"}</td>
+                  <td className="py-1 pr-2">{h.familyHistory || "—"}</td>
                 </tr>
               ))}
             </tbody>

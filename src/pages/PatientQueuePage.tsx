@@ -11,6 +11,7 @@ import { patientsListPath } from "../config/permissions";
 import type { ClinicVisit, Patient } from "../utils/types";
 import { reportFilename, saveBlobDownload } from "../utils/download";
 import type { ReactNode } from "react";
+import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 
 // Clinic-wide queue of open visits sorted by arrival time.
 const POLL_INTERVAL_MS = 15000;
@@ -87,6 +88,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const handledEmergencyFocus = useRef("");
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
+  const [visitSearch, setVisitSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -365,6 +367,26 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
 
   const waitingCount = queue.filter((v) => !v.readyForDoctor).length;
   const readyCount = queue.filter((v) => v.status === "ready_for_doctor" || v.readyForDoctor).length;
+  const normalizedVisitSearch = visitSearch.trim().toLowerCase();
+  const filteredQueue = normalizedVisitSearch
+    ? queue.filter((visit) => {
+        const patient = visit.patientId && typeof visit.patientId === "object"
+          ? visit.patientId
+          : null;
+        return [
+          patient?.firstName,
+          patient?.lastName,
+          patient?.studentId,
+          visit.complaint,
+          visit.treatment,
+          visit.status?.replaceAll("_", " "),
+        ].some((value) => value?.toLowerCase().includes(normalizedVisitSearch));
+      })
+    : queue;
+  const vitalsPatientId = vitalsTarget?.patientId && typeof vitalsTarget.patientId === "object"
+    ? vitalsTarget.patientId._id
+    : vitalsTarget?.patientId;
+  const vitalsPatient = patients.find((patient) => patient._id === vitalsPatientId);
   const renderQueueActions = (v: ClinicVisit) => {
     if (!canManage) return null;
     return (
@@ -438,6 +460,18 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           : `${waitingCount} waiting for triage · ${readyCount} ready for doctor`}
       </p>
 
+      <div className="mb-4">
+        <label htmlFor="visit-search" className="sr-only">Search student visits</label>
+        <input
+          id="visit-search"
+          type="search"
+          value={visitSearch}
+          onChange={(event) => setVisitSearch(event.target.value)}
+          placeholder="Search student name, ID, complaint, treatment, or status..."
+          className="input w-full"
+        />
+      </div>
+
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
       {loading ? (
@@ -445,12 +479,12 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       ) : (
         <>
           <div className="space-y-3 md:hidden">
-            {queue.length === 0 ? (
+            {filteredQueue.length === 0 ? (
               <div className="rounded-lg bg-white py-8 text-center text-sm text-gray-400 shadow">
-                Queue is empty.
+                {normalizedVisitSearch ? "No student visits match your search." : "Queue is empty."}
               </div>
             ) : (
-              queue.map((v) => {
+              filteredQueue.map((v) => {
                 const link = patientLink(v.patientId);
                 return (
                   <article
@@ -523,14 +557,14 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {queue.length === 0 ? (
+              {filteredQueue.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-6 text-gray-400">
-                    Queue is empty.
+                    {normalizedVisitSearch ? "No student visits match your search." : "Queue is empty."}
                   </td>
                 </tr>
               ) : (
-                queue.map((v) => {
+                filteredQueue.map((v) => {
                   const link = patientLink(v.patientId);
                   return (
                     <tr
@@ -705,6 +739,15 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           {vitalsFormError && <p className="text-red-500 text-sm mb-3">{vitalsFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedVitalsErrors(VITALS_FORM_FIELDS)} />
           <form onSubmit={handleSaveVitals} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {vitalsPatient && (
+              <ClinicalProfileEditor
+                patient={vitalsPatient}
+                mode="nurse"
+                onSaved={(updatedPatient) => setPatients((current) =>
+                  current.map((patient) => patient._id === updatedPatient._id ? updatedPatient : patient)
+                )}
+              />
+            )}
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Complaint *</label>
               <input

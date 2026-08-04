@@ -17,12 +17,17 @@ export interface Patient {
   guardianName?: string;
   guardianContactNumber?: string;
   healthConditions?: string;
+  familyHistory?: string;
+  pastMedicalHistory?: string;
   medicalAlerts?: {
     allergies?: string[];
     chronicConditions?: string[];
     currentMedications?: string[];
     notes?: string;
   };
+  clinicalProfileUpdatedBy?: { _id: string; name: string; role: string } | string;
+  clinicalProfileVerifiedBy?: { _id: string; name: string; role: string } | string;
+  clinicalProfileVerifiedAt?: string;
   consents?: {
     treatment: boolean;
     medicineAdministration: boolean;
@@ -84,7 +89,8 @@ export interface Appointment {
   appointmentDate: string;
   reason: string;
   cancellationReason?: string;
-  status: "pending" | "confirmed" | "checked_in" | "cancelled" | "completed";
+  declineReason?: string;
+  status: "unassigned" | "pending" | "confirmed" | "needs_reassignment" | "checked_in" | "cancelled" | "completed";
   notes: string;
   reminderSent?: boolean;
   durationMinutes?: number;

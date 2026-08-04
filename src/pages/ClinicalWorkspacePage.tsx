@@ -25,6 +25,7 @@ import {
   type ConsultationForm,
 } from "../features/clinical/clinicalWorkspaceModel";
 import type { ReactNode } from "react";
+import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 
 type Tab = "appointments" | "records" | "consultation" | "followups";
 
@@ -200,6 +201,12 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const handleProfileSaved = (updatedPatient: Patient) => {
+    setPatients((current) => current.map((patient) =>
+      patient._id === updatedPatient._id ? updatedPatient : patient
+    ));
+  };
+
   const handleConsultation = async (event: React.FormEvent) => {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
@@ -364,6 +371,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                   error={formError}
                   onChange={updateForm}
                   onSubmit={handleConsultation}
+                  onProfileSaved={handleProfileSaved}
                 />
               )
             )}
@@ -508,6 +516,7 @@ function ConsultationForm({
   error,
   onChange,
   onSubmit,
+  onProfileSaved,
 }: {
   form: ConsultationForm;
   patients: Patient[];
@@ -518,7 +527,12 @@ function ConsultationForm({
   error: string;
   onChange: (field: keyof typeof form, value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
+  onProfileSaved: (patient: Patient) => void;
 }) {
+  const selectedPatient = patients.find((patient) => patient._id === form.patientId);
+  const persistentAllergies = selectedPatient?.medicalAlerts?.allergies ?? [];
+  const chronicConditions = selectedPatient?.medicalAlerts?.chronicConditions ?? [];
+  const currentMedications = selectedPatient?.medicalAlerts?.currentMedications ?? [];
   return (
     <Panel
       title="Record New Consultation"
@@ -539,6 +553,23 @@ function ConsultationForm({
         <Field label="Visit Date">
           <input value={localDateKey()} disabled className="input bg-gray-50" />
         </Field>
+
+        {selectedPatient && (persistentAllergies.length > 0 || chronicConditions.length > 0 || currentMedications.length > 0) && (
+          <div className="rounded-lg border-2 border-red-200 bg-red-50 p-3 text-sm text-red-900 md:col-span-2 xl:col-span-3">
+            <p className="font-bold">Medical alerts</p>
+            {persistentAllergies.length > 0 && <p className="mt-1"><strong>Allergies:</strong> {persistentAllergies.join(", ")}</p>}
+            {chronicConditions.length > 0 && <p className="mt-1"><strong>Chronic conditions:</strong> {chronicConditions.join(", ")}</p>}
+            {currentMedications.length > 0 && <p className="mt-1"><strong>Current medications:</strong> {currentMedications.join(", ")}</p>}
+          </div>
+        )}
+
+        {selectedPatient && (
+          <ClinicalProfileEditor
+            patient={selectedPatient}
+            mode={isDoctor ? "doctor" : "nurse"}
+            onSaved={onProfileSaved}
+          />
+        )}
 
         <Field label="Chief Complaint" className="md:col-span-2 xl:col-span-3">
           <textarea required rows={3} value={form.complaint} onChange={(event) => onChange("complaint", event.target.value)} className="input" placeholder="Describe the main reason for the visit..." />
@@ -742,13 +773,15 @@ function Field({
 
 function StatusBadge({ status }: { status: Appointment["status"] }) {
   const tones: Record<Appointment["status"], string> = {
+    unassigned: "bg-orange-50 text-orange-700",
     pending: "bg-amber-50 text-amber-700",
+    needs_reassignment: "bg-red-50 text-red-700",
     confirmed: "bg-blue-50 text-blue-700",
     checked_in: "bg-purple-50 text-purple-700",
     cancelled: "bg-red-50 text-red-700",
     completed: "bg-emerald-50 text-emerald-700",
   };
-  return <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium capitalize ${tones[status]}`}>{status}</span>;
+  return <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium capitalize ${tones[status]}`}>{status.replaceAll("_", " ")}</span>;
 }
 
 function EmptyState({ text }: { text: string }) {

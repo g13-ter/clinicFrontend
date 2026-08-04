@@ -38,6 +38,16 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
   return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
 
+function calculateAge(dateOfBirth: string): string {
+  if (!dateOfBirth) return "";
+  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age -= 1;
+  return age >= 0 ? String(age) : "";
+}
+
 function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -163,13 +173,16 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     delete body.consentTreatment;
     delete body.consentMedicine;
     delete body.consentPrivacy;
-    if (role === "nurse" && editTarget) {
+    let clinicalProfilePayload: Record<string, unknown> | null = null;
+    if (role === "nurse") {
       const commaList = (value: string) =>
         value.split(",").map((item) => item.trim()).filter(Boolean);
-      body.medicalAlerts = {
+      clinicalProfilePayload = {
+        familyHistory: editTarget?.familyHistory ?? "",
+        pastMedicalHistory: form.healthConditions,
         allergies: commaList(form.allergies),
-        chronicConditions: commaList(form.chronicConditions),
         currentMedications: commaList(form.currentMedications),
+        chronicConditions: commaList(form.chronicConditions),
         notes: form.medicalAlertNotes || undefined,
       };
       body.consents = {
@@ -183,12 +196,18 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     if (!form.email) delete body.email;
     if (!form.dateOfBirth) delete body.dateOfBirth;
     try {
+      let savedPatientId: string;
       if (editTarget) {
-        const res = await api.put(`/patients/${editTarget._id}`, body);
+        const res = await api.put<Patient>(`/patients/${editTarget._id}`, body);
         showToast(res.message);
+        savedPatientId = res.data._id;
       } else {
-        const res = await api.post("/patients", body);
+        const res = await api.post<Patient>("/patients", body);
         showToast(res.message);
+        savedPatientId = res.data._id;
+      }
+      if (clinicalProfilePayload) {
+        await api.put(`/patients/${savedPatientId}/clinical-profile`, clinicalProfilePayload);
       }
       setShowModal(false);
       fetchPatients(page, search);
@@ -464,14 +483,25 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                   type="number"
                   value={form.age}
                   onChange={(e) => setForm({ ...form, age: e.target.value })}
+                  readOnly={Boolean(form.dateOfBirth)}
                   required
                   min={1}
                   max={100}
-                  className="input"
+                  className={`input ${form.dateOfBirth ? "bg-gray-50" : ""}`}
                 />
+                {form.dateOfBirth && <p className="mt-1 text-xs text-gray-500">Calculated automatically from date of birth.</p>}
               </Field>
               <Field label="Date of Birth">
-                <input type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} className="input" />
+                <input
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={form.dateOfBirth}
+                  onChange={(e) => {
+                    const dateOfBirth = e.target.value;
+                    setForm({ ...form, dateOfBirth, age: calculateAge(dateOfBirth) });
+                  }}
+                  className="input"
+                />
               </Field>
               <Field label="Gender">
                 <select
@@ -532,7 +562,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
               <Field label="Guardian Emergency Contact Number">
                 <input value={form.guardianContactNumber} onChange={(e) => setForm({ ...form, guardianContactNumber: e.target.value })} className="input" />
               </Field>
-              {role === "nurse" && editTarget && (
+              {role === "nurse" && (
                 <>
                   <Field label="Blood Type">
                     <input value={form.bloodType} onChange={(e) => setForm({ ...form, bloodType: e.target.value })} placeholder="e.g. O+" className="input" />

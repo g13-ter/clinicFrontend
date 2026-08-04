@@ -7,12 +7,10 @@ import { useToast } from "../../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { MedicalHistory, Medicine } from "../../utils/types";
 
-const empty = { diagnosis: "", prescription: "", familyHistory: "", allergies: "" };
+const empty = { diagnosis: "", prescription: "" };
 const FIELDS = [
   { key: "diagnosis", label: "Diagnosis" },
   { key: "prescription", label: "Prescription (general notes)" },
-  { key: "familyHistory", label: "Family History" },
-  { key: "allergies", label: "Allergies" },
 ] as const;
 const FORM_FIELDS = ["patientId", ...FIELDS.map((f) => f.key)];
 
@@ -85,8 +83,6 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
     setForm({
       diagnosis: h.diagnosis ?? "",
       prescription: h.prescription ?? "",
-      familyHistory: h.familyHistory ?? "",
-      allergies: h.allergies ?? "",
     });
     // Prescribed items are immutable after stock is deducted.
     setPrescribedRows([]);
@@ -183,12 +179,13 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                 <th className="text-left px-4 py-3">Prescription</th>
                 <th className="text-left px-4 py-3">Dispensed from Inventory</th>
                 <th className="text-left px-4 py-3">Allergies</th>
+                <th className="text-left px-4 py-3">Family History</th>
                 {canEdit && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {history.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-6 text-gray-400">No history recorded.</td></tr>
+                <tr><td colSpan={7} className="text-center py-6 text-gray-400">No history recorded.</td></tr>
               ) : (
                 history.map((h) => (
                   <tr key={h._id} className="hover:bg-gray-50">
@@ -212,6 +209,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                       )}
                     </td>
                     <td className="px-4 py-3">{h.allergies || "—"}</td>
+                    <td className="px-4 py-3">{h.familyHistory || "—"}</td>
                     {canEdit && (
                       <td className="px-4 py-3 text-right">
                         <button onClick={() => openEdit(h)} className="text-gray-500 hover:underline text-xs">Edit</button>

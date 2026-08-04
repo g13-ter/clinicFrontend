@@ -49,10 +49,11 @@ export const CAPABILITIES = {
   editMedicines: ["nurse"] as const satisfies readonly UserRole[],
   editMedicalHistory: ["doctor"] as const satisfies readonly UserRole[],
   viewMedicalHistory: ["doctor", "nurse"] as const satisfies readonly UserRole[],
+  updateClinicalProfile: ["doctor", "nurse"] as const satisfies readonly UserRole[],
   submitPurchaseRequest: ["nurse"] as const satisfies readonly UserRole[],
   reviewPurchaseRequest: ["admin"] as const satisfies readonly UserRole[],
   viewPurchaseRequests: ["admin", "nurse"] as const satisfies readonly UserRole[],
-  selectDoctorForAppointment: ["staff", "nurse", "admin"] as const satisfies readonly UserRole[],
+  selectDoctorForAppointment: ["nurse"] as const satisfies readonly UserRole[],
   manageDoctorSchedule: ["admin"] as const satisfies readonly UserRole[],
 } as const;
 

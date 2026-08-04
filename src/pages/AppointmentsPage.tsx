@@ -10,8 +10,9 @@ import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
 import type { Appointment, Doctor, Patient } from "../utils/types";
 import type { ReactNode } from "react";
+import SearchablePatientSelect from "../components/SearchablePatientSelect";
 
-const ACTIVE_STATUSES = new Set(["pending", "confirmed"]);
+const CANCELLABLE_STATUSES = new Set(["unassigned", "pending", "confirmed", "needs_reassignment"]);
 const FORM_FIELDS = [
   "patientId",
   "doctorId",
@@ -82,7 +83,9 @@ function statusLabel(status: string): string {
 }
 
 const statusTone: Record<string, string> = {
+  unassigned: "bg-amber-100 text-amber-800",
   pending: "bg-slate-100 text-slate-700",
+  needs_reassignment: "bg-orange-100 text-orange-800",
   confirmed: "bg-slate-950 text-white",
   checked_in: "bg-violet-100 text-violet-700",
   cancelled: "bg-rose-100 text-rose-700",
@@ -94,12 +97,17 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const canManage = can("manageAppointments");
+  const canAssignDoctor = can("selectDoctorForAppointment");
   const isDoctor = role === "doctor";
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const [submittedDate, setSubmittedDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [optionsLoading, setOptionsLoading] = useState(canManage);
   const [error, setError] = useState("");
@@ -114,6 +122,9 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   const [cancelling, setCancelling] = useState(false);
   const [checkingInId, setCheckingInId] = useState("");
   const [confirmingId, setConfirmingId] = useState("");
+  const [declineTarget, setDeclineTarget] = useState<Appointment | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declining, setDeclining] = useState(false);
   const {
     formError,
     fieldErrors,
@@ -126,7 +137,11 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   const limit = 10;
   const totalPages = Math.ceil(total / limit);
 
-  const fetchAppointments = async (requestedPage = page) => {
+  const fetchAppointments = async (
+    requestedPage = page,
+    query = submittedSearch,
+    date = submittedDate,
+  ) => {
     setLoading(true);
     setError("");
     try {
@@ -134,6 +149,8 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
         page: String(requestedPage),
         limit: String(limit),
       });
+      if (query) params.set("search", query);
+      if (date) params.set("date", date);
       const response = await api.get<Appointment[]>(`/appointments?${params}`);
       setAppointments(response.data);
       setTotal(response.pagination?.total ?? response.data.length);
@@ -151,7 +168,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     void fetchAppointments(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, submittedDate, submittedSearch]);
 
   useEffect(() => {
     if (!canManage) {
@@ -168,7 +185,9 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
     let cancelled = false;
     Promise.all([
       api.get<Patient[]>(patientsPath),
-      api.get<Doctor[]>("/users/doctors"),
+      canAssignDoctor
+        ? api.get<Doctor[]>("/users/doctors")
+        : Promise.resolve({ data: [] as Doctor[] }),
     ])
       .then(([patientResponse, doctorResponse]) => {
         if (cancelled) return;
@@ -191,7 +210,35 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [canManage, role]);
+  }, [canAssignDoctor, canManage, role]);
+
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = search.trim();
+    setPage(1);
+    if (query === submittedSearch && dateFilter === submittedDate) {
+      void fetchAppointments(1, query, dateFilter);
+    } else {
+      setSubmittedSearch(query);
+      setSubmittedDate(dateFilter);
+    }
+  };
+
+  const applyDateFilter = (date: string) => {
+    const query = search.trim();
+    setDateFilter(date);
+    setSubmittedDate(date);
+    setSubmittedSearch(query);
+    setPage(1);
+  };
+
+  const clearAppointmentFilters = () => {
+    setSearch("");
+    setSubmittedSearch("");
+    setDateFilter("");
+    setSubmittedDate("");
+    setPage(1);
+  };
 
   const setScheduleField = (field: keyof typeof scheduleForm, value: string) => {
     setScheduleForm((current) => ({ ...current, [field]: value }));
@@ -205,7 +252,9 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
     try {
       const response = await api.post("/appointments", {
         patientId: scheduleForm.patientId,
-        doctorId: scheduleForm.doctorId || undefined,
+        ...(canAssignDoctor && scheduleForm.doctorId
+          ? { doctorId: scheduleForm.doctorId }
+          : {}),
         appointmentDate: appointmentDate(scheduleForm.date, scheduleForm.time),
         reason: scheduleForm.reason,
         durationMinutes: 30,
@@ -213,7 +262,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
       showToast(response.message);
       setScheduleForm(emptyScheduleForm);
       setPage(1);
-      await fetchAppointments(1);
+      await fetchAppointments(1, submittedSearch);
     } catch (requestError: unknown) {
       applyError(requestError, "Unable to schedule appointment");
     } finally {
@@ -250,7 +299,9 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
     resetFormErrors();
     try {
       const response = await api.put(`/appointments/${rescheduleTarget._id}`, {
-        doctorId: rescheduleForm.doctorId || undefined,
+        ...(canAssignDoctor && rescheduleForm.doctorId
+          ? { doctorId: rescheduleForm.doctorId }
+          : {}),
         appointmentDate: appointmentDate(rescheduleForm.date, rescheduleForm.time),
         reason: rescheduleForm.reason,
         notes: rescheduleForm.notes || undefined,
@@ -330,6 +381,26 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  const handleDoctorDecline = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!declineTarget) return;
+    setDeclining(true);
+    setError("");
+    try {
+      const response = await api.put(`/appointments/${declineTarget._id}/decline`, {
+        reason: declineReason.trim(),
+      });
+      showToast(response.message);
+      setDeclineTarget(null);
+      setDeclineReason("");
+      await fetchAppointments(page, submittedSearch);
+    } catch (requestError: unknown) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to decline appointment");
+    } finally {
+      setDeclining(false);
+    }
+  };
+
   const selectedPatient = patients.find(
     (patient) => patient._id === scheduleForm.patientId,
   );
@@ -338,7 +409,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   );
   const scheduleComplete = Boolean(
     selectedPatient &&
-    selectedDoctor &&
+    (!canAssignDoctor || selectedDoctor) &&
     scheduleForm.date &&
     scheduleForm.time &&
     scheduleForm.reason.trim(),
@@ -359,10 +430,12 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
         {canManage && (
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <h3 className="text-lg font-semibold text-slate-900">
-              Schedule New Appointment
+              {canAssignDoctor ? "Schedule New Appointment" : "Request New Appointment"}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Complete the four steps below. The assigned doctor will receive the appointment for confirmation.
+              {canAssignDoctor
+                ? "Choose an available doctor. The doctor will confirm or return the appointment for reassignment."
+                : "Enter the request details. A nurse will assign an available doctor."}
             </p>
             <form onSubmit={handleSchedule} className="mt-6 space-y-4">
               {formError && (
@@ -377,28 +450,16 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                   <label className="mb-1.5 block text-sm font-medium text-slate-800">
                     <span className="mr-2 text-blue-600">1.</span>Student
                   </label>
-                  <select
+                  <SearchablePatientSelect
+                    patients={patients}
                     value={scheduleForm.patientId}
-                    onChange={(event) =>
-                      setScheduleField("patientId", event.target.value)
-                    }
-                    required
+                    onChange={(patientId) => setScheduleField("patientId", patientId)}
                     disabled={optionsLoading}
-                    className={`input w-full ${fieldErrors.patientId ? "input-error" : ""}`}
-                  >
-                    <option value="" disabled>
-                      {optionsLoading ? "Loading students..." : "Select student..."}
-                    </option>
-                    {patients.map((patient) => (
-                      <option key={patient._id} value={patient._id}>
-                        {patient.firstName} {patient.lastName} ({patient.studentId})
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <FieldError message={fieldErrors.patientId} />
                 </div>
 
-                <div>
+                {canAssignDoctor && <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-800">
                     <span className="mr-2 text-blue-600">2.</span>Assigned Doctor
                   </label>
@@ -424,11 +485,11 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                       ))}
                   </select>
                   <FieldError message={fieldErrors.doctorId} />
-                </div>
+                </div>}
 
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                    <span className="mr-2 text-blue-600">3.</span>Date
+                    <span className="mr-2 text-blue-600">{canAssignDoctor ? "3." : "2."}</span>Date
                   </label>
                   <input
                     type="date"
@@ -442,7 +503,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
 
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                    <span className="mr-2 text-blue-600">3.</span>Time
+                    <span className="mr-2 text-blue-600">{canAssignDoctor ? "3." : "2."}</span>Time
                   </label>
                   <input
                     type="time"
@@ -457,7 +518,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                  <span className="mr-2 text-blue-600">4.</span>Reason for Visit
+                  <span className="mr-2 text-blue-600">{canAssignDoctor ? "4." : "3."}</span>Reason for Visit
                 </label>
                 <input
                   value={scheduleForm.reason}
@@ -475,8 +536,8 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
                   <p className="font-semibold text-slate-900">Appointment summary</p>
                   <p className="mt-1">
-                    {selectedPatient?.firstName} {selectedPatient?.lastName} with{" "}
-                    {selectedDoctor?.name} on{" "}
+                    {selectedPatient?.firstName} {selectedPatient?.lastName}{" "}
+                    {selectedDoctor ? `with ${selectedDoctor.name} ` : ""}on{" "}
                     {new Date(
                       `${scheduleForm.date}T${scheduleForm.time}`,
                     ).toLocaleString([], {
@@ -485,7 +546,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                     })}
                   </p>
                   <p className="mt-1 text-xs text-blue-700">
-                    Status after sending: Pending doctor confirmation
+                    Status after sending: {canAssignDoctor ? "Pending doctor confirmation" : "Waiting for nurse assignment"}
                   </p>
                 </div>
               )}
@@ -495,7 +556,11 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                 disabled={saving || optionsLoading}
                 className="w-full rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {saving ? "Sending to doctor..." : "Send Appointment to Doctor"}
+                {saving
+                  ? "Saving..."
+                  : canAssignDoctor
+                    ? "Send Appointment to Doctor"
+                    : "Submit Appointment Request"}
               </button>
             </form>
           </section>
@@ -509,7 +574,57 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
             <p className="mt-1 text-sm text-slate-500">
               Review scheduled visits and manage appointment changes.
             </p>
+            <form onSubmit={handleSearch} className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search student, ID, doctor, reason, or status..."
+                aria-label="Search appointments"
+                className="input min-w-0 flex-1"
+              />
+              <label className="relative">
+                <span className="sr-only">Filter appointments by date</span>
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(event) => applyDateFilter(event.target.value)}
+                  aria-label="Filter appointments by date"
+                  className="input w-full sm:w-44"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => applyDateFilter(localDateKey())}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                  submittedDate === localDateKey()
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Today
+              </button>
+              <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                Apply Filters
+              </button>
+              {(submittedSearch || submittedDate) && (
+                <button
+                  type="button"
+                  onClick={clearAppointmentFilters}
+                  className="text-left text-sm font-medium text-slate-500 hover:text-slate-800 sm:col-start-1"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </form>
+            {submittedDate && (
+              <p className="mt-2 text-xs text-slate-500">
+                Showing appointments on <strong className="text-slate-700">{new Date(`${submittedDate}T00:00:00`).toLocaleDateString([], { dateStyle: "long" })}</strong>
+                {submittedSearch ? " matching your search" : ""}.
+              </p>
+            )}
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span><strong className="text-slate-700">Unassigned:</strong> waiting for a nurse</span>
               <span><strong className="text-slate-700">Pending:</strong> waiting for doctor confirmation</span>
               <span><strong className="text-slate-700">Confirmed:</strong> accepted by the doctor</span>
               <span><strong className="text-slate-700">Checked in:</strong> student has arrived</span>
@@ -528,7 +643,9 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
             </p>
           ) : appointments.length === 0 ? (
             <p className="px-7 py-12 text-center text-sm text-slate-500">
-              No appointments have been scheduled yet.
+              {submittedSearch || submittedDate
+                ? "No appointments match the selected filters."
+                : "No appointments have been scheduled yet."}
             </p>
           ) : (
             <div className="overflow-x-auto px-5 pb-5 sm:px-7 sm:pb-7">
@@ -550,7 +667,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                   {appointments.map((item) => {
                     const startsAt = new Date(item.appointmentDate);
                     const canCheckIn =
-                      ACTIVE_STATUSES.has(item.status) &&
+                      item.status === "confirmed" &&
                       localDateKey(startsAt) === localDateKey();
                     const canReschedule =
                       item.status !== "checked_in" && item.status !== "completed";
@@ -589,6 +706,11 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                           >
                             {statusLabel(item.status)}
                           </span>
+                          {item.declineReason && (
+                            <p className="mt-1 max-w-48 whitespace-normal text-xs text-rose-600">
+                              Doctor: {item.declineReason}
+                            </p>
+                          )}
                         </td>
                         {(canManage || isDoctor) && (
                           <td className="whitespace-nowrap px-2 py-4">
@@ -599,10 +721,12 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                                   onClick={() => openReschedule(item)}
                                   className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50"
                                 >
-                                  Reschedule
+                                  {canAssignDoctor && (item.status === "unassigned" || item.status === "needs_reassignment")
+                                    ? "Assign Doctor"
+                                    : "Reschedule"}
                                 </button>
                               )}
-                              {canManage && ACTIVE_STATUSES.has(item.status) && (
+                              {canManage && CANCELLABLE_STATUSES.has(item.status) && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -643,16 +767,23 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                                 </button>
                               )}
                               {isDoctor && item.status === "pending" && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDoctorConfirm(item)}
-                                  disabled={confirmingId === item._id}
-                                  className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
-                                >
-                                  {confirmingId === item._id
-                                    ? "Confirming..."
-                                    : "Confirm Appointment"}
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDoctorConfirm(item)}
+                                    disabled={confirmingId === item._id}
+                                    className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                                  >
+                                    {confirmingId === item._id ? "Confirming..." : "Confirm"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setDeclineTarget(item); setDeclineReason(""); }}
+                                    className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                                  >
+                                    Decline
+                                  </button>
+                                </>
                               )}
                               {isDoctor && item.status === "confirmed" && (
                                 <span className="text-xs font-medium text-emerald-700">
@@ -710,7 +841,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
             )}
             <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
 
-            <div>
+            {canAssignDoctor && <div>
               <label className="mb-1 block text-sm font-medium">Doctor</label>
               <select
                 value={rescheduleForm.doctorId}
@@ -734,7 +865,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                   ))}
               </select>
               <FieldError message={fieldErrors.doctorId} />
-            </div>
+            </div>}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -881,6 +1012,51 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {declineTarget && (
+        <Modal
+          title="Decline appointment"
+          onClose={() => setDeclineTarget(null)}
+          closeDisabled={declining}
+        >
+          <form onSubmit={handleDoctorDecline} className="space-y-4">
+            <p className="text-sm text-slate-600">
+              This appointment will return to the nurse for reassignment. It will not be cancelled.
+            </p>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Reason for declining
+              </label>
+              <textarea
+                rows={3}
+                minLength={3}
+                maxLength={500}
+                required
+                value={declineReason}
+                onChange={(event) => setDeclineReason(event.target.value)}
+                placeholder="Example: Not available at the scheduled time"
+                className="input w-full"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeclineTarget(null)}
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                Keep Pending
+              </button>
+              <button
+                type="submit"
+                disabled={declining || declineReason.trim().length < 3}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {declining ? "Returning..." : "Decline and Return"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </PageFrame>

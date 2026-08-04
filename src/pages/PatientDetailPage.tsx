@@ -7,6 +7,7 @@ import PrintablePatientSummary from "../features/patients/PrintablePatientSummar
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 import type { Patient, ClinicVisit, MedicalHistory } from "../utils/types";
+import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 
 function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,6 +97,16 @@ function PatientDetailPage() {
             <Field label="Address" value={patient.address} className="sm:col-span-2 md:col-span-3" />
           </div>
         </div>
+
+        {canViewMedicalHistory && (
+          <div className="mb-6">
+            <ClinicalProfileEditor
+              patient={patient}
+              mode={role === "doctor" ? "doctor" : "nurse"}
+              onSaved={setPatient}
+            />
+          </div>
+        )}
 
         {((patient.medicalAlerts?.allergies?.length ?? 0) > 0 ||
           (patient.medicalAlerts?.chronicConditions?.length ?? 0) > 0 ||

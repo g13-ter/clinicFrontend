@@ -394,24 +394,34 @@ function LandingPage() {
               </div>
             </div>
 
-            <div className="mt-16 grid gap-10 border-b border-slate-200 pb-14 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
+            <div className="mt-16 grid gap-10 border-b border-slate-200 pb-14 md:grid-cols-[1.1fr_0.7fr_0.7fr_1.5fr]">
               <div>
                 <div className="flex items-center gap-3"><BrandMark /><span className="text-lg font-extrabold">SchoolCare</span></div>
                 <p className="mt-4 max-w-xs text-sm leading-6 text-slate-500">A connected clinic management system designed around safer, faster student care.</p>
               </div>
               <FooterLinks title="Platform" links={[["Features", "#features"], ["Modules", "#modules"], ["How it works", "#about"]]} />
               <FooterLinks title="Access" links={[["Staff login", "/login"], ["Clinic dashboard", "/login"], ["System access", "/login"]]} />
-              <div id="contact-details">
-                <h3 className="text-sm font-extrabold text-slate-950">Contact</h3>
-                <p className="mt-4 text-sm leading-6 text-slate-500">For account access or system assistance, contact your school clinic administrator.</p>
-                <a
-                  href="https://benedictocollegeclinic.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex text-sm font-bold text-blue-600 transition hover:text-blue-700"
-                >
-                  School Clinic Office
-                </a>
+              <div id="contact-details" className="scroll-mt-24">
+                <h3 className="text-sm font-extrabold text-slate-950">School Health Clinic</h3>
+                <address className="mt-4 space-y-2 text-sm not-italic leading-6 text-slate-500">
+                  <p>Main Building, Ground Floor, Room 101</p>
+                  <p>Monday–Friday, 8:00 AM–5:00 PM</p>
+                  <p>
+                    <span className="font-semibold text-slate-700">Phone:</span>{" "}
+                    <a href="tel:+639123456789" className="font-medium text-blue-600 transition hover:text-blue-700">
+                      0912 345 6789
+                    </a>
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-700">Email:</span>{" "}
+                    <a href="mailto:clinic@yourschool.edu.ph" className="break-all font-medium text-blue-600 transition hover:text-blue-700">
+                      clinic@yourschool.edu.ph
+                    </a>
+                  </p>
+                </address>
+                <p className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">
+                  <strong>Emergency:</strong> Proceed directly to the clinic or call the school emergency number. Do not use appointment messaging for urgent cases.
+                </p>
               </div>
             </div>
             <div className="flex flex-col gap-2 py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
