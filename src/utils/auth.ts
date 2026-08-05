@@ -6,6 +6,7 @@ export type { UserRole };
 export interface CurrentUser {
   id: string;
   role: UserRole;
+  termsAccepted: true;
   exp?: number;
 }
 
@@ -22,7 +23,7 @@ export const saveCurrentSession = (
   if (!Number.isFinite(expiry)) return;
   sessionStorage.setItem(
     SESSION_KEY,
-    JSON.stringify({ id: user.id, role: user.role, exp: Math.floor(expiry / 1000) })
+    JSON.stringify({ id: user.id, role: user.role, termsAccepted: true, exp: Math.floor(expiry / 1000) })
   );
 };
 
@@ -34,6 +35,7 @@ export const clearCurrentSession = (): void => {
 
 export type SessionRestoreResult =
   | { status: "authenticated"; user: CurrentUser }
+  | { status: "terms_required"; user: { id: string; role: UserRole }; expiresAt: string }
   | { status: "unauthenticated" }
   | { status: "unavailable"; message: string };
 
@@ -58,6 +60,7 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
     const payload = (await response.json()) as {
       data?: {
         user?: { id?: unknown; role?: unknown };
+        termsAccepted?: unknown;
         expiresAt?: unknown;
       };
     };
@@ -65,17 +68,24 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
     const id = payload.data?.user?.id;
     const role = payload.data?.user?.role;
     const expiresAt = payload.data?.expiresAt;
+    const termsAccepted = payload.data?.termsAccepted;
 
     if (
       typeof id !== "string" ||
       !isUserRole(role) ||
       typeof expiresAt !== "string" ||
-      Number.isNaN(new Date(expiresAt).getTime())
+      Number.isNaN(new Date(expiresAt).getTime()) ||
+      typeof termsAccepted !== "boolean"
     ) {
       return {
         status: "unavailable",
         message: "The server returned an invalid session response.",
       };
+    }
+
+    if (!termsAccepted) {
+      clearCurrentSession();
+      return { status: "terms_required", user: { id, role }, expiresAt };
     }
 
     saveCurrentSession({ id, role }, expiresAt);
@@ -108,13 +118,19 @@ export const getCurrentUser = (): CurrentUser | null => {
       return null;
     }
 
-    if (typeof payload.id !== "string" || !isUserRole(payload.role)) {
+    if (
+      typeof payload.id !== "string" ||
+      !isUserRole(payload.role) ||
+      payload.termsAccepted !== true
+    ) {
+      clearCurrentSession();
       return null;
     }
 
     return {
       id: payload.id,
       role: payload.role,
+      termsAccepted: true,
       exp: payload.exp as number | undefined,
     };
   } catch {

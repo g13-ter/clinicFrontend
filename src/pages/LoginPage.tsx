@@ -4,7 +4,9 @@ import { ApiError } from "../services/api";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { FieldError } from "../components/FieldError";
 import { BrandLogo } from "../components/BrandLogo";
+import { TermsAgreementModal } from "../components/TermsAgreementModal";
 import {
+  clearCurrentSession,
   getCurrentUser,
   restoreCurrentSession,
   saveCurrentSession,
@@ -15,9 +17,15 @@ interface LoginResponse {
   success: boolean;
   message: string;
   data: {
-    user: { id: string; role: UserRole };
+    user: { id: string; role: UserRole; termsAccepted: boolean };
     expiresAt: string;
+    requiresTermsAcceptance: boolean;
   };
+}
+
+interface PendingTermsSession {
+  user: { id: string; role: UserRole };
+  expiresAt: string;
 }
 
 // LoginPage handles user authentication and token storage.
@@ -28,6 +36,9 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(true);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [pendingTerms, setPendingTerms] = useState<PendingTermsSession | null>(null);
+  const [termsBusy, setTermsBusy] = useState(false);
+  const [termsError, setTermsError] = useState("");
   const { formError, fieldErrors, applyError, reset: resetFormErrors, clearField } = useFormErrors();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -42,6 +53,9 @@ function LoginPage() {
       if (cancelled) return;
       if (result.status === "authenticated") {
         navigate("/dashboard", { replace: true });
+      } else if (result.status === "terms_required") {
+        setPendingTerms({ user: result.user, expiresAt: result.expiresAt });
+        setRestoring(false);
       } else {
         setRestoring(false);
       }
@@ -84,8 +98,13 @@ function LoginPage() {
         return json;
       });
 
-      saveCurrentSession(data.data.user, data.data.expiresAt);
-      navigate("/dashboard");
+      if (data.data.requiresTermsAcceptance || !data.data.user.termsAccepted) {
+        clearCurrentSession();
+        setPendingTerms({ user: data.data.user, expiresAt: data.data.expiresAt });
+      } else {
+        saveCurrentSession(data.data.user, data.data.expiresAt);
+        navigate("/dashboard");
+      }
     } catch (err: unknown) {
       applyError(err, "Login failed");
     } finally {
@@ -93,7 +112,47 @@ function LoginPage() {
     }
   };
 
+  const handleAcceptTerms = async () => {
+    if (!pendingTerms || termsBusy) return;
+    setTermsBusy(true);
+    setTermsError("");
+
+    try {
+      const response = await fetch("/api/auth/terms/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      const payload = await response.json() as { message?: string };
+      if (!response.ok) {
+        throw new ApiError(payload.message || "Unable to save your acceptance", response.status);
+      }
+
+      saveCurrentSession(pendingTerms.user, pendingTerms.expiresAt);
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      setTermsError(error instanceof Error ? error.message : "Unable to save your acceptance");
+    } finally {
+      setTermsBusy(false);
+    }
+  };
+
+  const handleDeclineTerms = async () => {
+    if (termsBusy) return;
+    setTermsBusy(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } finally {
+      clearCurrentSession();
+      setPendingTerms(null);
+      setPassword("");
+      setTermsBusy(false);
+      navigate("/login", { replace: true });
+    }
+  };
+
   return (
+    <>
     <div className="landing-hero relative min-h-screen overflow-hidden px-5 py-7 sm:px-8 lg:px-12">
       <div className="landing-orb -left-28 top-24 h-80 w-80 bg-blue-400/30" />
       <div className="landing-orb -right-20 bottom-0 h-96 w-96 bg-indigo-300/25" />
@@ -247,6 +306,15 @@ function LoginPage() {
         </div>
       </main>
     </div>
+    {pendingTerms && (
+      <TermsAgreementModal
+        busy={termsBusy}
+        error={termsError}
+        onAccept={handleAcceptTerms}
+        onDecline={handleDeclineTerms}
+      />
+    )}
+    </>
   );
 }
 

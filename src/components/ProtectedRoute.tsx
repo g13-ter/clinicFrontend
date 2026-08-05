@@ -18,6 +18,7 @@ function ProtectedRoute({
   const [checking, setChecking] = useState(user === null);
   const [serviceError, setServiceError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
+  const [termsRequired, setTermsRequired] = useState(false);
 
   useEffect(() => {
     if (user) return;
@@ -29,6 +30,7 @@ function ProtectedRoute({
       .then((result) => {
         if (cancelled) return;
         if (result.status === "authenticated") setUser(result.user);
+        if (result.status === "terms_required") setTermsRequired(true);
         if (result.status === "unavailable") setServiceError(result.message);
       })
       .finally(() => {
@@ -67,7 +69,7 @@ function ProtectedRoute({
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={termsRequired ? "/login?reason=terms-required" : "/login"} replace />;
   }
 
   if (roles && !roles.includes(user.role)) {
