@@ -1,15 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import Layout from "../layout/Layout";
-import AdminSectionTabs from "../components/AdminSectionTabs";
 import {
   MedicineIcon,
   ReportsIcon,
-  StaffIcon,
   VisitsIcon,
 } from "../components/icons";
 import { api } from "../services/api";
-import { useAuth } from "../hooks/useAuth";
 import { reportFilename, saveBlobDownload } from "../utils/download";
 import type { ReactNode } from "react";
 
@@ -44,7 +40,6 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
 }
 
 function ReportsPage({ embedded = false }: { embedded?: boolean }) {
-  const { role } = useAuth();
   const [startDate, setStartDate] = useState(startOfMonth());
   const [endDate, setEndDate] = useState(today());
   const [activeDownload, setActiveDownload] = useState("");
@@ -99,7 +94,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
 
   const downloadVisitReport = (period: ReportPeriod) => {
     const { start, end } = reportRange(period);
-    const params = new URLSearchParams({ startDate: start, endDate: end });
+    const params = new URLSearchParams({ startDate: start, endDate: end, period });
     void download(
       `/reports/clinic-summary?${params}`,
       `Clinic_${period}_report_${end}.docx`,
@@ -138,8 +133,6 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   return (
     <PageFrame embedded={embedded}>
       <div className="mx-auto max-w-[1600px] space-y-5">
-        {role === "admin" && !embedded && <AdminSectionTabs active="reports" />}
-
         <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm text-gray-500">Reporting period</p>
@@ -211,15 +204,11 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
           <ReportCard
             icon={<MedicineIcon />}
             title="Medication Reports"
-            description={role === "admin"
-              ? "Review aggregate medication consumption and inventory records."
-              : "Review medication consumption and student-level dispensing records."}
+            description="Review medication consumption and student-level dispensing records."
           >
             <ActionButton label="Medication Report (Selected Period)" loading={activeDownload === "medication-inventory"} onClick={() => downloadCsv("medication-inventory", "Medication_Report")} />
             <ActionButton label="Consumption Summary (Selected Period)" loading={activeDownload === "medication-consumption"} onClick={() => downloadCsv("medication-consumption", "Medication_Consumption")} />
-            {role !== "admin" && (
-              <ActionButton label="Usage Details (Selected Period)" loading={activeDownload === "medication-usage-details"} onClick={() => downloadCsv("medication-usage-details", "Medication_Usage_Details")} />
-            )}
+            <ActionButton label="Usage Details (Selected Period)" loading={activeDownload === "medication-usage-details"} onClick={() => downloadCsv("medication-usage-details", "Medication_Usage_Details")} />
             <ActionButton
               label="Annual Medication Report"
               loading={activeDownload === "annual-medication"}
@@ -233,23 +222,10 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
             description="Analyze student health trends using recorded clinical data."
           >
             <ActionButton label="Disease Trends" loading={activeDownload === "disease-trends"} onClick={() => downloadCsv("disease-trends", "Disease_Trends")} />
-            {role !== "admin" && (
-              <ActionButton label="Vaccination Status" loading={activeDownload === "vaccination-status"} onClick={() => downloadCsv("vaccination-status", "Vaccination_Status")} />
-            )}
+            <ActionButton label="Vaccination Status" loading={activeDownload === "vaccination-status"} onClick={() => downloadCsv("vaccination-status", "Vaccination_Status")} />
             <ActionButton label="Health Summary" loading={activeDownload === "health-summary"} onClick={downloadHealthSummary} />
           </ReportCard>
 
-          {role === "admin" && (
-            <ReportCard
-              icon={<StaffIcon />}
-              title="System Settings"
-              description="Configure persistent clinic preferences and operational rules."
-            >
-              <SettingsLink label="School Year Settings" hash="school-year" />
-              <SettingsLink label="Operating Hours" hash="operating-hours" />
-              <SettingsLink label="Notifications" hash="notifications" />
-            </ReportCard>
-          )}
         </section>
       </div>
     </PageFrame>
@@ -309,17 +285,6 @@ function PeriodButton({ label, onClick }: { label: string; onClick: () => void }
     >
       {label}
     </button>
-  );
-}
-
-function SettingsLink({ label, hash }: { label: string; hash: string }) {
-  return (
-    <Link
-      to={`/settings#${hash}`}
-      className="rounded-lg border border-gray-200 px-4 py-2.5 text-center text-sm font-medium text-gray-800 hover:border-blue-300 hover:bg-blue-50"
-    >
-      {label}
-    </Link>
   );
 }
 

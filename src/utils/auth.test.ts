@@ -50,7 +50,7 @@ describe("auth utils", () => {
   it("rejects cached sessions with an invalid role", () => {
     sessionStorage.setItem("clinic_session", JSON.stringify({
       id: "abc123",
-      role: "superadmin",
+      role: "owner",
       exp: Math.floor(Date.now() / 1000) + 3600,
     }));
 
@@ -101,6 +101,14 @@ describe("auth utils", () => {
       expiresAt,
     });
     expect(getCurrentUser()).toBeNull();
+  });
+
+  it("accepts Super Admin session metadata", () => {
+    saveCurrentSession(
+      { id: "super-1", role: "superadmin" },
+      new Date(Date.now() + 60_000).toISOString(),
+    );
+    expect(getCurrentRole()).toBe("superadmin");
   });
 
   it("distinguishes a service outage from an expired session", async () => {

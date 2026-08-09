@@ -26,6 +26,18 @@ describe("permissions", () => {
     expect(hasRole("doctor", ROUTE_ACCESS["/clinical-workspace"])).toBe(true);
     expect(hasRole("nurse", ROUTE_ACCESS["/clinical-workspace"])).toBe(true);
     expect(hasRole("staff", ROUTE_ACCESS["/clinical-workspace"])).toBe(false);
+    expect(ROUTE_ACCESS["/medicines"]).toEqual(["nurse"]);
+    expect(ROUTE_ACCESS["/reports"]).toEqual(["doctor", "nurse"]);
+    expect(can("doctor", "searchPrescriptionMedicines")).toBe(true);
+    expect(can("doctor", "viewMedicines")).toBe(false);
+    expect(can("admin", "viewReports")).toBe(false);
+    expect(can("staff", "viewAnalytics")).toBe(false);
+    expect(hasRole("superadmin", ROUTE_ACCESS["/users"])).toBe(true);
+    expect(hasRole("superadmin", ROUTE_ACCESS["/roles-permissions"])).toBe(true);
+    expect(hasRole("superadmin", ROUTE_ACCESS["/appointments"])).toBe(false);
+    expect(hasRole("superadmin", ROUTE_ACCESS["/medicines"])).toBe(false);
+    expect(can("superadmin", "managePrivilegedUsers")).toBe(true);
+    expect(can("admin", "managePrivilegedUsers")).toBe(false);
   });
 
   it("allows staff and nurses to register student information", () => {

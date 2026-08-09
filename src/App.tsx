@@ -17,6 +17,8 @@ const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
 const ClinicalWorkspacePage = lazy(() => import("./pages/ClinicalWorkspacePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
 
@@ -154,6 +156,14 @@ function App() {
           }
         />
         <Route
+          path="/roles-permissions"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/roles-permissions"]}>
+              <RolePermissionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/reports"
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/reports"]}>
@@ -174,6 +184,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/settings"]}>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/profile"]}>
+              <ProfilePage />
             </ProtectedRoute>
           }
         />

@@ -548,6 +548,9 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                   <p className="mt-1 text-xs text-blue-700">
                     Status after sending: {canAssignDoctor ? "Pending doctor confirmation" : "Waiting for nurse assignment"}
                   </p>
+                  <p className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
+                    The student will receive scheduling and doctor-confirmation emails when a valid email address is saved in their student record.
+                  </p>
                 </div>
               )}
 

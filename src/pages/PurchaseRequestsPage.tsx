@@ -8,7 +8,6 @@ import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Medicine, PurchaseRequest, PurchaseRequestStatus } from "../utils/types";
-import AdminSectionTabs from "../components/AdminSectionTabs";
 
 const emptyForm = {
   requestType: "restock" as "restock" | "new_item",
@@ -28,8 +27,8 @@ function displayName(value: { name: string } | string | null | undefined, fallba
   return value;
 }
 
-function PurchaseRequestsPage() {
-  const { can, role } = useAuth();
+function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
+  const { can } = useAuth();
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const canSubmit = can("submitPurchaseRequest");
@@ -241,8 +240,7 @@ function PurchaseRequestsPage() {
   };
 
   return (
-    <Layout>
-      {role === "admin" && <div className="mb-5"><AdminSectionTabs active="inventory" /></div>}
+    <PageFrame embedded={embedded}>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Purchase Requests</h2>
@@ -639,8 +637,12 @@ function PurchaseRequestsPage() {
           </form>
         </Modal>
       )}
-    </Layout>
+    </PageFrame>
   );
+}
+
+function PageFrame({ embedded, children }: { embedded: boolean; children: React.ReactNode }) {
+  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
 
 export default PurchaseRequestsPage;

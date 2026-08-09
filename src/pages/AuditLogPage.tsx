@@ -12,12 +12,16 @@ const ACTION_COLORS: Record<string, string> = {
   view: "bg-gray-100 text-gray-600",
 };
 
+const emptyFilters = { search: "", resource: "", action: "", startDate: "", endDate: "" };
+
 function AuditLogPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filters, setFilters] = useState(emptyFilters);
+  const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
 
   const limit = 20;
 
@@ -25,7 +29,9 @@ function AuditLogPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get<AuditLog[]>(`/audit-logs?page=${p}&limit=${limit}`);
+      const params = new URLSearchParams({ page: String(p), limit: String(limit) });
+      Object.entries(appliedFilters).forEach(([key, value]) => { if (value) params.set(key, value); });
+      const res = await api.get<AuditLog[]>(`/audit-logs?${params}`);
       setLogs(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
@@ -33,13 +39,25 @@ function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [appliedFilters]);
 
   useEffect(() => {
     fetchLogs(page);
   }, [fetchLogs, page]);
 
   const totalPages = Math.ceil(total / limit);
+
+  const applyFilters = (event: React.FormEvent) => {
+    event.preventDefault();
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const clearFilters = () => {
+    setFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+    setPage(1);
+  };
 
   const performer = (log: AuditLog) => {
     if (log.actorSnapshot) {
@@ -71,7 +89,16 @@ function AuditLogPage() {
 
   return (
     <Layout>
-      <h2 className="text-lg font-semibold text-gray-700 mb-4">Audit Log</h2>
+      <div className="mb-5"><p className="text-sm text-gray-500">Security and accountability</p><h2 className="mt-1 text-2xl font-bold text-gray-900">Audit Logs</h2></div>
+
+      <form onSubmit={applyFilters} className="mb-5 grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-6">
+        <input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Actor, email, target, or ID" className="input xl:col-span-2" />
+        <input value={filters.resource} onChange={(event) => setFilters({ ...filters, resource: event.target.value })} placeholder="Resource, e.g. User" className="input" />
+        <select value={filters.action} onChange={(event) => setFilters({ ...filters, action: event.target.value })} className="input" aria-label="Filter by action"><option value="">All actions</option>{Object.keys(ACTION_COLORS).filter((action) => action !== "view").map((action) => <option key={action} value={action}>{action[0].toUpperCase() + action.slice(1)}</option>)}</select>
+        <input type="date" value={filters.startDate} onChange={(event) => setFilters({ ...filters, startDate: event.target.value })} className="input" aria-label="Start date" />
+        <input type="date" value={filters.endDate} onChange={(event) => setFilters({ ...filters, endDate: event.target.value })} className="input" aria-label="End date" />
+        <div className="flex gap-2 md:col-span-2 xl:col-span-6"><button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">Apply Filters</button><button type="button" onClick={clearFilters} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Clear</button></div>
+      </form>
 
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
@@ -79,8 +106,8 @@ function AuditLogPage() {
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : (
         <>
-          <div className="bg-white rounded shadow overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
                   <th className="text-left px-4 py-3">Time</th>

@@ -74,7 +74,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       const [patientResponse, appointmentResponse, medicineResponse] = await Promise.all([
         api.get<Patient[]>("/patients?limit=200"),
         api.get<Appointment[]>(`/appointments?${appointmentParams}`),
-        isDoctor ? api.get<Medicine[]>("/medicines?limit=200") : Promise.resolve(null),
+        isDoctor ? api.get<Medicine[]>("/medicines/prescription-search?limit=200") : Promise.resolve(null),
       ]);
 
       setPatients(patientResponse.data);

@@ -122,8 +122,10 @@ export interface User {
   _id: string;
   name: string;
   email: string;
-  role: "admin" | "doctor" | "nurse" | "staff";
+  role: "superadmin" | "admin" | "doctor" | "nurse" | "staff";
   isActive: boolean;
+  deactivatedAt?: string;
+  deactivatedBy?: string | { _id: string; name: string; email?: string; role?: string };
   isAvailable?: boolean;
   scheduleNotes?: string;
 }
@@ -184,6 +186,11 @@ export interface AuditLog {
     email: string;
     role: string;
   };
+  changes?: {
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  };
+  metadata?: { method?: string; path?: string };
   createdAt: string;
 }
 
