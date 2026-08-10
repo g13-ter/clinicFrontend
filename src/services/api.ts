@@ -126,6 +126,36 @@ const getWithRetry = async <T>(path: string): Promise<ApiSuccess<T>> => {
   throw connectionError(lastError);
 };
 
+const getAllPages = async <T>(path: string): Promise<ApiSuccess<T[]>> => {
+  const collected: T[] = [];
+  let page = 1;
+  let lastResponse: ApiSuccess<T[]>;
+
+  while (true) {
+    const [pathname, query = ""] = path.split("?", 2);
+    const params = new URLSearchParams(query);
+    params.set("page", String(page));
+    params.set("limit", "100");
+    const response = await getWithRetry<T[]>(`${pathname}?${params.toString()}`);
+    collected.push(...response.data);
+
+    const totalPages = response.pagination?.totalPages ?? 1;
+    if (page >= totalPages) {
+      lastResponse = response;
+      break;
+    }
+    page += 1;
+  }
+
+  return {
+    ...lastResponse,
+    data: collected,
+    ...(lastResponse?.pagination
+      ? { pagination: { ...lastResponse.pagination, page: 1, limit: collected.length } }
+      : {}),
+  };
+};
+
 const send = async <T>(
   path: string,
   method: "POST" | "PUT" | "DELETE",
@@ -147,15 +177,26 @@ const send = async <T>(
 export const api = {
   get: <T = unknown>(path: string) => getWithRetry<T>(path),
 
+  getAll: <T = unknown>(path: string) => getAllPages<T>(path),
+
   post: <T = unknown>(path: string, body: unknown) => send<T>(path, "POST", body),
 
   put: <T = unknown>(path: string, body: unknown) => send<T>(path, "PUT", body),
 
   delete: <T = unknown>(path: string) => send<T>(path, "DELETE"),
 
-  download: (path: string) =>
-    fetch(`${BASE}${path}`, {
+  download: async (path: string) => {
+    const response = await fetch(`${BASE}${path}`, {
       headers: getHeaders(false),
       credentials: "include",
-    }),
+    });
+    if (response.status === 401) {
+      clearCurrentSession();
+      if (!redirectingToLogin && window.location.pathname !== "/login") {
+        redirectingToLogin = true;
+        window.location.replace("/login?reason=session-expired");
+      }
+    }
+    return response;
+  },
 };

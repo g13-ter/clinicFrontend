@@ -17,7 +17,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/reports": ["doctor", "nurse"],
   "/audit-log": ["admin", "superadmin"],
   "/settings": ["admin", "superadmin"],
-  "/profile": ["superadmin"],
+  "/profile": ["superadmin", "admin", "doctor", "nurse", "staff"],
 };
 
 export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] }[] = [
@@ -79,6 +79,6 @@ export const can = (role: UserRole | null | undefined, capability: Capability): 
 /** Patient list endpoint for appointment booking dropdowns. */
 export const patientsListPath = (role: UserRole | null | undefined): string | null => {
   if (hasRole(role, ["staff"])) return "/patients/basic";
-  if (hasRole(role, CAPABILITIES.manageAppointments)) return "/patients?limit=200";
+  if (hasRole(role, CAPABILITIES.manageAppointments)) return "/patients";
   return null;
 };

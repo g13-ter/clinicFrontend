@@ -184,7 +184,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
 
     let cancelled = false;
     Promise.all([
-      api.get<Patient[]>(patientsPath),
+      api.getAll<Patient>(patientsPath),
       canAssignDoctor
         ? api.get<Doctor[]>("/users/doctors")
         : Promise.resolve({ data: [] as Doctor[] }),

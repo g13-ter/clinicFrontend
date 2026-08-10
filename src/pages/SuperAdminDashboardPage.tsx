@@ -12,7 +12,7 @@ function SuperAdminDashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<User[]>("/users?limit=200"),
+      api.getAll<User>("/users"),
       api.get<AuditLog[]>("/audit-logs?limit=20"),
     ])
       .then(([usersResponse, logsResponse]) => {

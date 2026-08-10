@@ -59,7 +59,6 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
     visitId: searchParams.get("visitId") ?? "",
     patientId: searchParams.get("patientId") ?? "",
     appointmentId: searchParams.get("appointmentId") ?? "",
-    complaint: searchParams.get("complaint") ?? "",
   }));
   const [saving, setSaving] = useState(false);
   const [generatingCertificate, setGeneratingCertificate] = useState(false);
@@ -68,13 +67,13 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const fetchWorkspace = async () => {
     setLoadError("");
     try {
-      const appointmentParams = new URLSearchParams({ limit: "200" });
+      const appointmentParams = new URLSearchParams();
       if (isDoctor && user?.id) appointmentParams.set("doctorId", user.id);
 
       const [patientResponse, appointmentResponse, medicineResponse] = await Promise.all([
-        api.get<Patient[]>("/patients?limit=200"),
-        api.get<Appointment[]>(`/appointments?${appointmentParams}`),
-        isDoctor ? api.get<Medicine[]>("/medicines/prescription-search?limit=200") : Promise.resolve(null),
+        api.getAll<Patient>("/patients"),
+        api.getAll<Appointment>(`/appointments?${appointmentParams}`),
+        isDoctor ? api.getAll<Medicine>("/medicines/prescription-search") : Promise.resolve(null),
       ]);
 
       setPatients(patientResponse.data);
@@ -148,7 +147,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
 
     if (appointment && !visitId) {
       if (isDoctor) {
-        showToast("Waiting for nurse check-in and triage before consultation");
+        showToast("Waiting for nurse check-in and triage before consultation", "warning");
         return;
       }
       try {
@@ -159,7 +158,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
         visitId = response.data.visit._id;
         currentVisit = response.data.visit;
       } catch (error: unknown) {
-        showToast(error instanceof Error ? error.message : "Check-in failed");
+        showToast(error instanceof Error ? error.message : "Check-in failed", "error");
         return;
       }
     }
@@ -168,12 +167,12 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       try {
         currentVisit = (await api.get<ClinicVisit>(`/visits/${visitId}`)).data;
         if (isDoctor && !currentVisit.readyForDoctor) {
-          showToast("A nurse must record triage and mark the student ready first");
+          showToast("A nurse must record triage and mark the student ready first", "warning");
           return;
         }
         await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
       } catch (error: unknown) {
-        showToast(error instanceof Error ? error.message : "Failed to start consultation");
+        showToast(error instanceof Error ? error.message : "Failed to start consultation", "error");
         return;
       }
     }

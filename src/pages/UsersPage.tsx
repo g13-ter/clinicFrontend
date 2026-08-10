@@ -61,7 +61,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     setLoading(true);
     setError("");
     try {
-      const usersResponse = await api.get<User[]>("/users?limit=200");
+      const usersResponse = await api.getAll<User>("/users");
       const studentsResponse = isSuperAdmin ? null : await api.get<Patient[]>("/patients?limit=1");
       setUsers(usersResponse.data);
       setStudentCount(studentsResponse?.pagination?.total ?? studentsResponse?.data.length ?? 0);
@@ -75,7 +75,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      api.get<User[]>("/users?limit=200"),
+      api.getAll<User>("/users"),
       isSuperAdmin ? Promise.resolve(null) : api.get<Patient[]>("/patients?limit=1"),
     ])
       .then(([usersResponse, studentsResponse]) => {
@@ -477,7 +477,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           <p className="mb-4 text-sm text-gray-600">Set a new password for <strong>{resetTarget.name}</strong> ({resetTarget.email}). All active sessions for this account will be revoked.</p>
           {resetError && <p className="mb-3 text-sm text-red-600">{resetError}</p>}
           <form onSubmit={submitPasswordReset} className="space-y-4">
-            <label className="block text-xs font-medium text-gray-600">New password<input type="password" minLength={6} required autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input mt-1" /></label>
+            <label className="block text-xs font-medium text-gray-600">New password<input type="password" minLength={12} required autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input mt-1" /></label>
             <div className="flex justify-end gap-2"><button type="button" onClick={() => setResetTarget(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={resetting} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{resetting ? "Resetting..." : "Reset Password"}</button></div>
           </form>
         </Modal>

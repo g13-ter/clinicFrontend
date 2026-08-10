@@ -458,7 +458,7 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
 
   const startConsultation = async (appointment: Appointment, student: Patient | null) => {
     if (!student) {
-      showToast("Student record is unavailable.");
+      showToast("Student record is unavailable.", "error");
       return;
     }
 
@@ -473,14 +473,14 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
           ? appointment.visitId
           : linkedVisit?._id ?? "";
       if (!visitId) {
-        showToast("Waiting for nurse check-in and triage before consultation");
+        showToast("Waiting for nurse check-in and triage before consultation", "warning");
         return;
       }
 
       const currentVisit = linkedVisit ??
         (await api.get<ClinicVisit>(`/visits/${visitId}`)).data;
       if (!currentVisit.readyForDoctor) {
-        showToast("A nurse must record triage and mark the student ready first");
+        showToast("A nurse must record triage and mark the student ready first", "warning");
         return;
       }
       await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
@@ -489,11 +489,10 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
         appointmentId: appointment._id,
         visitId,
         patientId: student._id,
-        complaint: appointment.reason,
       });
       navigate(`/dashboard?${params}`);
     } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : "Failed to start consultation");
+      showToast(error instanceof Error ? error.message : "Failed to start consultation", "error");
     } finally {
       setStartingId("");
     }
@@ -510,7 +509,7 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
       );
       showToast(response.message);
     } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : "Failed to confirm appointment");
+      showToast(error instanceof Error ? error.message : "Failed to confirm appointment", "error");
     } finally {
       setConfirmingId("");
     }

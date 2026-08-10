@@ -47,7 +47,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
   const reload = useCallback(() => {
     setLoadError("");
-    return api.get<MedicalHistory[]>(`/medical-history/patient/${patientId}`)
+    return api.getAll<MedicalHistory>(`/medical-history/patient/${patientId}`)
       .then((response) => setHistory(response.data))
       .catch((error: unknown) => {
         setLoadError(error instanceof Error ? error.message : "Failed to load medical history");
@@ -61,7 +61,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
 
   useEffect(() => {
     if (!canEdit) return;
-    api.get<Medicine[]>("/medicines?limit=200")
+    api.getAll<Medicine>("/medicines")
       .then((res) => setMedicines(res.data))
       .catch((error: unknown) => {
         setMedicineLoadError(error instanceof Error ? error.message : "Failed to load medicines");
@@ -138,7 +138,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
       reload();
       if (!editing && prescribedRows.length > 0) {
         // Refresh available stock.
-        api.get<Medicine[]>("/medicines?limit=200").then((r) => setMedicines(r.data)).catch(() => {});
+        api.getAll<Medicine>("/medicines").then((r) => setMedicines(r.data)).catch(() => {});
       }
     } catch (err: unknown) {
       applyError(err, "Save failed");

@@ -39,6 +39,9 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
 
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState<PurchaseRequestStatus | "">("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRequests, setTotalRequests] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -85,13 +88,18 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
   const [operationError, setOperationError] = useState("");
   const [operationBusy, setOperationBusy] = useState(false);
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (requestedPage = page) => {
     setLoading(true);
     setError("");
     try {
-      const query = statusFilter ? `?status=${statusFilter}` : "";
+      const params = new URLSearchParams({ page: String(requestedPage), limit: "20" });
+      if (statusFilter) params.set("status", statusFilter);
+      const query = `?${params.toString()}`;
       const res = await api.get<PurchaseRequest[]>(`/purchase-requests${query}`);
       setRequests(res.data);
+      setPage(res.pagination?.page ?? requestedPage);
+      setTotalPages(res.pagination?.totalPages ?? 1);
+      setTotalRequests(res.pagination?.total ?? res.data.length);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load purchase requests");
     } finally {
@@ -100,14 +108,15 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
   };
 
   useEffect(() => {
-    fetchRequests();
+    setPage(1);
+    fetchRequests(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   useEffect(() => {
     if (!canSubmit) return;
     api
-      .get<Medicine[]>("/medicines?limit=200")
+      .getAll<Medicine>("/medicines")
       .then((res) => setMedicines(res.data))
       .catch((requestError: unknown) => {
         setError(requestError instanceof Error ? requestError.message : "Failed to load inventory choices");
@@ -264,7 +273,8 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
         inventory batch and updates available stock automatically.
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="mb-4 overflow-x-auto pb-1">
+        <div className="flex min-w-max gap-2">
         {(["", "pending", "approved", "ordered", "received", "rejected", "cancelled"] as const).map((s) => (
           <button
             key={s || "all"}
@@ -278,6 +288,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
             {s === "" ? "All" : s[0].toUpperCase() + s.slice(1)}
           </button>
         ))}
+        </div>
       </div>
 
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
@@ -285,8 +296,8 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : (
-        <div className="bg-white rounded shadow overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded bg-white shadow">
+          <table className="min-w-[900px] w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
                 <th className="text-left px-4 py-3">Item</th>
@@ -363,6 +374,32 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <nav className="mt-4 flex items-center justify-between gap-3" aria-label="Purchase request pages">
+          <p className="text-sm text-gray-500">
+            Page {page} of {totalPages} · {totalRequests} requests
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => fetchRequests(page - 1)}
+              className="rounded border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => fetchRequests(page + 1)}
+              className="rounded border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </nav>
       )}
 
       {showCreateModal && (
@@ -587,9 +624,10 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
                   />
                 </label>
                 <label className="block text-xs font-medium text-gray-600">
-                  Expiry date
+                  Expiry date *
                   <input
                     type="date"
+                    required
                     value={operationForm.expiryDate}
                     onChange={(event) => setOperationForm((current) => ({ ...current, expiryDate: event.target.value }))}
                     className="input mt-1"

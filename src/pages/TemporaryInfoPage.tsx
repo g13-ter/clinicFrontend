@@ -10,12 +10,12 @@ function TemporaryInfoPage({ title, description, details }: TemporaryInfoPagePro
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-16 text-slate-800 sm:px-8 lg:px-12">
       <div className="mx-auto flex max-w-3xl flex-col rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Temporary page</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">School Clinic Policy</p>
         <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">{title}</h1>
         <p className="mt-4 text-base leading-7 text-slate-600">{description}</p>
 
         <div className="mt-8 rounded-2xl bg-slate-50 p-6">
-          <h2 className="text-lg font-semibold text-slate-900">What this page contains</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Policy summary</h2>
           <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
             {details.map((item) => (
               <li key={item} className="flex gap-2">
@@ -30,7 +30,7 @@ function TemporaryInfoPage({ title, description, details }: TemporaryInfoPagePro
           <Link to="/" className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
             Back to home
           </Link>
-          <span className="text-sm text-slate-500">This content is temporary and can be replaced later.</span>
+          <span className="text-sm text-slate-500">Effective 11 August 2026 · Version 2026-08-11</span>
         </div>
       </div>
     </div>

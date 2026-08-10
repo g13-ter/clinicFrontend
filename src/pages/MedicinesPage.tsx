@@ -79,7 +79,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
     setLoading(true);
     setError("");
     try {
-      const response = await api.get<Medicine[]>("/medicines?limit=200");
+      const response = await api.getAll<Medicine>("/medicines");
       setMedicines(response.data);
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load inventory");
@@ -91,7 +91,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     api
-      .get<Medicine[]>("/medicines?limit=200")
+      .getAll<Medicine>("/medicines")
       .then((response) => {
         if (!cancelled) setMedicines(response.data);
       })
@@ -186,12 +186,12 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
     const payload = {
       name: form.name,
       category: form.category || undefined,
-      quantity: Number(form.quantity),
       unit: form.unit,
-      expiryDate: form.expiryDate || undefined,
       lowStockThreshold: Number(form.lowStockThreshold),
       supplier: form.supplier || undefined,
       ...(!editTarget ? {
+        quantity: Number(form.quantity),
+        expiryDate: form.expiryDate || undefined,
         batchNumber: form.batchNumber,
         dateReceived: form.dateReceived,
       } : {}),
@@ -235,7 +235,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
       setBatchTarget(null);
       await fetchInventory();
     } catch (requestError: unknown) {
-      showToast(requestError instanceof Error ? requestError.message : "Failed to receive stock");
+      showToast(requestError instanceof Error ? requestError.message : "Failed to receive stock", "error");
     } finally {
       setReceiving(false);
     }
@@ -467,18 +467,22 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
               <InventoryField label="Category" error={fieldErrors.category}>
                 <input value={form.category} onChange={(event) => setField("category", event.target.value)} placeholder="e.g. Analgesic" className={`input ${fieldErrors.category ? "input-error" : ""}`} />
               </InventoryField>
-              <InventoryField label="Quantity *" error={fieldErrors.quantity}>
-                <input type="number" min={0} value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} required className={`input ${fieldErrors.quantity ? "input-error" : ""}`} />
-              </InventoryField>
+              {!editTarget && (
+                <InventoryField label="Quantity *" error={fieldErrors.quantity}>
+                  <input type="number" min={0} value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} required className={`input ${fieldErrors.quantity ? "input-error" : ""}`} />
+                </InventoryField>
+              )}
               <InventoryField label="Unit *" error={fieldErrors.unit}>
                 <input value={form.unit} onChange={(event) => setField("unit", event.target.value)} placeholder="tablets, bottles, ml" required className={`input ${fieldErrors.unit ? "input-error" : ""}`} />
               </InventoryField>
               <InventoryField label="Reorder Level *" error={fieldErrors.lowStockThreshold}>
                 <input type="number" min={0} value={form.lowStockThreshold} onChange={(event) => setField("lowStockThreshold", event.target.value)} required className={`input ${fieldErrors.lowStockThreshold ? "input-error" : ""}`} />
               </InventoryField>
-              <InventoryField label="Expiry Date" error={fieldErrors.expiryDate}>
-                <input type="date" value={form.expiryDate} onChange={(event) => setField("expiryDate", event.target.value)} className={`input ${fieldErrors.expiryDate ? "input-error" : ""}`} />
-              </InventoryField>
+              {!editTarget && (
+                <InventoryField label="Expiry Date" error={fieldErrors.expiryDate}>
+                  <input type="date" value={form.expiryDate} onChange={(event) => setField("expiryDate", event.target.value)} required={Number(form.quantity) > 0} className={`input ${fieldErrors.expiryDate ? "input-error" : ""}`} />
+                </InventoryField>
+              )}
               {!editTarget && (
                 <InventoryField label="Batch Number *" error={fieldErrors.batchNumber}>
                   <input value={form.batchNumber} onChange={(event) => setField("batchNumber", event.target.value)} required className={`input ${fieldErrors.batchNumber ? "input-error" : ""}`} />
@@ -504,7 +508,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
             <InventoryField label="Batch Number *"><input required value={batchForm.batchNumber} onChange={(event) => setBatchForm({ ...batchForm, batchNumber: event.target.value })} className="input" /></InventoryField>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <InventoryField label="Quantity Received *"><input required type="number" min={1} value={batchForm.quantityReceived} onChange={(event) => setBatchForm({ ...batchForm, quantityReceived: event.target.value })} className="input" /></InventoryField>
-              <InventoryField label="Expiry Date"><input type="date" value={batchForm.expiryDate} onChange={(event) => setBatchForm({ ...batchForm, expiryDate: event.target.value })} className="input" /></InventoryField>
+              <InventoryField label="Expiry Date *"><input required type="date" value={batchForm.expiryDate} onChange={(event) => setBatchForm({ ...batchForm, expiryDate: event.target.value })} className="input" /></InventoryField>
             </div>
             <InventoryField label="Supplier"><input value={batchForm.supplier} onChange={(event) => setBatchForm({ ...batchForm, supplier: event.target.value })} className="input" /></InventoryField>
             <InventoryField label="Delivery Notes"><textarea rows={3} value={batchForm.notes} onChange={(event) => setBatchForm({ ...batchForm, notes: event.target.value })} className="input" /></InventoryField>

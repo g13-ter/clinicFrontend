@@ -190,7 +190,6 @@ function Layout({ children }: { children: React.ReactNode }) {
         tab: "consultation",
         visitId: visit._id,
         patientId: visit.patientId._id,
-        complaint: visit.complaint,
       });
       if (visit.appointmentId) {
         params.set(

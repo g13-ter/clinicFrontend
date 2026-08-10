@@ -11,7 +11,7 @@ describe("permissions", () => {
 
   it("maps staff to the basic patient list endpoint", () => {
     expect(patientsListPath("staff")).toBe("/patients/basic");
-    expect(patientsListPath("nurse")).toBe("/patients?limit=200");
+    expect(patientsListPath("nurse")).toBe("/patients");
     expect(patientsListPath("doctor")).toBe(null);
   });
 
