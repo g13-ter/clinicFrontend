@@ -14,18 +14,21 @@ import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Patient, User } from "../utils/types";
 import type { ReactNode } from "react";
 
-type ManagementView = "students" | "all" | "doctor" | "staff";
+type ManagementView = "students" | "all" | "admin" | "doctor" | "staff";
+type AccountStatus = "all" | "active" | "inactive";
 
-const ROLES = ["admin", "doctor", "nurse", "staff"] as const;
+const ALL_ROLES: User["role"][] = ["superadmin", "admin", "doctor", "nurse", "staff"];
+const CLINIC_ROLES: User["role"][] = ["doctor", "nurse", "staff"];
 const FORM_FIELDS = ["name", "email", "password", "role"];
-const emptyForm = { name: "", email: "", password: "", role: "staff" };
+const emptyForm: { name: string; email: string; password: string; role: User["role"] } = { name: "", email: "", password: "", role: "staff" };
 
 function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
 
 function UsersPage({ embedded = false }: { embedded?: boolean }) {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, role } = useAuth();
+  const isSuperAdmin = role === "superadmin";
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
@@ -38,6 +41,13 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AccountStatus>("all");
+  const [roleFilter, setRoleFilter] = useState<User["role"] | "all">("all");
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState("");
   const {
     formError,
     fieldErrors,
@@ -51,12 +61,10 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     setLoading(true);
     setError("");
     try {
-      const [usersResponse, studentsResponse] = await Promise.all([
-        api.get<User[]>("/users?limit=200"),
-        api.get<Patient[]>("/patients?limit=1"),
-      ]);
+      const usersResponse = await api.getAll<User>("/users");
+      const studentsResponse = isSuperAdmin ? null : await api.get<Patient[]>("/patients?limit=1");
       setUsers(usersResponse.data);
-      setStudentCount(studentsResponse.pagination?.total ?? studentsResponse.data.length);
+      setStudentCount(studentsResponse?.pagination?.total ?? studentsResponse?.data.length ?? 0);
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load management data");
     } finally {
@@ -67,13 +75,13 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      api.get<User[]>("/users?limit=200"),
-      api.get<Patient[]>("/patients?limit=1"),
+      api.getAll<User>("/users"),
+      isSuperAdmin ? Promise.resolve(null) : api.get<Patient[]>("/patients?limit=1"),
     ])
       .then(([usersResponse, studentsResponse]) => {
         if (cancelled) return;
         setUsers(usersResponse.data);
-        setStudentCount(studentsResponse.pagination?.total ?? studentsResponse.data.length);
+        setStudentCount(studentsResponse?.pagination?.total ?? studentsResponse?.data.length ?? 0);
       })
       .catch((requestError: unknown) => {
         if (!cancelled) {
@@ -87,35 +95,50 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isSuperAdmin]);
 
+  const administrators = useMemo(
+    () => users.filter((user) => user.role === "admin" || user.role === "superadmin"),
+    [users],
+  );
   const doctors = users.filter((user) => user.role === "doctor");
   const staffMembers = users.filter((user) => user.role === "nurse" || user.role === "staff");
   const requestedManagementView = searchParams.get("management");
   const managementView: ManagementView =
+    requestedManagementView === "all" ||
     requestedManagementView === "students" ||
+    requestedManagementView === "admin" ||
     requestedManagementView === "doctor" ||
     requestedManagementView === "staff"
       ? requestedManagementView
       : "all";
   const clinicTeam = users;
-  const filteredUsers = useMemo(() => {
+  const scopedUsers = useMemo(() => {
+    if (managementView === "admin") return administrators;
     if (managementView === "doctor") return doctors;
     if (managementView === "staff") return staffMembers;
     return clinicTeam;
-  }, [clinicTeam, doctors, staffMembers, managementView]);
+  }, [clinicTeam, doctors, staffMembers, administrators, managementView]);
+  const filteredUsers = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return scopedUsers.filter((account) => {
+      if (statusFilter === "active" && !account.isActive) return false;
+      if (statusFilter === "inactive" && account.isActive) return false;
+      if (roleFilter !== "all" && account.role !== roleFilter) return false;
+      return !normalizedQuery || account.name.toLowerCase().includes(normalizedQuery) || account.email.toLowerCase().includes(normalizedQuery);
+    });
+  }, [query, roleFilter, scopedUsers, statusFilter]);
 
   const selectManagementView = (view: ManagementView) => {
     const next = new URLSearchParams(searchParams);
-    if (view === "all") next.delete("management");
-    else next.set("management", view);
+    next.set("management", view);
     if (view !== "students") next.delete("search");
     setSearchParams(next);
   };
 
-  const openCreate = (role: typeof emptyForm.role = "staff") => {
+  const openCreate = (selectedRole: User["role"] = "staff") => {
     setEditTarget(null);
-    setForm({ ...emptyForm, role });
+    setForm({ ...emptyForm, role: selectedRole });
     resetFormErrors();
     setShowModal(true);
   };
@@ -170,7 +193,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
       setDeleteTarget(null);
       await fetchManagementData();
     } catch (requestError: unknown) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to delete account");
+      setError(requestError instanceof Error ? requestError.message : "Failed to deactivate account");
       setDeleteTarget(null);
     } finally {
       setDeleting(false);
@@ -188,23 +211,45 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  const openPasswordReset = (user: User) => {
+    setResetTarget(user);
+    setResetPassword("");
+    setResetError("");
+  };
+
+  const submitPasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!resetTarget) return;
+    setResetting(true);
+    setResetError("");
+    try {
+      await api.put(`/users/${resetTarget._id}`, { password: resetPassword });
+      showToast(`Password reset for ${resetTarget.name}. Their active sessions were revoked.`);
+      setResetTarget(null);
+    } catch (requestError: unknown) {
+      setResetError(requestError instanceof Error ? requestError.message : "Failed to reset password");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <PageFrame embedded={embedded}>
       <div className="mx-auto max-w-[1600px] space-y-5">
-        {!embedded && <AdminSectionTabs active="management" />}
+        {!embedded && role === "admin" && <AdminSectionTabs active="management" />}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm text-gray-500">Students and clinic accounts</p>
-            <h2 className="mt-1 text-2xl font-bold text-gray-900">Management</h2>
+            <p className="text-sm text-gray-500">{isSuperAdmin ? "System accounts and administrative access" : "Students and clinic accounts"}</p>
+            <h2 className="mt-1 text-2xl font-bold text-gray-900">{isSuperAdmin ? "User Management" : "Management"}</h2>
           </div>
           {managementView !== "students" && (
             <button
               type="button"
-              onClick={() => openCreate(managementView === "doctor" ? "doctor" : "staff")}
+              onClick={() => openCreate(managementView === "admin" ? "admin" : managementView === "doctor" ? "doctor" : "staff")}
               className="self-start rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 sm:self-auto"
             >
-              + Add {managementView === "doctor" ? "Doctor" : managementView === "staff" ? "Nurse / Staff" : "Clinic User"}
+              + Add {managementView === "admin" ? "Administrator" : managementView === "doctor" ? "Doctor" : managementView === "staff" ? "Nurse / Staff" : "User"}
             </button>
           )}
         </div>
@@ -215,7 +260,10 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           </p>
         )}
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {isSuperAdmin ? <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ManagementCard label="All Accounts" value={users.length} icon={<StaffIcon />} selected={managementView === "all"} action={<button type="button" onClick={() => selectManagementView("all")} className="management-card-action">Manage All Users</button>} />
+          <ManagementCard label="Administrators" value={administrators.length} icon={<StaffIcon />} selected={managementView === "admin"} action={<button type="button" onClick={() => selectManagementView("admin")} className="management-card-action">Manage Administrators</button>} />
+        </section> : <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ManagementCard
             label="Students"
             value={studentCount}
@@ -264,9 +312,9 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
               </button>
             }
           />
-        </section>
+        </section>}
 
-        {managementView === "students" ? (
+        {!isSuperAdmin && managementView === "students" ? (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <PatientsPage embedded />
           </section>
@@ -275,16 +323,21 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-semibold text-gray-900">
-                {managementView === "doctor" ? "Doctors" : managementView === "staff" ? "Nurses and Staff" : "Clinic Team"}
+                {managementView === "admin" ? "Administrators" : managementView === "doctor" ? "Doctors" : managementView === "staff" ? "Nurses and Staff" : isSuperAdmin ? "All Accounts" : "Clinic Team"}
               </h3>
-              <p className="mt-1 text-xs text-gray-500">Manage access, roles, and availability.</p>
+              <p className="mt-1 text-xs text-gray-500">Manage account details, roles, passwords, and access status.</p>
             </div>
             <div className="flex gap-2 overflow-x-auto">
-              {([
+              {(isSuperAdmin ? ([
+                ["all", "All Users"],
+                ["admin", "Administrators"],
+                ["doctor", "Doctors"],
+                ["staff", "Nurses & Staff"],
+              ] as const) : ([ 
                 ["all", "All"],
                 ["doctor", "Doctors"],
                 ["staff", "Nurses & Staff"],
-              ] as const).map(([id, label]) => (
+              ] as const)).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
@@ -301,6 +354,17 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             </div>
           </div>
 
+          <div className="grid gap-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_180px_180px]">
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name or email..." className="input bg-white" />
+            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as User["role"] | "all")} className="input bg-white" aria-label="Filter by role">
+              <option value="all">All roles</option>
+              {(isSuperAdmin ? ALL_ROLES : CLINIC_ROLES).map((itemRole) => <option key={itemRole} value={itemRole}>{roleLabel(itemRole)}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as AccountStatus)} className="input bg-white" aria-label="Filter by account status">
+              <option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option>
+            </select>
+          </div>
+
           {loading ? (
             <div className="space-y-3 p-5">
               {Array.from({ length: 5 }, (_, index) => (
@@ -308,7 +372,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
               ))}
             </div>
           ) : filteredUsers.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-gray-500">No clinic users found.</p>
+            <p className="px-5 py-10 text-center text-sm text-gray-500">No accounts match the selected filters.</p>
           ) : (
             <>
               <div className="divide-y divide-gray-100 md:hidden">
@@ -321,15 +385,16 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <RoleBadge role={user.role} />
-                        <AccessBadge active={user.isActive} />
+                        <AccountAccess user={user} />
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t pt-3">
-                      <AvailabilityBadge available={user.isAvailable !== false} />
+                      <AccountAvailability user={user} />
                       <UserActions
                         user={user}
                         currentUserId={currentUser?.id}
                         onEdit={openEdit}
+                        onReset={openPasswordReset}
                         onDelete={setDeleteTarget}
                         onReactivate={reactivateUser}
                       />
@@ -355,13 +420,14 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                         <td className="px-5 py-4 font-medium text-gray-900">{user.name}</td>
                         <td className="px-5 py-4"><RoleBadge role={user.role} /></td>
                         <td className="px-5 py-4 text-gray-600">{user.email}</td>
-                        <td className="px-5 py-4"><AccessBadge active={user.isActive} /></td>
-                        <td className="px-5 py-4"><AvailabilityBadge available={user.isAvailable !== false} /></td>
+                        <td className="px-5 py-4"><AccountAccess user={user} /></td>
+                        <td className="px-5 py-4"><AccountAvailability user={user} /></td>
                         <td className="px-5 py-4">
                           <UserActions
                             user={user}
                             currentUserId={currentUser?.id}
                             onEdit={openEdit}
+                            onReset={openPasswordReset}
                             onDelete={setDeleteTarget}
                             onReactivate={reactivateUser}
                           />
@@ -378,7 +444,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {showModal && (
-        <Modal title={editTarget ? "Edit Clinic User" : "Add Clinic User"} onClose={() => setShowModal(false)} closeDisabled={saving}>
+        <Modal title={editTarget ? "Edit Account" : "Add Account"} onClose={() => setShowModal(false)} closeDisabled={saving}>
           {formError && <p className="mb-3 text-sm text-red-500">{formError}</p>}
           <UnmatchedFieldErrors errors={unmatchedFieldErrors(FORM_FIELDS)} />
           <form onSubmit={saveUser} className="space-y-3">
@@ -388,12 +454,12 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             <UserField label="Email *" error={fieldErrors.email}>
               <input type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} required className={`input ${fieldErrors.email ? "input-error" : ""}`} />
             </UserField>
-            <UserField label={`Password ${editTarget ? "(leave blank to keep current)" : "*"}`} error={fieldErrors.password}>
-              <input type="password" value={form.password} onChange={(event) => setField("password", event.target.value)} required={!editTarget} autoComplete="new-password" className={`input ${fieldErrors.password ? "input-error" : ""}`} />
-            </UserField>
+            {!editTarget && <UserField label="Password *" error={fieldErrors.password}>
+              <input type="password" value={form.password} onChange={(event) => setField("password", event.target.value)} required autoComplete="new-password" className={`input ${fieldErrors.password ? "input-error" : ""}`} />
+            </UserField>}
             <UserField label="Role *" error={fieldErrors.role}>
-              <select value={form.role} onChange={(event) => setField("role", event.target.value)} className={`input ${fieldErrors.role ? "input-error" : ""}`}>
-                {ROLES.map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}
+              <select value={form.role} onChange={(event) => setField("role", event.target.value)} disabled={editTarget?._id === currentUser?.id && editTarget?.role === "superadmin"} className={`input ${fieldErrors.role ? "input-error" : ""}`}>
+                {(isSuperAdmin ? ALL_ROLES : CLINIC_ROLES).map((itemRole) => <option key={itemRole} value={itemRole}>{roleLabel(itemRole)}</option>)}
               </select>
             </UserField>
             <div className="flex justify-end gap-2 pt-2">
@@ -406,11 +472,22 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
         </Modal>
       )}
 
+      {resetTarget && (
+        <Modal title="Reset Account Password" onClose={() => setResetTarget(null)} closeDisabled={resetting}>
+          <p className="mb-4 text-sm text-gray-600">Set a new password for <strong>{resetTarget.name}</strong> ({resetTarget.email}). All active sessions for this account will be revoked.</p>
+          {resetError && <p className="mb-3 text-sm text-red-600">{resetError}</p>}
+          <form onSubmit={submitPasswordReset} className="space-y-4">
+            <label className="block text-xs font-medium text-gray-600">New password<input type="password" minLength={12} required autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input mt-1" /></label>
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => setResetTarget(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={resetting} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{resetting ? "Resetting..." : "Reset Password"}</button></div>
+          </form>
+        </Modal>
+      )}
+
       {deleteTarget && (
         <ConfirmDialog
-          title="Deactivate clinic user"
-          message={<>Deactivate <strong>{deleteTarget.name}</strong> ({deleteTarget.email})? Their sessions will be revoked immediately, while their history and audit ownership are preserved.</>}
-          confirmLabel="Deactivate"
+          title="Deactivate Account"
+          message={<>Are you sure you want to deactivate <strong>{deleteTarget.name}</strong> ({deleteTarget.email}), currently assigned the <strong>{roleLabel(deleteTarget.role)}</strong> role? The user will no longer be able to log in, but their historical clinic records and audit history will be preserved.</>}
+          confirmLabel="Deactivate Account"
           busy={deleting}
           onConfirm={deactivateUser}
           onCancel={() => setDeleteTarget(null)}
@@ -443,12 +520,17 @@ function ManagementCard({ label, value, icon, action, selected = false }: {
 
 function RoleBadge({ role }: { role: User["role"] }) {
   const colors = {
+    superadmin: "bg-slate-900 text-white",
     admin: "bg-purple-100 text-purple-700",
     doctor: "bg-blue-100 text-blue-700",
     nurse: "bg-emerald-100 text-emerald-700",
     staff: "bg-gray-100 text-gray-700",
   };
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${colors[role]}`}>{role}</span>;
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${colors[role]}`}>{roleLabel(role)}</span>;
+}
+
+function roleLabel(role: User["role"]): string {
+  return role === "superadmin" ? "Super Admin" : role[0].toUpperCase() + role.slice(1);
 }
 
 function AvailabilityBadge({ available }: { available: boolean }) {
@@ -469,19 +551,32 @@ function AccessBadge({ active }: { active: boolean }) {
   );
 }
 
-function UserActions({ user, currentUserId, onEdit, onDelete, onReactivate }: {
+function AccountAccess({ user }: { user: User }) {
+  if (user.isActive) return <AccessBadge active />;
+  const deactivator = typeof user.deactivatedBy === "object" ? user.deactivatedBy.name : "Unknown administrator";
+  return <div><AccessBadge active={false} />{user.deactivatedAt && <p className="mt-1 text-[11px] leading-4 text-gray-400">{new Date(user.deactivatedAt).toLocaleDateString()} by {deactivator}</p>}</div>;
+}
+
+function AccountAvailability({ user }: { user: User }) {
+  if (user.role === "admin" || user.role === "superadmin") return <span className="text-xs text-gray-400">Not applicable</span>;
+  return <AvailabilityBadge available={user.isAvailable !== false} />;
+}
+
+function UserActions({ user, currentUserId, onEdit, onReset, onDelete, onReactivate }: {
   user: User;
   currentUserId?: string;
   onEdit: (user: User) => void;
+  onReset: (user: User) => void;
   onDelete: (user: User) => void;
   onReactivate: (user: User) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 text-xs font-medium">
-      <button type="button" onClick={() => onEdit(user)} className="text-blue-600 hover:text-blue-800">Edit</button>
+    <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
+      <button type="button" onClick={() => onEdit(user)} className="text-blue-600 hover:text-blue-800">Edit Account</button>
+      {currentUserId !== user._id && <button type="button" onClick={() => onReset(user)} className="text-violet-600 hover:text-violet-800">Reset Password</button>}
       {!user.isActive ? (
         <button type="button" onClick={() => onReactivate(user)} className="text-emerald-600 hover:text-emerald-800">
-          Reactivate
+          Activate
         </button>
       ) : currentUserId === user._id ? (
         <span className="cursor-not-allowed text-gray-300" title="You cannot deactivate your own account">Deactivate</span>

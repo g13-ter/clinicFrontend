@@ -15,18 +15,19 @@ import {
   dashboardAlertKey,
   type DashboardAlert,
 } from "../utils/dashboardAlerts";
-import AdminSectionTabs from "../components/AdminSectionTabs";
 import DoctorWorkspaceTabs from "../components/DoctorWorkspaceTabs";
+import AdminSectionTabs, { type AdminSection } from "../components/AdminSectionTabs";
 import { useToast } from "../hooks/useToast";
 import { useDashboardData } from "../features/dashboard/useDashboardData";
 import PatientQueuePage from "./PatientQueuePage";
 import AppointmentsPage from "./AppointmentsPage";
 import ClinicalWorkspacePage from "./ClinicalWorkspacePage";
 import MedicinesPage from "./MedicinesPage";
+import PurchaseRequestsPage from "./PurchaseRequestsPage";
 import UsersPage from "./UsersPage";
-import ReportsPage from "./ReportsPage";
 import PatientsPage from "./PatientsPage";
 import type { DoctorWorkspaceTab } from "../components/DoctorWorkspaceTabs";
+import SuperAdminDashboardPage from "./SuperAdminDashboardPage";
 
 const CHART_COLORS = ["#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#8b5cf6"];
 
@@ -59,13 +60,9 @@ function DashboardPage() {
     requestedDoctorTab === "followups"
       ? requestedDoctorTab
       : "appointments";
-  const requestedAdminSection = searchParams.get("section");
-  const adminSection =
-    requestedAdminSection === "inventory" ||
-    requestedAdminSection === "management" ||
-    requestedAdminSection === "reports"
-      ? requestedAdminSection
-      : "analytics";
+  const adminSection: AdminSection = searchParams.get("section") === "purchase-requests"
+    ? "purchase-requests"
+    : "management";
 
   const openNotifications = () => {
     const currentKeys = alerts.map(dashboardAlertKey);
@@ -73,6 +70,8 @@ function DashboardPage() {
     setSeenAlertKeys(currentKeys);
     setSearchParams({ view: "notifications" }, { replace: true });
   };
+
+  if (role === "superadmin") return <SuperAdminDashboardPage />;
 
   if (error) {
     return (
@@ -93,7 +92,7 @@ function DashboardPage() {
   }
 
   const dashboardTitle = `${role ? titleCase(role) : "Clinic"} Dashboard`;
-  const activeClinicalTeam = stats.usersByRole.doctor + stats.usersByRole.nurse;
+  const activeUsers = stats.usersByRole.doctor + stats.usersByRole.nurse + stats.usersByRole.staff;
   const isClinicalRole = role === "doctor" || role === "nurse";
   const isAdmin = role === "admin";
   const isDoctor = role === "doctor";
@@ -109,7 +108,27 @@ function DashboardPage() {
             </h2>
           </div>
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {isClinicalRole && (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Clinic Analytics</h2>
+                <p className="mt-1 text-sm text-slate-500">Trends from recorded clinic activity</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <CommonComplaintsChart items={stats.commonComplaints} />
+                <MonthlyVisitsChart items={stats.monthlyVisits} />
+              </div>
+            </section>
+          )}
+
+          {isAdmin && (
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+              <StatCard label="Active Users" value={activeUsers} caption="Available doctors, nurses, and staff" icon={<StaffIcon />} tone="purple" />
+            </section>
+          )}
+
+          {!isAdmin && <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {isClinicalRole ? (
               <>
                 <StatCard label="Today's Appointments" value={stats.todaysAppointments} caption="Scheduled today" icon={<CalendarIcon />} tone="blue" />
@@ -128,11 +147,11 @@ function DashboardPage() {
               <>
                 <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
                 <StatCard label="Clinic Visits Today" value={stats.todayVisits} caption="Recorded today" icon={<VisitsIcon />} tone="green" />
-                <StatCard label="Active Doctor / Nurse" value={activeClinicalTeam} caption="Currently available" icon={<StaffIcon />} tone="purple" />
+                <StatCard label="Active Users" value={activeUsers} caption="Available doctors, nurses, and staff" icon={<StaffIcon />} tone="purple" />
                 <StatCard label="Pending Appointments" value={stats.pendingAppointments} caption="Awaiting confirmation" icon={<CalendarIcon />} tone="orange" />
               </>
             )}
-          </section>
+          </section>}
 
           {isAdmin && <AdminSectionTabs active={adminSection} />}
 
@@ -178,27 +197,12 @@ function DashboardPage() {
             <ClinicalWorkspacePage embedded />
           )
         ) : isAdmin ? (
-          adminSection === "inventory" ? (
-            <MedicinesPage embedded />
-          ) : adminSection === "management" ? (
-            <UsersPage embedded />
-          ) : adminSection === "reports" ? (
-            <ReportsPage embedded />
+          adminSection === "purchase-requests" ? (
+            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+              <PurchaseRequestsPage embedded />
+            </section>
           ) : (
-            <>
-              <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <CommonComplaintsChart items={stats.commonComplaints} />
-                <MonthlyVisitsChart items={stats.monthlyVisits} />
-              </section>
-              <ActiveTeam users={stats.activeUsers} counts={stats.usersByRole} />
-              <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
-                <h3 className="font-semibold text-emerald-950">Student privacy protected</h3>
-                <p className="mt-1 text-sm text-emerald-800">
-                  Admin analytics use aggregate clinic totals. Individual complaints, assessments,
-                  treatments, and medical histories are limited to authorized clinical roles.
-                </p>
-              </section>
-            </>
+            <UsersPage embedded />
           )
         ) : null}
       </div>
@@ -252,6 +256,14 @@ function RoleWorkspaceTabs({
             {tab.label}
           </Link>
         ))}
+        {role === "nurse" && (
+          <Link
+            to="/reports"
+            className="border-b-2 border-transparent px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950"
+          >
+            Reports
+          </Link>
+        )}
         <button
           type="button"
           onClick={onOpenNotifications}
@@ -331,13 +343,13 @@ function StatCard({
   };
 
   return (
-    <article className="flex h-36 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="flex min-h-28 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm font-medium text-gray-600">{label}</p>
         <span className={`rounded-lg p-2 ${tones[tone]}`}>{icon}</span>
       </div>
       <div className="mt-auto">
-        <p className="text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
+        <p className="text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
         <p className="mt-1 text-xs text-slate-400">{caption}</p>
       </div>
     </article>
@@ -367,13 +379,13 @@ function CommonComplaintsChart({
       {items.length === 0 ? (
         <EmptyChart label="No clinic complaints recorded yet." />
       ) : (
-        <div className="mt-6 flex flex-col items-center gap-7 sm:flex-row sm:justify-center">
+        <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
           <div
-            className="relative h-48 w-48 shrink-0 rounded-full"
+            className="relative h-40 w-40 shrink-0 rounded-full"
             style={{ background }}
             aria-label="Common complaints chart"
           >
-            <div className="absolute inset-12 flex items-center justify-center rounded-full bg-white text-center">
+            <div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center">
               <div>
                 <p className="text-2xl font-bold text-gray-900">{total}</p>
                 <p className="text-[11px] text-gray-500">recorded visits</p>
@@ -413,7 +425,7 @@ function MonthlyVisitsChart({
         <h3 className="font-semibold text-gray-900">Monthly Clinic Visits</h3>
         <p className="mt-1 text-xs text-gray-500">Last six months</p>
       </div>
-      <div className="mt-6 flex h-64 items-end gap-2 border-b border-l border-gray-200 px-3 pt-4 sm:gap-4">
+      <div className="mt-5 flex h-48 items-end gap-2 border-b border-l border-gray-200 px-3 pt-4 sm:gap-4">
         {items.map((item) => (
           <div key={item.key} className="flex h-full min-w-0 flex-1 flex-col justify-end">
             <div className="flex min-h-0 flex-1 items-end">
@@ -434,61 +446,6 @@ function MonthlyVisitsChart({
   );
 }
 
-function ActiveTeam({
-  users,
-  counts,
-}: {
-  users: DashboardStats["activeUsers"];
-  counts: DashboardStats["usersByRole"];
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="font-semibold text-gray-900">Active Clinic Team</h3>
-          <p className="mt-1 text-xs text-gray-500">
-            Available doctors, nurses, and support staff
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <CountBadge label="Doctors" value={counts.doctor} tone="violet" />
-          <CountBadge label="Nurses" value={counts.nurse} tone="blue" />
-          <CountBadge label="Staff" value={counts.staff} tone="slate" />
-        </div>
-      </div>
-
-      {users.length === 0 ? (
-        <p className="mt-6 rounded-lg bg-gray-50 py-8 text-center text-sm text-gray-500">
-          No team members are currently marked available.
-        </p>
-      ) : (
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {users.map((user) => (
-            <article key={user.id} className="rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-700">
-                  {initials(user.name)}
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900">{user.name}</p>
-                  <p className="truncate text-xs text-gray-500">{user.email}</p>
-                </div>
-                <span className="ml-auto rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium capitalize text-gray-600">
-                  {user.role}
-                </span>
-              </div>
-              {user.scheduleNotes && (
-                <p className="mt-3 border-t pt-3 text-xs text-gray-500">{user.scheduleNotes}</p>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -501,7 +458,7 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
 
   const startConsultation = async (appointment: Appointment, student: Patient | null) => {
     if (!student) {
-      showToast("Student record is unavailable.");
+      showToast("Student record is unavailable.", "error");
       return;
     }
 
@@ -516,14 +473,14 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
           ? appointment.visitId
           : linkedVisit?._id ?? "";
       if (!visitId) {
-        showToast("Waiting for nurse check-in and triage before consultation");
+        showToast("Waiting for nurse check-in and triage before consultation", "warning");
         return;
       }
 
       const currentVisit = linkedVisit ??
         (await api.get<ClinicVisit>(`/visits/${visitId}`)).data;
       if (!currentVisit.readyForDoctor) {
-        showToast("A nurse must record triage and mark the student ready first");
+        showToast("A nurse must record triage and mark the student ready first", "warning");
         return;
       }
       await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
@@ -532,11 +489,10 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
         appointmentId: appointment._id,
         visitId,
         patientId: student._id,
-        complaint: appointment.reason,
       });
       navigate(`/dashboard?${params}`);
     } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : "Failed to start consultation");
+      showToast(error instanceof Error ? error.message : "Failed to start consultation", "error");
     } finally {
       setStartingId("");
     }
@@ -553,7 +509,7 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
       );
       showToast(response.message);
     } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : "Failed to confirm appointment");
+      showToast(error instanceof Error ? error.message : "Failed to confirm appointment", "error");
     } finally {
       setConfirmingId("");
     }
@@ -762,23 +718,6 @@ function ProviderBadge({
   );
 }
 
-function CountBadge({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "violet" | "blue" | "slate";
-}) {
-  const tones = {
-    violet: "bg-violet-50 text-violet-700",
-    blue: "bg-blue-50 text-blue-700",
-    slate: "bg-slate-100 text-slate-700",
-  };
-  return <span className={`rounded-full px-3 py-1.5 ${tones[tone]}`}>{label} {value}</span>;
-}
-
 function EmptyChart({ label }: { label: string }) {
   return (
     <div className="mt-6 flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
@@ -806,14 +745,6 @@ function DashboardSkeleton() {
 
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
 }
 
 export default DashboardPage;

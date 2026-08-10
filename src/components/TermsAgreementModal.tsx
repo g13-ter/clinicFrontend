@@ -5,6 +5,7 @@ interface TermsAgreementModalProps {
   error: string;
   onAccept: () => void;
   onDecline: () => void;
+  reviewOnly?: boolean;
 }
 
 export function TermsAgreementModal({
@@ -12,6 +13,7 @@ export function TermsAgreementModal({
   error,
   onAccept,
   onDecline,
+  reviewOnly = false,
 }: TermsAgreementModalProps) {
   const [agreed, setAgreed] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -33,7 +35,9 @@ export function TermsAgreementModal({
           <h1 id="terms-title" ref={headingRef} tabIndex={-1} className="mt-1 text-2xl font-black text-slate-950 outline-none">
             Terms and Agreement
           </h1>
-          <p className="mt-2 text-sm text-slate-600">Please review and accept these terms before continuing to your dashboard.</p>
+          <p className="mt-2 text-sm text-slate-600">
+            {reviewOnly ? "Review the terms you previously accepted." : "Please review and accept these terms before continuing to your dashboard."}
+          </p>
         </header>
 
         <div className="overflow-y-auto px-6 py-5 text-sm leading-6 text-slate-700 sm:px-8">
@@ -79,7 +83,7 @@ export function TermsAgreementModal({
         </div>
 
         <footer className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8">
-          <label className="flex cursor-pointer items-start gap-3 text-sm font-semibold text-slate-800">
+          {!reviewOnly && <label className="flex cursor-pointer items-start gap-3 text-sm font-semibold text-slate-800">
             <input
               type="checkbox"
               checked={agreed}
@@ -88,15 +92,15 @@ export function TermsAgreementModal({
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
             <span>I have read and agree to the Terms and Agreement.</span>
-          </label>
+          </label>}
           {error && <p role="alert" className="mt-3 text-sm font-medium text-red-700">{error}</p>}
           <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button type="button" disabled={busy} onClick={onDecline} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">
-              Decline
+              {reviewOnly ? "Close" : "Decline"}
             </button>
-            <button type="button" disabled={!agreed || busy} onClick={onAccept} className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+            {!reviewOnly && <button type="button" disabled={!agreed || busy} onClick={onAccept} className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               {busy ? "Saving..." : "I Agree"}
-            </button>
+            </button>}
           </div>
         </footer>
       </div>

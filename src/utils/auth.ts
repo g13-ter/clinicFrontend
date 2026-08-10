@@ -11,6 +11,28 @@ export interface CurrentUser {
 }
 
 const SESSION_KEY = "clinic_session";
+const SESSION_EVENT = "clinic-session-changed";
+const SESSION_CHANNEL = "clinic-session";
+
+const notifySessionChanged = (status: "authenticated" | "cleared"): void => {
+  window.dispatchEvent(new CustomEvent(SESSION_EVENT, { detail: status }));
+  if ("BroadcastChannel" in window) {
+    const channel = new BroadcastChannel(SESSION_CHANNEL);
+    channel.postMessage(status);
+    channel.close();
+  }
+};
+
+export const subscribeToSessionChanges = (listener: () => void): (() => void) => {
+  const onLocalChange = () => listener();
+  window.addEventListener(SESSION_EVENT, onLocalChange);
+  const channel = "BroadcastChannel" in window ? new BroadcastChannel(SESSION_CHANNEL) : null;
+  if (channel) channel.onmessage = listener;
+  return () => {
+    window.removeEventListener(SESSION_EVENT, onLocalChange);
+    channel?.close();
+  };
+};
 
 const isUserRole = (value: unknown): value is UserRole =>
   typeof value === "string" && (USER_ROLES as readonly string[]).includes(value);
@@ -25,12 +47,14 @@ export const saveCurrentSession = (
     SESSION_KEY,
     JSON.stringify({ id: user.id, role: user.role, termsAccepted: true, exp: Math.floor(expiry / 1000) })
   );
+  notifySessionChanged("authenticated");
 };
 
 export const clearCurrentSession = (): void => {
   sessionStorage.removeItem(SESSION_KEY);
   // Remove legacy JWTs left by older deployments.
   localStorage.removeItem("token");
+  notifySessionChanged("cleared");
 };
 
 export type SessionRestoreResult =

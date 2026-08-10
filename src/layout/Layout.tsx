@@ -8,6 +8,7 @@ import { api } from "../services/api";
 import type { ClinicVisit, User } from "../utils/types";
 import { clearCurrentSession } from "../utils/auth";
 import { BrandLogo } from "../components/BrandLogo";
+import { TermsAgreementModal } from "../components/TermsAgreementModal";
 import {
   AuditIcon,
   CalendarIcon,
@@ -32,9 +33,11 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/medicines": MedicineIcon,
   "/purchase-requests": CartIcon,
   "/users": StaffIcon,
+  "/roles-permissions": AuditIcon,
   "/reports": ReportsIcon,
   "/audit-log": AuditIcon,
   "/settings": StaffIcon,
+  "/profile": StaffIcon,
 };
 
 const EMERGENCY_POLL_INTERVAL_MS = 10_000;
@@ -50,7 +53,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { role } = useAuth();
   const { showToast } = useToast();
-  const hasSidebar = role === "admin";
+  const hasSidebar = role === "admin" || role === "superadmin";
   const minutesLeft = useSessionExpiryWarning();
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -59,6 +62,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [emergencyVisits, setEmergencyVisits] = useState<ClinicVisit[]>([]);
   const [openingEmergency, setOpeningEmergency] = useState(false);
+  const [reviewingTerms, setReviewingTerms] = useState(false);
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
@@ -186,7 +190,6 @@ function Layout({ children }: { children: React.ReactNode }) {
         tab: "consultation",
         visitId: visit._id,
         patientId: visit.patientId._id,
-        complaint: visit.complaint,
       });
       if (visit.appointmentId) {
         params.set(
@@ -312,7 +315,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               <span className="block text-sm font-bold text-gray-900 sm:text-base">
                 School Clinic Management
               </span>
-              <span className="block text-xs capitalize text-gray-500">{role} dashboard</span>
+              <span className="block text-xs text-gray-500">{role === "superadmin" ? "Super Admin dashboard" : `${role} dashboard`}</span>
             </span>
           </button>
 
@@ -456,8 +459,23 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {children}
+          <footer className="mt-8 flex flex-col gap-2 border-t border-gray-200 pt-4 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between print:hidden">
+            <span>✓ You have read and accepted the Terms and Agreement.</span>
+            <button type="button" onClick={() => setReviewingTerms(true)} className="self-start font-medium text-blue-600 hover:underline sm:self-auto">
+              View Terms Again
+            </button>
+          </footer>
         </main>
       </div>
+      {reviewingTerms && (
+        <TermsAgreementModal
+          busy={false}
+          error=""
+          reviewOnly
+          onAccept={() => setReviewingTerms(false)}
+          onDecline={() => setReviewingTerms(false)}
+        />
+      )}
     </div>
   );
 }

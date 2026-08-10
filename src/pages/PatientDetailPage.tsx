@@ -22,8 +22,10 @@ function PatientDetailPage() {
   const [error, setError] = useState("");
 
   // Load independent data for the printable summary.
-  const [printVisits, setPrintVisits] = useState<ClinicVisit[]>([]);
+  const [printVisits, setPrintVisits] = useState<ClinicVisit[] | null>(null);
   const [printHistory, setPrintHistory] = useState<MedicalHistory[] | null>(null);
+  const [printLoading, setPrintLoading] = useState(true);
+  const [printError, setPrintError] = useState("");
   const requestedReturnTo = searchParams.get("returnTo");
   const safeReturnTo =
     requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
@@ -40,15 +42,31 @@ function PatientDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    api.get<ClinicVisit[]>(`/visits/patient/${id}`).then((r) => setPrintVisits(r.data)).catch(() => {});
-  }, [id]);
-
-  useEffect(() => {
-    if (!canViewMedicalHistory) return;
-    api
-      .get<MedicalHistory[]>(`/medical-history/patient/${id}`)
-      .then((r) => setPrintHistory(r.data))
-      .catch(() => {});
+    let cancelled = false;
+    setPrintLoading(true);
+    setPrintError("");
+    Promise.all([
+      api.getAll<ClinicVisit>(`/visits/patient/${id}`),
+      canViewMedicalHistory
+        ? api.getAll<MedicalHistory>(`/medical-history/patient/${id}`)
+        : Promise.resolve(null),
+    ])
+      .then(([visitsResponse, historyResponse]) => {
+        if (cancelled) return;
+        setPrintVisits(visitsResponse.data);
+        setPrintHistory(historyResponse?.data ?? null);
+      })
+      .catch((requestError: unknown) => {
+        if (!cancelled) {
+          setPrintError(requestError instanceof Error
+            ? requestError.message
+            : "The complete printable record could not be loaded");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPrintLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [id, canViewMedicalHistory]);
 
   if (loading) return <Layout><p className="text-gray-400 text-sm">Loading…</p></Layout>;
@@ -72,12 +90,18 @@ function PatientDetailPage() {
             )}
             <button
               onClick={() => window.print()}
+              disabled={printLoading || Boolean(printError) || printVisits === null}
               className="rounded border bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
             >
-              Print Summary
+              {printLoading ? "Preparing Summary..." : "Print Summary"}
             </button>
           </div>
         </div>
+        {printError && (
+          <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Printing is disabled because the complete record could not be loaded: {printError}
+          </p>
+        )}
 
         <div className="mb-6 rounded bg-white p-4 shadow sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
@@ -138,13 +162,15 @@ function PatientDetailPage() {
         <PatientMedicalHistory patientId={id!} />
       </div>
 
-      <div className="hidden print:block">
-        <PrintablePatientSummary
-          patient={patient}
-          visits={printVisits}
-          history={canViewMedicalHistory ? printHistory ?? [] : null}
-        />
-      </div>
+      {printVisits !== null && !printError && (
+        <div className="hidden print:block">
+          <PrintablePatientSummary
+            patient={patient}
+            visits={printVisits}
+            history={canViewMedicalHistory ? printHistory : null}
+          />
+        </div>
+      )}
     </Layout>
   );
 }

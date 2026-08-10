@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Modal from "../components/Modal";
-import AdminSectionTabs from "../components/AdminSectionTabs";
 import { MedicineIcon, ReportsIcon, VisitsIcon } from "../components/icons";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -22,6 +21,8 @@ const FORM_FIELDS = [
   "expiryDate",
   "lowStockThreshold",
   "supplier",
+  "batchNumber",
+  "dateReceived",
 ];
 
 const emptyForm = {
@@ -32,6 +33,8 @@ const emptyForm = {
   expiryDate: "",
   lowStockThreshold: "10",
   supplier: "",
+  batchNumber: "",
+  dateReceived: new Date().toISOString().slice(0, 10),
 };
 
 const emptyBatchForm = {
@@ -47,7 +50,7 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
 }
 
 function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
-  const { can, role } = useAuth();
+  const { can } = useAuth();
   const { showToast } = useToast();
   const canEdit = can("editMedicines");
   const [referenceTime] = useState(() => new Date());
@@ -76,7 +79,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
     setLoading(true);
     setError("");
     try {
-      const response = await api.get<Medicine[]>("/medicines?limit=200");
+      const response = await api.getAll<Medicine>("/medicines");
       setMedicines(response.data);
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load inventory");
@@ -88,7 +91,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     api
-      .get<Medicine[]>("/medicines?limit=200")
+      .getAll<Medicine>("/medicines")
       .then((response) => {
         if (!cancelled) setMedicines(response.data);
       })
@@ -164,6 +167,8 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
       expiryDate: medicine.expiryDate?.slice(0, 10) ?? "",
       lowStockThreshold: String(medicine.lowStockThreshold),
       supplier: medicine.supplier ?? "",
+      batchNumber: "",
+      dateReceived: medicine.dateReceived?.slice(0, 10) ?? "",
     });
     resetFormErrors();
     setShowModal(true);
@@ -181,11 +186,15 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
     const payload = {
       name: form.name,
       category: form.category || undefined,
-      quantity: Number(form.quantity),
       unit: form.unit,
-      expiryDate: form.expiryDate || undefined,
       lowStockThreshold: Number(form.lowStockThreshold),
       supplier: form.supplier || undefined,
+      ...(!editTarget ? {
+        quantity: Number(form.quantity),
+        expiryDate: form.expiryDate || undefined,
+        batchNumber: form.batchNumber,
+        dateReceived: form.dateReceived,
+      } : {}),
     };
 
     try {
@@ -226,7 +235,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
       setBatchTarget(null);
       await fetchInventory();
     } catch (requestError: unknown) {
-      showToast(requestError instanceof Error ? requestError.message : "Failed to receive stock");
+      showToast(requestError instanceof Error ? requestError.message : "Failed to receive stock", "error");
     } finally {
       setReceiving(false);
     }
@@ -235,8 +244,6 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
   return (
     <PageFrame embedded={embedded}>
       <div className="mx-auto max-w-[1600px] space-y-5">
-        {role === "admin" && !embedded && <AdminSectionTabs active="inventory" />}
-
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             {!embedded && <p className="text-sm text-gray-500">Medicine stock and supplies</p>}
@@ -250,14 +257,6 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {role === "admin" && (
-              <Link
-                to="/purchase-requests"
-                className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Review Purchase Requests
-              </Link>
-            )}
             {canEdit && (
               <>
                 <Link
@@ -468,18 +467,32 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
               <InventoryField label="Category" error={fieldErrors.category}>
                 <input value={form.category} onChange={(event) => setField("category", event.target.value)} placeholder="e.g. Analgesic" className={`input ${fieldErrors.category ? "input-error" : ""}`} />
               </InventoryField>
-              <InventoryField label="Quantity *" error={fieldErrors.quantity}>
-                <input type="number" min={0} value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} required className={`input ${fieldErrors.quantity ? "input-error" : ""}`} />
-              </InventoryField>
+              {!editTarget && (
+                <InventoryField label="Quantity *" error={fieldErrors.quantity}>
+                  <input type="number" min={0} value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} required className={`input ${fieldErrors.quantity ? "input-error" : ""}`} />
+                </InventoryField>
+              )}
               <InventoryField label="Unit *" error={fieldErrors.unit}>
                 <input value={form.unit} onChange={(event) => setField("unit", event.target.value)} placeholder="tablets, bottles, ml" required className={`input ${fieldErrors.unit ? "input-error" : ""}`} />
               </InventoryField>
               <InventoryField label="Reorder Level *" error={fieldErrors.lowStockThreshold}>
                 <input type="number" min={0} value={form.lowStockThreshold} onChange={(event) => setField("lowStockThreshold", event.target.value)} required className={`input ${fieldErrors.lowStockThreshold ? "input-error" : ""}`} />
               </InventoryField>
-              <InventoryField label="Expiry Date" error={fieldErrors.expiryDate}>
-                <input type="date" value={form.expiryDate} onChange={(event) => setField("expiryDate", event.target.value)} className={`input ${fieldErrors.expiryDate ? "input-error" : ""}`} />
-              </InventoryField>
+              {!editTarget && (
+                <InventoryField label="Expiry Date" error={fieldErrors.expiryDate}>
+                  <input type="date" value={form.expiryDate} onChange={(event) => setField("expiryDate", event.target.value)} required={Number(form.quantity) > 0} className={`input ${fieldErrors.expiryDate ? "input-error" : ""}`} />
+                </InventoryField>
+              )}
+              {!editTarget && (
+                <InventoryField label="Batch Number *" error={fieldErrors.batchNumber}>
+                  <input value={form.batchNumber} onChange={(event) => setField("batchNumber", event.target.value)} required className={`input ${fieldErrors.batchNumber ? "input-error" : ""}`} />
+                </InventoryField>
+              )}
+              {!editTarget && (
+                <InventoryField label="Date Received *" error={fieldErrors.dateReceived}>
+                  <input type="date" value={form.dateReceived} onChange={(event) => setField("dateReceived", event.target.value)} required className={`input ${fieldErrors.dateReceived ? "input-error" : ""}`} />
+                </InventoryField>
+              )}
             </div>
             <InventoryField label="Supplier" error={fieldErrors.supplier}>
               <input value={form.supplier} onChange={(event) => setField("supplier", event.target.value)} className={`input ${fieldErrors.supplier ? "input-error" : ""}`} />
@@ -495,7 +508,7 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
             <InventoryField label="Batch Number *"><input required value={batchForm.batchNumber} onChange={(event) => setBatchForm({ ...batchForm, batchNumber: event.target.value })} className="input" /></InventoryField>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <InventoryField label="Quantity Received *"><input required type="number" min={1} value={batchForm.quantityReceived} onChange={(event) => setBatchForm({ ...batchForm, quantityReceived: event.target.value })} className="input" /></InventoryField>
-              <InventoryField label="Expiry Date"><input type="date" value={batchForm.expiryDate} onChange={(event) => setBatchForm({ ...batchForm, expiryDate: event.target.value })} className="input" /></InventoryField>
+              <InventoryField label="Expiry Date *"><input required type="date" value={batchForm.expiryDate} onChange={(event) => setBatchForm({ ...batchForm, expiryDate: event.target.value })} className="input" /></InventoryField>
             </div>
             <InventoryField label="Supplier"><input value={batchForm.supplier} onChange={(event) => setBatchForm({ ...batchForm, supplier: event.target.value })} className="input" /></InventoryField>
             <InventoryField label="Delivery Notes"><textarea rows={3} value={batchForm.notes} onChange={(event) => setBatchForm({ ...batchForm, notes: event.target.value })} className="input" /></InventoryField>

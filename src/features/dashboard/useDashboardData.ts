@@ -41,10 +41,17 @@ export function useDashboardData(role: UserRole | null, userId?: string) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!role || role === "superadmin") {
+      setStats(null);
+      setError("");
+      return;
+    }
     let cancelled = false;
 
     api
-      .get<LegacyDashboardStats>("/dashboard/stats")
+      .get<LegacyDashboardStats>(
+        role === "doctor" || role === "nurse" ? "/dashboard/analytics" : "/dashboard/stats",
+      )
       .then((response) => {
         if (!cancelled) setStats(normalizeDashboardStats(response.data));
       })
@@ -57,7 +64,7 @@ export function useDashboardData(role: UserRole | null, userId?: string) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     if (role !== "doctor" && role !== "nurse") {

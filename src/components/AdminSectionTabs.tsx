@@ -1,12 +1,10 @@
 import { Link } from "react-router-dom";
 
-type AdminSection = "analytics" | "inventory" | "management" | "reports";
+export type AdminSection = "management" | "purchase-requests";
 
 const sections: { id: AdminSection; label: string; to: string }[] = [
-  { id: "analytics", label: "Analytics", to: "/dashboard" },
-  { id: "inventory", label: "Inventory", to: "/dashboard?section=inventory" },
   { id: "management", label: "Management", to: "/dashboard?section=management" },
-  { id: "reports", label: "Reports", to: "/dashboard?section=reports" },
+  { id: "purchase-requests", label: "Purchase Requests", to: "/dashboard?section=purchase-requests" },
 ];
 
 function AdminSectionTabs({ active }: { active: AdminSection }) {

@@ -131,6 +131,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   });
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [pendingReferralDownload, setPendingReferralDownload] = useState<string | null>(null);
 
   const fetchQueue = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
@@ -155,7 +156,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     if (!canCheckIn) return;
     const path = patientsListPath(role);
     if (!path) return;
-    api.get<Patient[]>(path)
+    api.getAll<Patient>(path)
       .then((res) => setPatients(res.data))
       .catch((requestError: unknown) => {
         setError(requestError instanceof Error ? requestError.message : "Failed to load students");
@@ -284,7 +285,30 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       showToast(res.message);
       fetchQueue(false);
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Failed to update");
+      showToast(err instanceof Error ? err.message : "Failed to update", "error");
+    }
+  };
+
+  const downloadReferral = async (visitId: string) => {
+    const referral = await api.download(`/visits/${visitId}/referral-form`);
+    if (!referral.ok) {
+      throw new Error(`Referral form download failed (${referral.status})`);
+    }
+    const blob = await referral.blob();
+    saveBlobDownload(
+      blob,
+      reportFilename(referral.headers.get("Content-Disposition"), `Referral_${visitId}.docx`),
+    );
+  };
+
+  const retryReferralDownload = async () => {
+    if (!pendingReferralDownload) return;
+    try {
+      await downloadReferral(pendingReferralDownload);
+      setPendingReferralDownload(null);
+      showToast("Referral form downloaded successfully");
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Referral form download failed", "error");
     }
   };
 
@@ -296,21 +320,23 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     const body: Record<string, string> = { status, ...details };
     try {
       const res = await api.put(`/visits/${v._id}/status`, body);
-      showToast(res.message);
       if (status === "referred") {
-        const referral = await api.download(`/visits/${v._id}/referral-form`);
-        if (referral.ok) {
-          const blob = await referral.blob();
-          saveBlobDownload(
-            blob,
-            reportFilename(referral.headers.get("Content-Disposition"), `Referral_${v._id}.docx`),
-          );
+        try {
+          await downloadReferral(v._id);
+        } catch {
+          setPendingReferralDownload(v._id);
+          showToast("Referral was saved, but the form could not be downloaded. Use Retry download.", "error");
+          setStatusTarget(null);
+          fetchQueue(false);
+          return;
         }
       }
+      showToast(res.message);
       setStatusTarget(null);
       fetchQueue(false);
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Failed to update visit status");
+      showToast(err instanceof Error ? err.message : "Failed to update visit status", "error");
+      throw err;
     }
   };
 
@@ -351,7 +377,6 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
         tab: "consultation",
         visitId: visit._id,
         patientId: visit.patientId._id,
-        complaint: visit.complaint,
       });
       if (visit.appointmentId) {
         params.set(
@@ -361,7 +386,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       }
       navigate(`/clinical-workspace?${params}`);
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Failed to start consultation");
+      showToast(err instanceof Error ? err.message : "Failed to start consultation", "error");
     }
   };
 
@@ -473,6 +498,14 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+      {pendingReferralDownload && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <span>The referral is saved, but its document still needs to be downloaded.</span>
+          <button type="button" onClick={retryReferralDownload} className="rounded bg-amber-700 px-3 py-2 font-medium text-white hover:bg-amber-800">
+            Retry download
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>

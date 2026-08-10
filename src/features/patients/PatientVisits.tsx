@@ -47,7 +47,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
     setLoadError("");
     const params = new URLSearchParams();
     if (query) params.set("search", query);
-    return api.get<ClinicVisit[]>(`/visits/patient/${patientId}?${params}`)
+    return api.getAll<ClinicVisit>(`/visits/patient/${patientId}?${params}`)
       .then((response) => setVisits(response.data))
       .catch((error: unknown) => {
         setLoadError(error instanceof Error ? error.message : "Failed to load visit history");

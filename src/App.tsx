@@ -17,6 +17,8 @@ const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
 const ClinicalWorkspacePage = lazy(() => import("./pages/ClinicalWorkspacePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
 
@@ -44,11 +46,13 @@ function App() {
           element={
             <TemporaryInfoPage
               title="Privacy Policy"
-              description="This privacy policy page is currently being prepared for the clinic platform."
+              description="The school clinic collects and uses student health information only to provide care, manage clinic operations, meet safety obligations, and maintain required records."
               details={[
-                "This placeholder content will be replaced with the official policy text.",
-                "It is intended to provide a temporary route for the footer link.",
-                "You can update the wording once the final policy is ready."
+                "Records may include identity and contact details, consent evidence, visit notes, vital signs, medical history, prescriptions, referrals, and inventory transactions linked to care.",
+                "Access is limited by staff role and care assignment. Administrative users do not receive clinical content through audit logs.",
+                "Information is retained under the school's approved records schedule and disclosed only when authorized, legally required, or necessary to protect life and health.",
+                "Students or guardians may request access, correction, or privacy assistance through the school clinic or the school's Data Protection Officer using official school contact channels.",
+                "Security incidents involving personal data should be reported immediately to the school administration or Data Protection Officer."
               ]}
             />
           }
@@ -58,11 +62,13 @@ function App() {
           element={
             <TemporaryInfoPage
               title="Terms of Service"
-              description="These terms of service are currently being drafted for the clinic system."
+              description="This system is restricted to authorized school clinic personnel performing approved duties. Use is logged and is subject to school policy."
               details={[
-                "This page serves as a temporary placeholder for the footer navigation.",
-                "It will be replaced with the final legal terms once approved.",
-                "The content is meant to keep the route functional during development."
+                "Users must protect their credentials, use only their own account, lock or sign out of unattended devices, and report suspected compromise promptly.",
+                "Accessing records without a care, operational, or legal need; copying data to personal services; or altering records dishonestly is prohibited.",
+                "Clinical decisions remain the responsibility of qualified personnel. The system supports documentation and workflow but does not replace professional judgment or emergency protocols.",
+                "Accounts may be suspended and activity reviewed when misuse, excessive access, or a security incident is suspected.",
+                "Acceptance is recorded by policy version. A revised version must be accepted before access resumes."
               ]}
             />
           }
@@ -72,11 +78,12 @@ function App() {
           element={
             <TemporaryInfoPage
               title="Licensing"
-              description="This licensing page is currently a temporary placeholder for the clinic platform."
+              description="The clinic application, school branding, configurations, and locally authored content are provided for authorized institutional use only unless a separate written license says otherwise."
               details={[
-                "The licensing information will be finalized later.",
-                "This route is now available for the footer link.",
-                "You can add the official license terms when they are ready."
+                "Do not redistribute, sell, sublicense, or publish the application or school data without written authorization from the rights holder and the school.",
+                "Open-source packages bundled with the application remain governed by their respective license notices and attribution requirements.",
+                "No license permits use of student or staff information outside approved school-clinic purposes.",
+                "Requests concerning reuse, deployment at another institution, or third-party components should be directed through official school administration channels."
               ]}
             />
           }
@@ -154,6 +161,14 @@ function App() {
           }
         />
         <Route
+          path="/roles-permissions"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/roles-permissions"]}>
+              <RolePermissionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/reports"
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/reports"]}>
@@ -174,6 +189,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/settings"]}>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/profile"]}>
+              <ProfilePage />
             </ProtectedRoute>
           }
         />

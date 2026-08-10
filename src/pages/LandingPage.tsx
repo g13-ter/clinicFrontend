@@ -99,20 +99,20 @@ const roleWorkspaces: Record<ClinicRole, {
   admin: {
     label: "Admin",
     eyebrow: "Admin Dashboard",
-    title: "Administration, analytics, and oversight.",
-    description: "Admins use Analytics, Inventory, Management, and Reports from the dashboard, with separate access to the system Audit Log.",
+    title: "User management and administrative oversight.",
+    description: "Admins manage students and clinic accounts, review medicine purchase requests, and audit important system activity.",
     navigation: ["Dashboard", "Audit Log"],
-    features: ["Analytics", "Inventory", "Management", "Reports"],
-    metrics: [["9", "Total Students", "Active student records"], ["0", "Clinic Visits Today", "Recorded today"], ["3", "Active Doctor / Nurse", "Currently available"], ["42", "Pending Appointments", "Awaiting confirmation"]],
+    features: ["Management", "Purchase Requests"],
+    metrics: [["14", "Total Students", "Active student records"], ["13", "Active Users", "Available doctors, nurses, and staff"]],
     icon: <DashboardIcon />,
   },
   doctor: {
     label: "Doctor",
     eyebrow: "Doctor Dashboard",
     title: "Consultation and physician care.",
-    description: "Doctors manage the clinic queue, save physician consultations, update medical history, generate consultation certificates, and review medicine inventory.",
-    navigation: ["Dashboard", "Clinical Care", "Students", "Student Queue", "Appointments", "Inventory"],
-    features: ["Appointments", "Student Visits", "Patient Records", "New Consultation", "Follow-Ups"],
+    description: "Doctors manage assigned appointments and the clinic queue, record consultations, update medical history, issue certificates, and generate reports.",
+    navigation: ["Dashboard", "Clinical Care", "Students", "Student Queue", "Appointments", "Reports"],
+    features: ["Appointments", "Student Visits", "Patient Records", "New Consultation", "Follow-Ups", "Reports"],
     metrics: [["0", "Today's Appointments", "Scheduled today"], ["2", "Students Waiting", "In the clinic queue"], ["0", "Consultations Today", "Started or completed"], ["0", "Emergency Cases", "Recorded today"]],
     icon: <VisitsIcon />,
   },
@@ -130,10 +130,10 @@ const roleWorkspaces: Record<ClinicRole, {
     label: "Staff",
     eyebrow: "Staff Dashboard",
     title: "Student intake and appointments.",
-    description: "Staff edit student records, manage appointments, select doctors, check in students, and work with the student queue using basic student data.",
+    description: "Staff maintain basic student records, schedule appointments, check in students, and monitor the clinic queue without accessing clinical documentation.",
     navigation: ["Dashboard", "Students", "Student Queue", "Appointments"],
     features: ["Students", "Student Visits", "Appointments", "Notifications"],
-    metrics: [["9", "Total Students", "Active student records"], ["0", "Visits Today", "Recorded today"], ["2", "Students Waiting", "In the clinic queue"], ["42", "Pending Appointments", "Awaiting confirmation"]],
+    metrics: [["14", "Total Students", "Active student records"], ["0", "Visits Today", "Recorded today"], ["2", "Students Waiting", "In the clinic queue"], ["0", "Pending Appointments", "Awaiting confirmation"]],
     icon: <CalendarIcon />,
   },
 };
@@ -346,16 +346,16 @@ function LandingPage() {
 
               <div className="relative z-10 grid min-h-[430px] items-center lg:grid-cols-[1.08fr_0.92fr]">
                 <div className="px-7 pb-8 pt-12 sm:px-12 lg:px-16 lg:py-16">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-100">Ready to improve student care?</p>
+                  <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-100">School clinic appointments</p>
                   <h2 className="mt-4 max-w-[560px] text-4xl font-black leading-[1.06] tracking-[-0.035em] sm:text-5xl">
-                    Ready to modernize your school clinic?
+                    Need to book a clinic appointment?
                   </h2>
                   <p className="mt-5 max-w-[520px] text-sm leading-6 text-blue-100 sm:text-base sm:leading-7">
-                    Give your clinic team one secure place to coordinate care, protect student records, and make informed decisions.
+                    Contact the school clinic by phone, email, or in person. Have your Student ID, preferred schedule, and reason for the visit ready.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <Link to="/login" className="inline-flex items-center justify-center gap-3 rounded-xl bg-white px-6 py-3.5 text-sm font-extrabold text-blue-700 shadow-xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50">
-                      Get Started Now <span aria-hidden="true">→</span>
+                      Staff Login <span aria-hidden="true">→</span>
                     </Link>
                     <a href="#contact-details" className="inline-flex items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-bold text-white backdrop-blur transition hover:bg-white/20">
                       Contact the Clinic
@@ -419,6 +419,17 @@ function LandingPage() {
                     </a>
                   </p>
                 </address>
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+                  <h4 className="font-bold text-slate-950">How to book an appointment</h4>
+                  <ol className="mt-2 list-decimal space-y-1.5 pl-5 leading-6">
+                    <li>Contact the clinic or visit Room 101 during clinic hours.</li>
+                    <li>Provide your Student ID, preferred date and time, and reason for the visit.</li>
+                    <li>Make sure your student record has a valid email address.</li>
+                  </ol>
+                  <p className="mt-3 text-xs leading-5 text-blue-800">
+                    The system emails you when the appointment is scheduled, confirmed by the doctor, rescheduled, cancelled, and when a reminder is due.
+                  </p>
+                </div>
                 <p className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">
                   <strong>Emergency:</strong> Proceed directly to the clinic or call the school emergency number. Do not use appointment messaging for urgent cases.
                 </p>
@@ -547,12 +558,10 @@ function RoleDashboardPreview({ role }: { role: ClinicRole }) {
       </div>
 
       <div className={role === "admin" ? "grid min-h-[496px] sm:grid-cols-[130px_1fr]" : "min-h-[496px]"}>
-        {role === "admin" && (
-          <aside className="hidden border-r border-slate-200 bg-white p-3 sm:block">
-            <p className="px-2 py-2 text-[8px] font-bold uppercase tracking-wider text-slate-400">Navigation</p>
-            {workspace.navigation.map((item, index) => <div key={item} className={`mt-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-[9px] font-semibold ${index === 0 ? "bg-blue-600 text-white" : "text-slate-600"}`}><span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{index === 0 ? <DashboardIcon /> : <AuditIcon />}</span>{item}</div>)}
-          </aside>
-        )}
+        {role === "admin" && <aside className="hidden border-r border-slate-200 bg-white p-3 sm:block">
+          <p className="px-2 py-2 text-[8px] font-bold uppercase tracking-wider text-slate-400">Navigation</p>
+          {workspace.navigation.map((item, index) => <div key={item} className={`mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-[8px] font-semibold ${index === 0 ? "bg-blue-600 text-white" : "text-slate-600"}`}><span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{previewNavigationIcon(item)}</span>{item}</div>)}
+        </aside>}
         <RoleDashboardBody role={role} />
       </div>
     </article>
@@ -561,18 +570,20 @@ function RoleDashboardPreview({ role }: { role: ClinicRole }) {
 
 function RoleDashboardBody({ role }: { role: ClinicRole }) {
   const workspace = roleWorkspaces[role];
-  const activeTab = role === "staff" ? 1 : 0;
+  const activeTab = role === "staff" || role === "nurse" ? 1 : 0;
   const metricIcons: ReactNode[] = role === "admin"
-    ? [<PatientsIcon />, <VisitsIcon />, <StaffIcon />, <CalendarIcon />]
+    ? [<PatientsIcon />, <StaffIcon />]
     : role === "staff"
       ? [<PatientsIcon />, <VisitsIcon />, <StaffIcon />, <CalendarIcon />]
       : [<CalendarIcon />, <PatientsIcon />, <VisitsIcon />, <VisitsIcon />];
-  const metricTones = ["blue", role === "admin" || role === "staff" ? "green" : "orange", role === "admin" || role === "staff" ? "purple" : "green", role === "admin" || role === "staff" ? "orange" : "red"] as const;
+  const metricTones = role === "admin"
+    ? (["blue", "purple"] as const)
+    : (["blue", role === "staff" ? "green" : "orange", role === "staff" ? "purple" : "green", role === "staff" ? "orange" : "red"] as const);
 
   return (
     <div className="min-w-0 p-3 sm:p-5">
       <h3 className="text-base font-semibold tracking-tight sm:text-xl">{workspace.eyebrow}</h3>
-      <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className={`mt-3 grid grid-cols-2 gap-2 ${role === "admin" ? "" : "lg:grid-cols-4"}`}>
         {workspace.metrics.map(([value, label, caption], index) => <RoleMetricCard key={label} value={value} label={label} caption={caption} icon={metricIcons[index]} tone={metricTones[index]} />)}
       </div>
 
@@ -584,7 +595,7 @@ function RoleDashboardBody({ role }: { role: ClinicRole }) {
         ))}
       </div>
 
-      {role === "admin" ? <RoleAdminAnalytics /> : role === "doctor" ? <RoleDoctorContent /> : role === "nurse" ? <RoleNurseContent /> : <RoleStaffContent />}
+      {role === "admin" ? <RoleAdminManagement /> : role === "doctor" ? <RoleDoctorContent /> : role === "nurse" ? <RoleNurseContent /> : <RoleStaffContent />}
     </div>
   );
 }
@@ -612,7 +623,7 @@ function RoleDoctorContent() {
 function RoleStaffContent() {
   return (
     <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between"><div><p className="text-[11px] font-bold">Student Visits</p><p className="mt-1 text-[8px] text-slate-400">Check in, triage, and move students through the clinic.</p><p className="mt-2 text-[8px] text-slate-500">2 waiting for triage · 0 ready for doctor</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Register Visit</span></div>
+      <div className="flex items-start justify-between"><div><p className="text-[11px] font-bold">Student Visits</p><p className="mt-1 text-[8px] text-slate-400">Check in students and monitor their progress through the clinic queue.</p><p className="mt-2 text-[8px] text-slate-500">2 waiting for nurse triage · 0 ready for doctor</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Register Visit</span></div>
       <PreviewTable headers={["Student", "Arrived", "Complaint", "Vitals", "Status"]} rows={[["TEST Patient (2024)", "03:32 PM", "—", "Vitals not yet recorded", "In Consultation"], ["Sample Student (1234)", "02:02 PM", "—", "Vitals not yet recorded", "Waiting for Nurse Triage"]]} />
     </div>
   );
@@ -622,9 +633,22 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: string[][] }
   return <div className="mt-3 overflow-hidden rounded-md border border-slate-200"><div className="grid bg-slate-50" style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))` }}>{headers.map((header) => <span key={header} className="truncate px-3 py-2 text-[7px] font-bold uppercase text-slate-500">{header}</span>)}</div>{rows.map((row, rowIndex) => <div key={rowIndex} className="grid border-t border-slate-100" style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))` }}>{row.map((cell, index) => <span key={`${rowIndex}-${index}`} className={`truncate px-3 py-2 text-[7px] ${index === 0 || index === row.length - 1 ? "font-semibold text-blue-600" : "text-slate-500"}`}>{cell}</span>)}</div>)}</div>;
 }
 
-function RoleAdminAnalytics() {
-  const bars = [2, 2, 2, 12, 76, 2];
-  return <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-bold">Most Common Complaints</p><p className="mt-1 text-[7px] text-slate-400">Based on recorded clinic visits</p><div className="mt-4 flex items-center justify-center gap-4"><div className="grid h-24 w-24 place-items-center rounded-full" style={{ background: "conic-gradient(#2563eb 0 27%,#14b8a6 27% 54%,#f59e0b 54% 72%,#f97316 72% 90%,#8b5cf6 90%)" }}><div className="grid h-12 w-12 place-items-center rounded-full bg-white text-center"><span><b className="block text-sm">11</b><small className="text-[5px] text-slate-400">recorded visits</small></span></div></div><div className="hidden space-y-2 xl:block">{[["Fever", "27%"], ["Headache", "27%"], ["Mild Fever", "18%"], ["Nosebleed", "18%"], ["Other", "9%"]].map(([label, value]) => <div key={label} className="flex w-28 text-[7px] text-slate-500"><span>{label}</span><b className="ml-auto text-slate-700">{value}</b></div>)}</div></div></div><div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-bold">Monthly Clinic Visits</p><p className="mt-1 text-[7px] text-slate-400">Last six months</p><div className="mt-4 flex h-32 items-end gap-2 border-b border-l border-slate-200 px-2">{bars.map((height, index) => <span key={index} className="flex-1 rounded-t-sm bg-blue-500" style={{ height: `${height}%` }} />)}</div></div></div>;
+function RoleAdminManagement() {
+  return <div className="mt-4"><div className="flex items-end justify-between"><div><p className="text-[8px] text-slate-400">Students and clinic accounts</p><p className="mt-1 text-[13px] font-bold">Management</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Add Clinic User</span></div><div className="mt-3 grid grid-cols-3 gap-2"><PreviewManagementCard label="Students" value="14" action="Manage Students" /><PreviewManagementCard label="Doctors" value="6" action="Manage Doctors" /><PreviewManagementCard label="Nurses and Staff" value="13" action="Manage Staff" /></div></div>;
+}
+
+function PreviewManagementCard({ label, value, action }: { label: string; value: string; action: string }) {
+  return <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"><p className="truncate text-[9px] font-semibold">{label}</p><p className="mt-4 text-xl font-bold">{value}</p><p className="mt-4 rounded-md bg-slate-950 px-2 py-2 text-center text-[7px] font-semibold text-white">{action}</p></div>;
+}
+
+function previewNavigationIcon(item: string) {
+  if (item === "Dashboard") return <DashboardIcon />;
+  if (item === "Audit Log") return <AuditIcon />;
+  if (item === "Students" || item === "Student Queue") return <PatientsIcon />;
+  if (item === "Appointments") return <CalendarIcon />;
+  if (item === "Inventory" || item === "Purchase Requests") return <MedicineIcon />;
+  if (item === "Reports") return <ReportsIcon />;
+  return <VisitsIcon />;
 }
 
 function DashboardPreview() {
@@ -644,9 +668,9 @@ function DashboardPreview() {
 function HeroStatusRail() {
   return (
     <div className="relative z-20 mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:absolute xl:right-0 xl:top-8 xl:mt-0 xl:w-[158px] xl:grid-cols-1 xl:gap-3">
-      <HeroStatusCard label="Pending Appointments" value="42" note="Awaiting confirmation" icon={<CalendarIcon />} tone="rose" />
-      <HeroStatusCard label="Inventory Alerts" value="3" note="Needs attention" icon={<MedicineIcon />} tone="emerald" />
-      <HeroStatusCard label="Student Records" value="9" note="Active students" icon={<PatientsIcon />} tone="blue" />
+      <HeroStatusCard label="Purchase Requests" value="3" note="Pending review" icon={<MedicineIcon />} tone="rose" />
+      <HeroStatusCard label="Clinic Users" value="13" note="Active accounts" icon={<StaffIcon />} tone="emerald" />
+      <HeroStatusCard label="Student Records" value="14" note="Active students" icon={<PatientsIcon />} tone="blue" />
       <HeroStatusCard label="Audit Logging" value="Enabled" note="Activity protected" icon={<AuditIcon />} tone="violet" />
     </div>
   );
@@ -680,7 +704,6 @@ function LargeDashboardPreview() {
 }
 
 function AdminDashboardMock() {
-  const bars = [3, 3, 3, 14, 78, 3];
   return (
     <div className="bg-[#f7faff] text-[#0f1930]">
       <div className="flex h-12 items-center border-b border-slate-200 bg-white px-3 sm:h-14 sm:px-4">
@@ -703,28 +726,18 @@ function AdminDashboardMock() {
 
         <div className="min-w-0 p-3 sm:p-5">
           <h3 className="text-sm font-bold tracking-tight sm:text-base">Admin Dashboard</h3>
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            <AdminStat label="Total Students" value="9" caption="Active student records" icon={<PatientsIcon />} tone="blue" />
-            <AdminStat label="Clinic Visits Today" value="0" caption="Recorded today" icon={<VisitsIcon />} tone="emerald" />
-            <AdminStat label="Active Doctor / Nurse" value="3" caption="Currently available" icon={<StaffIcon />} tone="violet" />
-            <AdminStat label="Pending Appointments" value="42" caption="Awaiting confirmation" icon={<CalendarIcon />} tone="orange" />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <AdminStat label="Total Students" value="14" caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+            <AdminStat label="Active Users" value="13" caption="Available doctors, nurses, and staff" icon={<StaffIcon />} tone="violet" />
           </div>
           <div className="mt-3 flex rounded-lg border border-slate-200 bg-white text-[8px] font-semibold text-slate-600 sm:text-[9px]">
-            <span className="border-b-2 border-blue-600 bg-blue-50 px-3 py-2 text-blue-600">Analytics</span><span className="px-3 py-2">Inventory</span><span className="px-3 py-2">Management</span><span className="px-3 py-2">Reports</span>
+            <span className="border-b-2 border-blue-600 bg-blue-50 px-3 py-2 text-blue-600">Management</span><span className="px-3 py-2">Purchase Requests</span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
-              <p className="text-[9px] font-bold sm:text-[11px]">Most Common Complaints</p><p className="mt-0.5 text-[7px] text-slate-400">Based on recorded clinic visits</p>
-              <div className="mt-4 flex items-center justify-center gap-4">
-                <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full sm:h-28 sm:w-28" style={{ background: "conic-gradient(#2563eb 0 27%, #14b8a6 27% 54%, #f59e0b 54% 72%, #f97316 72% 90%, #8b5cf6 90%)" }}><div className="grid h-12 w-12 place-items-center rounded-full bg-white text-center sm:h-14 sm:w-14"><span><b className="block text-xs sm:text-sm">11</b><small className="text-[6px] text-slate-400">recorded visits</small></span></div></div>
-                <div className="hidden min-w-0 flex-1 space-y-2 lg:block">{[["Fever", "27%", "bg-blue-600"], ["Headache", "27%", "bg-teal-500"], ["Mild Fever", "18%", "bg-amber-500"], ["Nosebleed", "18%", "bg-orange-500"], ["Other", "9%", "bg-violet-500"]].map(([name, percent, color]) => <div key={name} className="flex items-center gap-2 text-[7px] sm:text-[8px]"><span className={`h-1.5 w-1.5 rounded-full ${color}`} /><span className="truncate text-slate-500">{name}</span><span className="ml-auto font-semibold">{percent}</span></div>)}</div>
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
-              <p className="text-[9px] font-bold sm:text-[11px]">Monthly Clinic Visits</p><p className="mt-0.5 text-[7px] text-slate-400">Last six months</p>
-              <div className="mt-4 flex h-[126px] items-end gap-2 border-b border-l border-slate-200 px-2 sm:gap-3">{bars.map((height, index) => <div key={index} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-sm bg-blue-500" style={{ height: `${height}%` }} /></div>)}</div>
-              <div className="mt-1 grid grid-cols-6 text-center text-[6px] text-slate-400 sm:text-[7px]"><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span></div>
-            </div>
+          <div className="mt-4 flex items-end justify-between"><div><p className="text-[7px] text-slate-400">Students and clinic accounts</p><p className="mt-1 text-[12px] font-bold">Management</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[7px] font-semibold text-white">+ Add Clinic User</span></div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <PreviewManagementCard label="Students" value="14" action="Manage Students" />
+            <PreviewManagementCard label="Doctors" value="6" action="Manage Doctors" />
+            <PreviewManagementCard label="Nurses and Staff" value="13" action="Manage Staff" />
           </div>
         </div>
       </div>
