@@ -170,8 +170,31 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
           {loadError}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded bg-white shadow">
+        <>
+          <div className="space-y-3 md:hidden">
+            {history.length === 0 ? (
+              <p className="rounded-xl border bg-white px-4 py-8 text-center text-sm text-gray-500">No history recorded.</p>
+            ) : history.map((entry) => (
+              <article key={entry._id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500">{new Date(entry.dateRecorded).toLocaleDateString()}</p>
+                    <p className="mt-1 font-semibold text-gray-950">{entry.diagnosis || "No diagnosis recorded"}</p>
+                  </div>
+                  {canEdit && <button onClick={() => openEdit(entry)} className="min-h-11 px-2 text-sm font-medium text-blue-700">Edit</button>}
+                </div>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div><dt className="font-medium text-gray-500">Prescription</dt><dd className="mt-1 text-gray-800">{entry.prescription || "—"}</dd></div>
+                  <div><dt className="font-medium text-gray-500">Dispensed</dt><dd className="mt-1 text-gray-800">{entry.prescribedItems?.length ? entry.prescribedItems.map((item) => `${item.medicineName} × ${item.quantity} ${item.unit}`).join(", ") : "—"}</dd></div>
+                  <div><dt className="font-medium text-gray-500">Allergies</dt><dd className="mt-1 text-gray-800">{entry.allergies || "—"}</dd></div>
+                  <div><dt className="font-medium text-gray-500">Family history</dt><dd className="mt-1 text-gray-800">{entry.familyHistory || "—"}</dd></div>
+                </dl>
+              </article>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded bg-white shadow md:block">
           <table className="w-full min-w-[900px] text-sm">
+            <caption className="sr-only">Student medical history</caption>
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
                 <th className="text-left px-4 py-3">Date</th>
@@ -220,7 +243,8 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {open && (

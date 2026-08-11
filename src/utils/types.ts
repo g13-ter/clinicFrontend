@@ -28,13 +28,6 @@ export interface Patient {
   clinicalProfileUpdatedBy?: { _id: string; name: string; role: string } | string;
   clinicalProfileVerifiedBy?: { _id: string; name: string; role: string } | string;
   clinicalProfileVerifiedAt?: string;
-  consents?: {
-    treatment: boolean;
-    medicineAdministration: boolean;
-    dataPrivacy: boolean;
-    guardianName?: string;
-    updatedAt?: string;
-  };
   schoolYear?: string;
   enrollmentStatus?: "active" | "graduated" | "transferred";
   immunizations?: { vaccine: string; dateAdministered?: string; notes?: string }[];
@@ -242,6 +235,18 @@ export interface SystemSettings {
   emailNotificationsEnabled: boolean;
   appointmentRemindersEnabled: boolean;
   stockAlertsEnabled: boolean;
+}
+
+export interface InAppNotification {
+  _id: string;
+  kind: "appointment_assigned" | "appointment_reassigned" | "appointment_rescheduled" | "appointment_cancelled" | "visit_ready" | "emergency";
+  title: string;
+  message: string;
+  link: string;
+  resourceType: "Appointment" | "ClinicVisit";
+  resourceId: string;
+  readAt?: string;
+  createdAt: string;
 }
 
 export interface InventoryBatch {

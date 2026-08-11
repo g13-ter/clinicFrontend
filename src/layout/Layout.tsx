@@ -219,6 +219,19 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const closeSidebar = () => setSidebarOpen(false);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [sidebarOpen]);
+
   const navigation = (
     <nav aria-label="Main navigation" className="space-y-1 p-4">
       <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -293,6 +306,12 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 print:bg-white">
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[70] -translate-y-20 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white focus:translate-y-0"
+      >
+        Skip to main content
+      </a>
       <header className="border-b border-gray-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-3 py-3 sm:px-6">
           {hasSidebar && (
@@ -300,6 +319,8 @@ function Layout({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open navigation"
+              aria-controls="mobile-navigation"
+              aria-expanded={sidebarOpen}
               className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 lg:hidden"
             >
               <MenuIcon />
@@ -368,7 +389,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             onClick={closeSidebar}
             className="absolute inset-0 bg-slate-950/40"
           />
-          <aside className="relative h-full w-[min(85vw,300px)] overflow-y-auto border-r border-gray-200 bg-white shadow-xl">
+          <aside id="mobile-navigation" className="relative h-full w-[min(85vw,300px)] overflow-y-auto border-r border-gray-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <p className="font-semibold text-gray-900">School Clinic</p>
@@ -395,7 +416,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           </aside>
         )}
 
-        <main className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
           {emergencyVisits.length > 0 && (
             <div
               role="alert"

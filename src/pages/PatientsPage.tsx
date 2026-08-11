@@ -29,9 +29,6 @@ const emptyForm = {
   chronicConditions: "",
   currentMedications: "",
   medicalAlertNotes: "",
-  consentTreatment: false,
-  consentMedicine: false,
-  consentPrivacy: false,
 };
 
 function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
@@ -149,9 +146,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
       chronicConditions: p.medicalAlerts?.chronicConditions?.join(", ") ?? "",
       currentMedications: p.medicalAlerts?.currentMedications?.join(", ") ?? "",
       medicalAlertNotes: p.medicalAlerts?.notes ?? "",
-      consentTreatment: p.consents?.treatment ?? false,
-      consentMedicine: p.consents?.medicineAdministration ?? false,
-      consentPrivacy: p.consents?.dataPrivacy ?? false,
     });
     setFormError("");
     setShowModal(true);
@@ -170,9 +164,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     delete body.chronicConditions;
     delete body.currentMedications;
     delete body.medicalAlertNotes;
-    delete body.consentTreatment;
-    delete body.consentMedicine;
-    delete body.consentPrivacy;
     let clinicalProfilePayload: Record<string, unknown> | null = null;
     if (role === "nurse") {
       const commaList = (value: string) =>
@@ -184,13 +175,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
         currentMedications: commaList(form.currentMedications),
         chronicConditions: commaList(form.chronicConditions),
         notes: form.medicalAlertNotes || undefined,
-      };
-      body.consents = {
-        treatment: form.consentTreatment,
-        medicineAdministration: form.consentMedicine,
-        dataPrivacy: form.consentPrivacy,
-        guardianName: form.guardianName || undefined,
-        updatedAt: new Date().toISOString(),
       };
     }
     if (!form.email) delete body.email;
@@ -582,14 +566,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                   <Field label="Medical Alert Notes" className="sm:col-span-2">
                     <textarea value={form.medicalAlertNotes} onChange={(e) => setForm({ ...form, medicalAlertNotes: e.target.value })} className="input" rows={2} />
                   </Field>
-                  <div className="rounded-lg border p-3 sm:col-span-2">
-                    <p className="mb-2 text-xs font-semibold uppercase text-gray-500">Guardian Consent</p>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <ConsentCheck label="Treatment" checked={form.consentTreatment} onChange={(checked) => setForm({ ...form, consentTreatment: checked })} />
-                      <ConsentCheck label="Medicine administration" checked={form.consentMedicine} onChange={(checked) => setForm({ ...form, consentMedicine: checked })} />
-                      <ConsentCheck label="Data privacy" checked={form.consentPrivacy} onChange={(checked) => setForm({ ...form, consentPrivacy: checked })} />
-                    </div>
-                  </div>
                 </>
               )}
 
@@ -630,23 +606,6 @@ function Field({
       <label className="block text-xs text-gray-500 mb-1">{label}</label>
       {children}
     </div>
-  );
-}
-
-function ConsentCheck({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-gray-700">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      {label}
-    </label>
   );
 }
 

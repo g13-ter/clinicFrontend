@@ -28,14 +28,14 @@ function DoctorWorkspaceTabs({
   onOpenNotifications?: () => void;
 }) {
   return (
-    <nav aria-label="Doctor workspace" className="overflow-x-auto">
-      <div className="flex min-w-max rounded-xl border border-slate-200 bg-white px-2">
+    <nav aria-label="Doctor workspace" className="overflow-x-auto overscroll-x-contain">
+      <div className="flex min-w-max snap-x rounded-xl border border-slate-200 bg-white px-2">
         {tabs.map((tab) => (
           <Link
             key={tab.id}
             to={tab.to}
             aria-current={active === tab.id ? "page" : undefined}
-            className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+            className={`flex min-h-11 snap-start items-center border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
               active === tab.id
                 ? "border-blue-600 bg-blue-50/70 text-blue-700"
                 : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
@@ -48,7 +48,7 @@ function DoctorWorkspaceTabs({
           to="/dashboard?tab=notifications"
           onClick={onOpenNotifications}
           aria-current={active === "notifications" ? "page" : undefined}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+          className={`flex min-h-11 snap-start items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
             active === "notifications"
               ? "border-blue-600 bg-blue-50/70 text-blue-700"
               : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"

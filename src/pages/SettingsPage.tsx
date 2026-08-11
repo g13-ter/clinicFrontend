@@ -27,6 +27,7 @@ function SettingsPage() {
     kind: string;
     recipient: string;
     status: string;
+    deliveryStatus?: string;
     attempts: number;
     sentAt?: string;
     lastError?: string;
@@ -201,7 +202,7 @@ function SettingsPage() {
                       <tr key={delivery._id}>
                         <td className="py-2">{delivery.kind.replaceAll("_", " ")}</td>
                         <td>{delivery.recipient}</td>
-                        <td>{delivery.status}</td>
+                        <td>{delivery.deliveryStatus || delivery.status}</td>
                         <td>{delivery.attempts}</td>
                         <td className="max-w-xs truncate">{delivery.lastError || (delivery.sentAt ? new Date(delivery.sentAt).toLocaleString() : "Queued")}</td>
                       </tr>

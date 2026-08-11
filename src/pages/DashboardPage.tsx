@@ -9,7 +9,7 @@ import {
   StaffIcon,
   VisitsIcon,
 } from "../components/icons";
-import type { Appointment, ClinicVisit, DashboardStats, Patient } from "../utils/types";
+import type { Appointment, ClinicVisit, DashboardStats, InAppNotification, Patient } from "../utils/types";
 import {
   buildDashboardAlerts,
   dashboardAlertKey,
@@ -28,6 +28,7 @@ import UsersPage from "./UsersPage";
 import PatientsPage from "./PatientsPage";
 import type { DoctorWorkspaceTab } from "../components/DoctorWorkspaceTabs";
 import SuperAdminDashboardPage from "./SuperAdminDashboardPage";
+import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
 
 const CHART_COLORS = ["#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#8b5cf6"];
 
@@ -35,15 +36,17 @@ function DashboardPage() {
   const { role, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const { stats, todayAppointments, error } = useDashboardData(role, user?.id);
+  const doctorNotifications = useInAppNotifications(role === "doctor");
   const alertStorageKey = `clinic-seen-alerts:${role ?? "unknown"}`;
   const [seenAlertKeys, setSeenAlertKeys] = useState<string[]>(() =>
     readSeenAlertKeys(alertStorageKey),
   );
 
   const alerts = stats ? buildDashboardAlerts(role, stats) : [];
-  const unreadCount = alerts.filter(
+  const derivedUnreadCount = alerts.filter(
     (alert) => !seenAlertKeys.includes(dashboardAlertKey(alert)),
   ).length;
+  const unreadCount = role === "doctor" ? doctorNotifications.unreadCount : derivedUnreadCount;
   const requestedView = searchParams.get("view");
   const workspaceView =
     requestedView === "students" ||
@@ -70,12 +73,6 @@ function DashboardPage() {
     localStorage.setItem(alertStorageKey, JSON.stringify(currentKeys));
     setSeenAlertKeys(currentKeys);
     setSearchParams({ view: "notifications" }, { replace: true });
-  };
-
-  const openDoctorNotifications = () => {
-    const currentKeys = alerts.map(dashboardAlertKey);
-    localStorage.setItem(alertStorageKey, JSON.stringify(currentKeys));
-    setSeenAlertKeys(currentKeys);
   };
 
   if (role === "superadmin") return <SuperAdminDashboardPage />;
@@ -166,7 +163,6 @@ function DashboardPage() {
             <DoctorWorkspaceTabs
               active={doctorTab}
               unreadCount={unreadCount}
-              onOpenNotifications={openDoctorNotifications}
             />
           )}
 
@@ -198,7 +194,15 @@ function DashboardPage() {
           )
         ) : isDoctor ? (
           doctorTab === "notifications" ? (
-            <NotificationsPanel alerts={alerts} />
+            <InAppNotificationsPanel
+              notifications={doctorNotifications.items}
+              unreadCount={doctorNotifications.unreadCount}
+              error={doctorNotifications.error}
+              loading={doctorNotifications.loading}
+              onRead={doctorNotifications.markRead}
+              onMarkAllRead={doctorNotifications.markAllRead}
+              onRetry={doctorNotifications.refresh}
+            />
           ) : doctorTab === "appointments" ? (
             <>
               <TodayAppointments appointments={todayAppointments} />
@@ -328,6 +332,93 @@ function NotificationsPanel({ alerts }: { alerts: DashboardAlert[] }) {
               />
               <span className="text-sm text-gray-700">{alert.message}</span>
               <span className="ml-auto text-xs font-medium text-blue-600">View</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InAppNotificationsPanel({
+  notifications,
+  unreadCount,
+  error,
+  loading,
+  onRead,
+  onMarkAllRead,
+  onRetry,
+}: {
+  notifications: InAppNotification[];
+  unreadCount: number;
+  error: string;
+  loading: boolean;
+  onRead: (id: string) => Promise<void>;
+  onMarkAllRead: () => Promise<void>;
+  onRetry: () => Promise<void>;
+}) {
+  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const visibleNotifications = filter === "unread"
+    ? notifications.filter((notification) => !notification.readAt)
+    : notifications;
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900">Notifications</h3>
+          <p className="mt-1 text-xs text-gray-500">Appointments and clinic cases assigned to you</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-gray-200 p-1" aria-label="Filter notifications">
+            {(["all", "unread"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setFilter(option)}
+                aria-pressed={filter === option}
+                className={`min-h-9 rounded-md px-3 text-xs font-medium capitalize ${filter === option ? "bg-slate-900 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {option}{option === "unread" && unreadCount > 0 ? ` (${unreadCount})` : ""}
+              </button>
+            ))}
+          </div>
+          {unreadCount > 0 && (
+            <button type="button" onClick={() => void onMarkAllRead()} className="min-h-11 text-xs font-medium text-blue-600 hover:underline">
+              Mark all read
+            </button>
+          )}
+        </div>
+      </div>
+      {loading ? (
+        <div role="status" aria-label="Loading notifications" className="space-y-3 px-5 py-5">
+          {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-lg bg-gray-100" />)}
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-between gap-3 px-5 py-4 text-sm text-red-600">
+          <span>{error}</span>
+          <button type="button" onClick={() => void onRetry()} className="min-h-11 font-medium underline">Retry</button>
+        </div>
+      ) : visibleNotifications.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-gray-500">
+          {filter === "unread" ? "No unread notifications." : "You’re all caught up."}
+        </p>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {visibleNotifications.map((notification) => (
+            <Link
+              key={notification._id}
+              to={notification.link}
+              onClick={() => void onRead(notification._id)}
+              className={`flex items-start gap-3 px-5 py-4 hover:bg-gray-50 ${notification.readAt ? "opacity-70" : "bg-blue-50/30"}`}
+            >
+              <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${notification.kind === "emergency" || notification.kind === "appointment_cancelled" ? "bg-red-500" : "bg-blue-500"}`} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-gray-900">{notification.title}</span>
+                <span className="mt-0.5 block text-sm text-gray-600">{notification.message}</span>
+                <span className="mt-1 block text-xs text-gray-400">{new Date(notification.createdAt).toLocaleString()}</span>
+              </span>
+              <span className="text-xs font-medium text-blue-600">View</span>
             </Link>
           ))}
         </div>

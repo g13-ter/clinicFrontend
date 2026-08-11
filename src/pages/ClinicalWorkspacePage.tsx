@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
@@ -26,6 +26,7 @@ import {
 } from "../features/clinical/clinicalWorkspaceModel";
 import type { ReactNode } from "react";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
+import { EmptyState, Panel, StatusBadge } from "../components/ui";
 
 type Tab = "appointments" | "records" | "consultation" | "followups";
 
@@ -35,6 +36,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "consultation", label: "New Consultation" },
   { id: "followups", label: "Follow-Ups" },
 ];
+
+const CONSULTATION_DRAFT_PREFIX = "clinic-consultation-draft";
 
 function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <>{children}</> : <Layout>{children}</Layout>;
@@ -63,6 +66,58 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [generatingCertificate, setGeneratingCertificate] = useState(false);
   const [formError, setFormError] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
+  const draftHydrated = useRef(false);
+  const draftKey = `${CONSULTATION_DRAFT_PREFIX}:${user?.id ?? "anonymous"}`;
+
+  useEffect(() => {
+    if (!user?.id || draftHydrated.current) return;
+    const hasLinkedRecord = Boolean(
+      searchParams.get("visitId") ||
+      searchParams.get("patientId") ||
+      searchParams.get("appointmentId"),
+    );
+    draftHydrated.current = true;
+    if (hasLinkedRecord) return;
+
+    try {
+      const stored = sessionStorage.getItem(draftKey);
+      if (!stored) return;
+      const draft = JSON.parse(stored) as { form?: ConsultationForm };
+      if (draft.form?.patientId) {
+        setForm(draft.form);
+        setDraftStatus("Draft restored");
+      }
+    } catch {
+      sessionStorage.removeItem(draftKey);
+    }
+  }, [draftKey, searchParams, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !draftHydrated.current) return;
+    const hasContent = Boolean(form.patientId || form.complaint || form.diagnosis || form.assessment || form.treatment);
+    if (!hasContent) {
+      sessionStorage.removeItem(draftKey);
+      setDraftStatus("");
+      return;
+    }
+
+    setDraftStatus("Saving draft…");
+    const timeout = window.setTimeout(() => {
+      sessionStorage.setItem(draftKey, JSON.stringify({ form, savedAt: new Date().toISOString() }));
+      setDraftStatus("Draft saved");
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [draftKey, form, user?.id]);
+
+  useEffect(() => {
+    const warnAboutDraft = (event: BeforeUnloadEvent) => {
+      if (!draftStatus || saving) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warnAboutDraft);
+    return () => window.removeEventListener("beforeunload", warnAboutDraft);
+  }, [draftStatus, saving]);
 
   const fetchWorkspace = async () => {
     setLoadError("");
@@ -294,6 +349,8 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
             ? "Consultation saved and certificate generated"
             : "Consultation saved successfully",
       );
+      sessionStorage.removeItem(draftKey);
+      setDraftStatus("");
       setForm(createEmptyConsultation());
       await fetchWorkspace();
       changeTab(form.followUpDate ? "followups" : "appointments");
@@ -368,6 +425,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                   saving={saving}
                   generatingCertificate={generatingCertificate}
                   error={formError}
+                  draftStatus={draftStatus}
                   onChange={updateForm}
                   onSubmit={handleConsultation}
                   onProfileSaved={handleProfileSaved}
@@ -401,8 +459,43 @@ function AppointmentsTab({
       {appointments.length === 0 ? (
         <EmptyState text="No appointments scheduled for today." />
       ) : (
-        <div className="overflow-x-auto">
+        <>
+          <div className="space-y-3 md:hidden">
+            {appointments.map((appointment) => {
+              const student = patientDetails(appointment.patientId);
+              const linkedVisit = appointment.visitId && typeof appointment.visitId === "object" ? appointment.visitId : null;
+              const awaitingNurse = isDoctor && (!appointment.visitId || (linkedVisit && !linkedVisit.readyForDoctor));
+              return (
+                <article key={appointment._id} className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-950">{student ? `${student.firstName} ${student.lastName}` : "Unknown student"}</p>
+                      <p className="mt-1 font-mono text-xs text-gray-500">{student?.studentId ?? "—"}</p>
+                    </div>
+                    <StatusBadge status={appointment.status} />
+                  </div>
+                  <dl className="mt-4 grid grid-cols-[5rem_1fr] gap-x-3 gap-y-2 text-sm">
+                    <dt className="text-gray-500">Time</dt>
+                    <dd>{new Date(appointment.appointmentDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</dd>
+                    <dt className="text-gray-500">Reason</dt>
+                    <dd>{appointment.reason}</dd>
+                  </dl>
+                  {appointment.status !== "completed" && (
+                    awaitingNurse ? (
+                      <p className="mt-4 text-xs font-medium text-amber-700">{!appointment.visitId ? "Awaiting nurse check-in" : "Awaiting nurse triage"}</p>
+                    ) : (
+                      <button onClick={() => onStart(appointment)} className="mt-4 min-h-11 w-full rounded-lg border px-3 text-sm font-medium hover:bg-gray-50">
+                        Start Consultation
+                      </button>
+                    )
+                  )}
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[760px] text-sm">
+            <caption className="sr-only">Today&apos;s clinic appointments</caption>
             <thead className="border-b text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-3 py-3">Time</th>
@@ -450,7 +543,8 @@ function AppointmentsTab({
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </Panel>
   );
@@ -513,6 +607,7 @@ function ConsultationForm({
   saving,
   generatingCertificate,
   error,
+  draftStatus,
   onChange,
   onSubmit,
   onProfileSaved,
@@ -524,6 +619,7 @@ function ConsultationForm({
   saving: boolean;
   generatingCertificate: boolean;
   error: string;
+  draftStatus: string;
   onChange: (field: keyof typeof form, value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
   onProfileSaved: (patient: Patient) => void;
@@ -538,6 +634,22 @@ function ConsultationForm({
       subtitle={isDoctor ? "Document diagnosis, treatment, and prescriptions" : "Document nursing assessment and interventions"}
     >
       {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="mb-4 flex min-h-6 justify-end" aria-live="polite">
+        {draftStatus && <span className="text-xs font-medium text-emerald-700">{draftStatus}</span>}
+      </div>
+      {selectedPatient && (
+        <div className="sticky top-0 z-10 mb-4 flex flex-col gap-3 rounded-xl border border-blue-200 bg-white/95 p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-gray-950">{selectedPatient.firstName} {selectedPatient.lastName}</p>
+            <p className="mt-0.5 text-xs text-gray-600">
+              {selectedPatient.studentId} · {selectedPatient.course} · Year {selectedPatient.yearLevel}
+            </p>
+          </div>
+          <Link to={`/patients/${selectedPatient._id}`} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            View full record
+          </Link>
+        </div>
+      )}
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Select Student" className="md:col-span-1 xl:col-span-2">
           <select required value={form.patientId} onChange={(event) => onChange("patientId", event.target.value)} className="input">
@@ -735,24 +847,6 @@ function FollowUpsTab({
   );
 }
 
-function Panel({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-      <h3 className="font-semibold text-gray-900">{title}</h3>
-      <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
-      <div className="mt-6">{children}</div>
-    </section>
-  );
-}
-
 function Field({
   label,
   className = "",
@@ -768,23 +862,6 @@ function Field({
       {children}
     </label>
   );
-}
-
-function StatusBadge({ status }: { status: Appointment["status"] }) {
-  const tones: Record<Appointment["status"], string> = {
-    unassigned: "bg-orange-50 text-orange-700",
-    pending: "bg-amber-50 text-amber-700",
-    needs_reassignment: "bg-red-50 text-red-700",
-    confirmed: "bg-blue-50 text-blue-700",
-    checked_in: "bg-purple-50 text-purple-700",
-    cancelled: "bg-red-50 text-red-700",
-    completed: "bg-emerald-50 text-emerald-700",
-  };
-  return <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium capitalize ${tones[status]}`}>{status.replaceAll("_", " ")}</span>;
-}
-
-function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-lg bg-gray-50 py-10 text-center text-sm text-gray-500">{text}</div>;
 }
 
 export default ClinicalWorkspacePage;

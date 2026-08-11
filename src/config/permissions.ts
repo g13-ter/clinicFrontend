@@ -17,7 +17,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/reports": ["doctor", "nurse"],
   "/audit-log": ["admin", "superadmin"],
   "/settings": ["admin", "superadmin"],
-  "/profile": ["superadmin", "admin", "doctor", "nurse", "staff"],
+  "/profile": ["superadmin", "admin"],
 };
 
 export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] }[] = [
