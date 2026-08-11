@@ -48,7 +48,7 @@ function App() {
               title="Privacy Policy"
               description="The school clinic collects and uses student health information only to provide care, manage clinic operations, meet safety obligations, and maintain required records."
               details={[
-                "Records may include identity and contact details, consent evidence, visit notes, vital signs, medical history, prescriptions, referrals, and inventory transactions linked to care.",
+                "Records may include identity and contact details, visit notes, vital signs, medical history, prescriptions, referrals, and inventory transactions linked to care.",
                 "Access is limited by staff role and care assignment. Administrative users do not receive clinical content through audit logs.",
                 "Information is retained under the school's approved records schedule and disclosed only when authorized, legally required, or necessary to protect life and health.",
                 "Students or guardians may request access, correction, or privacy assistance through the school clinic or the school's Data Protection Officer using official school contact channels.",

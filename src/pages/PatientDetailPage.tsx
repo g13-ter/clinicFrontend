@@ -147,17 +147,6 @@ function PatientDetailPage() {
           </section>
         )}
 
-        {patient.consents && (
-          <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="font-semibold text-gray-900">Consent Status</h3>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <ConsentBadge label="Treatment" granted={patient.consents.treatment} />
-              <ConsentBadge label="Medicine" granted={patient.consents.medicineAdministration} />
-              <ConsentBadge label="Data Privacy" granted={patient.consents.dataPrivacy} />
-            </div>
-          </section>
-        )}
-
         <PatientVisits patientId={id!} />
         <PatientMedicalHistory patientId={id!} />
       </div>
@@ -181,16 +170,6 @@ function Field({ label, value, className = "" }: { label: string; value: string;
       <p className="text-xs text-gray-400">{label}</p>
       <p className="break-words font-medium text-gray-800">{value}</p>
     </div>
-  );
-}
-
-function ConsentBadge({ label, granted }: { label: string; granted: boolean }) {
-  return (
-    <span className={`rounded-full px-3 py-1 font-medium ${
-      granted ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-    }`}>
-      {label}: {granted ? "Granted" : "Not granted"}
-    </span>
   );
 }
 
