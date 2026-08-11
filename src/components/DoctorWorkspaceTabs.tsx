@@ -6,7 +6,8 @@ export type DoctorWorkspaceTab =
   | "records"
   | "consultation"
   | "followups"
-  | "reports";
+  | "reports"
+  | "notifications";
 
 const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
   { id: "appointments", label: "Appointments", to: "/dashboard" },
@@ -17,7 +18,15 @@ const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
   { id: "reports", label: "Reports", to: "/reports" },
 ];
 
-function DoctorWorkspaceTabs({ active }: { active: DoctorWorkspaceTab }) {
+function DoctorWorkspaceTabs({
+  active,
+  unreadCount = 0,
+  onOpenNotifications,
+}: {
+  active: DoctorWorkspaceTab;
+  unreadCount?: number;
+  onOpenNotifications?: () => void;
+}) {
   return (
     <nav aria-label="Doctor workspace" className="overflow-x-auto">
       <div className="flex min-w-max rounded-xl border border-slate-200 bg-white px-2">
@@ -35,6 +44,23 @@ function DoctorWorkspaceTabs({ active }: { active: DoctorWorkspaceTab }) {
             {tab.label}
           </Link>
         ))}
+        <Link
+          to="/dashboard?tab=notifications"
+          onClick={onOpenNotifications}
+          aria-current={active === "notifications" ? "page" : undefined}
+          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+            active === "notifications"
+              ? "border-blue-600 bg-blue-50/70 text-blue-700"
+              : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+          }`}
+        >
+          Notifications
+          {unreadCount > 0 && (
+            <span className="flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </Link>
       </div>
     </nav>
   );
