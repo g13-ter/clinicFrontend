@@ -57,7 +57,8 @@ function DashboardPage() {
     requestedDoctorTab === "visits" ||
     requestedDoctorTab === "records" ||
     requestedDoctorTab === "consultation" ||
-    requestedDoctorTab === "followups"
+    requestedDoctorTab === "followups" ||
+    requestedDoctorTab === "notifications"
       ? requestedDoctorTab
       : "appointments";
   const adminSection: AdminSection = searchParams.get("section") === "purchase-requests"
@@ -69,6 +70,12 @@ function DashboardPage() {
     localStorage.setItem(alertStorageKey, JSON.stringify(currentKeys));
     setSeenAlertKeys(currentKeys);
     setSearchParams({ view: "notifications" }, { replace: true });
+  };
+
+  const openDoctorNotifications = () => {
+    const currentKeys = alerts.map(dashboardAlertKey);
+    localStorage.setItem(alertStorageKey, JSON.stringify(currentKeys));
+    setSeenAlertKeys(currentKeys);
   };
 
   if (role === "superadmin") return <SuperAdminDashboardPage />;
@@ -155,7 +162,13 @@ function DashboardPage() {
 
           {isAdmin && <AdminSectionTabs active={adminSection} />}
 
-          {isDoctor && <DoctorWorkspaceTabs active={doctorTab} />}
+          {isDoctor && (
+            <DoctorWorkspaceTabs
+              active={doctorTab}
+              unreadCount={unreadCount}
+              onOpenNotifications={openDoctorNotifications}
+            />
+          )}
 
           {!isAdmin && !isDoctor && (
             <RoleWorkspaceTabs
@@ -184,7 +197,9 @@ function DashboardPage() {
             </section>
           )
         ) : isDoctor ? (
-          doctorTab === "appointments" ? (
+          doctorTab === "notifications" ? (
+            <NotificationsPanel alerts={alerts} />
+          ) : doctorTab === "appointments" ? (
             <>
               <TodayAppointments appointments={todayAppointments} />
               <RecentCases cases={stats.recentCases} title="Recent Consultations" />
