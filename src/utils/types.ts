@@ -99,6 +99,7 @@ export interface Medicine {
   _id: string;
   name: string;
   category?: string;
+  inventorySection?: string;
   quantity: number;
   unit: string;
   expiryDate?: string;
@@ -129,6 +130,8 @@ export interface PrescribedItem {
   quantity: number;
   unit: string;
   instructions?: string;
+  route?: string;
+  scheduledTime?: string;
 }
 
 export interface MedicalHistory {
@@ -137,6 +140,16 @@ export interface MedicalHistory {
   diagnosis: string;
   prescription: string;
   prescribedItems?: PrescribedItem[];
+  medicationStatus?: "pending" | "accepted" | "dispensing" | "dispensed" | "not_given" | "cancelled";
+  medicationClaimedBy?: { _id: string; name: string; role: string } | string;
+  medicationClaimedAt?: string;
+  medicationDispensedBy?: { _id: string; name: string; role: string } | string;
+  medicationDispensedAt?: string;
+  medicationAdministrationNotes?: string;
+  medicationNotGivenReason?: string;
+  medicationNotGivenNotes?: string;
+  medicationAdverseReaction?: string;
+  medicationAdverseReactionAt?: string;
   familyHistory: string;
   allergies: string;
   dateRecorded: string;
@@ -151,6 +164,7 @@ export interface PurchaseRequest {
   itemName: string;
   unit?: string;
   category?: string;
+  inventorySection?: string;
   quantityRequested: number;
   reason: string;
   status: PurchaseRequestStatus;
@@ -237,13 +251,45 @@ export interface SystemSettings {
   stockAlertsEnabled: boolean;
 }
 
+export interface InventoryLabel {
+  _id: string;
+  name: string;
+  description?: string;
+  color: string;
+  sortOrder: number;
+  isActive: boolean;
+  isSystem: boolean;
+  itemCount: number;
+}
+
+export interface MedicationInventoryReportRow {
+  name: string;
+  inventorySection: string;
+  dateReceived?: string | null;
+  totalPrescribed: number;
+  remainingStock: number;
+  unit: string;
+  expirationDate?: string | null;
+  remarks: string;
+}
+
+export interface InventoryLabelActivity {
+  _id: string;
+  action: string;
+  resource: string;
+  resourceId: string;
+  actorSnapshot?: { name?: string; role?: string };
+  changes?: { before?: Record<string, unknown>; after?: Record<string, unknown> };
+  createdAt: string;
+}
+
 export interface InAppNotification {
   _id: string;
-  kind: "appointment_assigned" | "appointment_reassigned" | "appointment_rescheduled" | "appointment_cancelled" | "visit_ready" | "emergency";
+  kind: "appointment_assigned" | "appointment_reassigned" | "appointment_rescheduled" | "appointment_cancelled" | "visit_ready" | "emergency" | "medication_order";
   title: string;
   message: string;
   link: string;
-  resourceType: "Appointment" | "ClinicVisit";
+  resourceType: "Appointment" | "ClinicVisit" | "MedicalHistory";
   resourceId: string;
   readAt?: string;
   createdAt: string;

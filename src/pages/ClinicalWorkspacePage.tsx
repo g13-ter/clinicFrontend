@@ -225,7 +225,9 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
           showToast("A nurse must record triage and mark the student ready first", "warning");
           return;
         }
-        await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
+        if (isDoctor) {
+          await api.put(`/visits/${visitId}/status`, { status: "in_consultation" });
+        }
       } catch (error: unknown) {
         showToast(error instanceof Error ? error.message : "Failed to start consultation", "error");
         return;
@@ -342,12 +344,13 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
         }
       }
 
+      const recordLabel = isDoctor ? "Consultation" : "Nursing assessment";
       showToast(
         relatedWarnings.length > 0
-          ? `Consultation saved, but ${relatedWarnings.join(" and ")}.`
+          ? `${recordLabel} saved, but ${relatedWarnings.join(" and ")}.`
           : shouldGenerateCertificate
             ? "Consultation saved and certificate generated"
-            : "Consultation saved successfully",
+            : `${recordLabel} saved successfully`,
       );
       sessionStorage.removeItem(draftKey);
       setDraftStatus("");
@@ -355,7 +358,11 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       await fetchWorkspace();
       changeTab(form.followUpDate ? "followups" : "appointments");
     } catch (error: unknown) {
-      setFormError(error instanceof Error ? error.message : "Failed to save consultation");
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : `Failed to save ${isDoctor ? "consultation" : "nursing assessment"}`,
+      );
     } finally {
       setSaving(false);
       setGeneratingCertificate(false);
@@ -485,7 +492,7 @@ function AppointmentsTab({
                       <p className="mt-4 text-xs font-medium text-amber-700">{!appointment.visitId ? "Awaiting nurse check-in" : "Awaiting nurse triage"}</p>
                     ) : (
                       <button onClick={() => onStart(appointment)} className="mt-4 min-h-11 w-full rounded-lg border px-3 text-sm font-medium hover:bg-gray-50">
-                        Start Consultation
+                        {isDoctor ? "Start Consultation" : "Start Assessment"}
                       </button>
                     )
                   )}
@@ -534,7 +541,7 @@ function AppointmentsTab({
                         </span>
                       ) : appointment.status !== "completed" ? (
                         <button onClick={() => onStart(appointment)} className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50">
-                          Start Consultation
+                          {isDoctor ? "Start Consultation" : "Start Assessment"}
                         </button>
                       ) : null}
                     </td>
@@ -630,7 +637,7 @@ function ConsultationForm({
   const currentMedications = selectedPatient?.medicalAlerts?.currentMedications ?? [];
   return (
     <Panel
-      title="Record New Consultation"
+      title={isDoctor ? "Record New Consultation" : "Record New Nursing Assessment"}
       subtitle={isDoctor ? "Document diagnosis, treatment, and prescriptions" : "Document nursing assessment and interventions"}
     >
       {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -749,6 +756,19 @@ function ConsultationForm({
             <Field label="Medication Instructions" className="md:col-span-2">
               <input value={form.instructions} onChange={(event) => onChange("instructions", event.target.value)} className="input" placeholder="e.g. Take one tablet every 8 hours" />
             </Field>
+            <Field label="Administration Route">
+              <select value={form.medicationRoute} onChange={(event) => onChange("medicationRoute", event.target.value)} className="input" disabled={!form.medicineId}>
+                <option value="oral">Oral</option>
+                <option value="topical">Topical</option>
+                <option value="inhalation">Inhalation / Nebulization</option>
+                <option value="ophthalmic">Eye</option>
+                <option value="otic">Ear</option>
+                <option value="other">Other</option>
+              </select>
+            </Field>
+            <Field label="Time / Frequency">
+              <input required={Boolean(form.medicineId)} value={form.medicationSchedule} onChange={(event) => onChange("medicationSchedule", event.target.value)} className="input" disabled={!form.medicineId} placeholder="e.g. Give now or every 8 hours" />
+            </Field>
             <Field label="Laboratory Request">
               <input value={form.labRequest} onChange={(event) => onChange("labRequest", event.target.value)} className="input" placeholder="Optional" />
             </Field>
@@ -798,7 +818,9 @@ function ConsultationForm({
                 : "bg-slate-950 text-white hover:bg-slate-800"
             }`}
           >
-            {saving && !generatingCertificate ? "Saving Consultation..." : "Save Consultation"}
+            {saving && !generatingCertificate
+              ? `Saving ${isDoctor ? "Consultation" : "Assessment"}...`
+              : `Save ${isDoctor ? "Consultation" : "Assessment"}`}
           </button>
         </div>
       </form>

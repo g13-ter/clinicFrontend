@@ -7,6 +7,8 @@ interface NotificationResponse {
   unreadCount: number;
 }
 
+const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
+
 export function useInAppNotifications(enabled: boolean) {
   const [items, setItems] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -37,8 +39,15 @@ export function useInAppNotifications(enabled: boolean) {
     }
     setLoading(true);
     void refresh();
-    const interval = window.setInterval(refresh, 30_000);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(refresh, NOTIFICATION_POLL_INTERVAL_MS);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [enabled, refresh]);
 
   const markRead = async (id: string) => {

@@ -20,6 +20,8 @@ export interface ConsultationForm {
   medicineId: string;
   quantity: string;
   instructions: string;
+  medicationRoute: string;
+  medicationSchedule: string;
   followUpDate: string;
   followUpReason: string;
   closureOutcome: string;
@@ -47,6 +49,8 @@ export function createEmptyConsultation(
     medicineId: "",
     quantity: "",
     instructions: "",
+    medicationRoute: "oral",
+    medicationSchedule: "",
     followUpDate: "",
     followUpReason: "",
     closureOutcome: "returned_to_class",
@@ -86,6 +90,8 @@ export function buildMedicalHistoryPayload(form: ConsultationForm, visitId: stri
           medicineId: form.medicineId,
           quantity: Number(form.quantity),
           ...(form.instructions ? { instructions: form.instructions } : {}),
+          route: form.medicationRoute,
+          scheduledTime: form.medicationSchedule,
         }]
       : undefined;
 

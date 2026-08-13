@@ -110,7 +110,7 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
                 <th className="py-1 pr-2">Date</th>
                 <th className="py-1 pr-2">Diagnosis</th>
                 <th className="py-1 pr-2">Prescription</th>
-                <th className="py-1 pr-2">Dispensed</th>
+                <th className="py-1 pr-2">Medication / Status</th>
                 <th className="py-1 pr-2">Allergies</th>
                 <th className="py-1 pr-2">Family History</th>
               </tr>
@@ -123,7 +123,7 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
                   <td className="py-1 pr-2">{h.prescription || "—"}</td>
                   <td className="py-1 pr-2">
                     {h.prescribedItems && h.prescribedItems.length > 0
-                      ? h.prescribedItems.map((item) => `${item.medicineName} × ${item.quantity} ${item.unit}`).join(", ")
+                      ? `${h.prescribedItems.map((item) => `${item.medicineName} × ${item.quantity} ${item.unit}`).join(", ")} (${h.medicationStatus || "pending"})`
                       : "—"}
                   </td>
                   <td className="py-1 pr-2">{h.allergies || "—"}</td>

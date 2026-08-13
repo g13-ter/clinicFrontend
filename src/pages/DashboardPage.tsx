@@ -28,6 +28,7 @@ import UsersPage from "./UsersPage";
 import PatientsPage from "./PatientsPage";
 import type { DoctorWorkspaceTab } from "../components/DoctorWorkspaceTabs";
 import SuperAdminDashboardPage from "./SuperAdminDashboardPage";
+import MedicationOrdersPage from "./MedicationOrdersPage";
 import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
 
 const CHART_COLORS = ["#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#8b5cf6"];
@@ -52,6 +53,7 @@ function DashboardPage() {
     requestedView === "students" ||
     requestedView === "appointments" ||
     requestedView === "inventory" ||
+    requestedView === "medications" ||
     requestedView === "notifications"
       ? requestedView
       : "visits";
@@ -185,6 +187,8 @@ function DashboardPage() {
             </section>
           ) : workspaceView === "inventory" ? (
             <MedicinesPage embedded />
+          ) : workspaceView === "medications" ? (
+            <MedicationOrdersPage embedded />
           ) : workspaceView === "appointments" ? (
             <AppointmentsPage embedded />
           ) : (
@@ -248,7 +252,7 @@ function RoleWorkspaceTabs({
 }: {
   role: string | null;
   unreadCount: number;
-  activeView: "students" | "visits" | "appointments" | "inventory" | "notifications";
+  activeView: "students" | "visits" | "appointments" | "inventory" | "medications" | "notifications";
   onOpenNotifications: () => void;
 }) {
   const tabs = [
@@ -256,6 +260,7 @@ function RoleWorkspaceTabs({
     { label: "Student Visits", to: "/dashboard?view=visits", view: "visits", roles: ["nurse", "staff"] },
     { label: "Appointments", to: "/dashboard?view=appointments", view: "appointments", roles: ["nurse", "staff"] },
     { label: "Inventory", to: "/dashboard?view=inventory", view: "inventory", roles: ["nurse"] },
+    { label: "Medication Requests", to: "/dashboard?view=medications", view: "medications", roles: ["nurse"] },
   ].filter((tab) => role && tab.roles.includes(role));
 
   return (

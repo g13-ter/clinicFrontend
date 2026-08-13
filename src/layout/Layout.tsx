@@ -9,6 +9,8 @@ import type { ClinicVisit, User } from "../utils/types";
 import { clearCurrentSession } from "../utils/auth";
 import { BrandLogo } from "../components/BrandLogo";
 import { TermsAgreementModal } from "../components/TermsAgreementModal";
+import Modal from "../components/Modal";
+import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
 import {
   AuditIcon,
   CalendarIcon,
@@ -63,6 +65,14 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [emergencyVisits, setEmergencyVisits] = useState<ClinicVisit[]>([]);
   const [openingEmergency, setOpeningEmergency] = useState(false);
   const [reviewingTerms, setReviewingTerms] = useState(false);
+  const [snoozedMedicationIds, setSnoozedMedicationIds] = useState<string[]>([]);
+  const nurseNotifications = useInAppNotifications(role === "nurse");
+  const pendingMedicationOrder = nurseNotifications.items.find(
+    (notification) =>
+      notification.kind === "medication_order" &&
+      !notification.readAt &&
+      !snoozedMedicationIds.includes(notification._id),
+  );
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
@@ -210,10 +220,29 @@ function Layout({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const snoozeMedicationOrder = () => {
+    if (!pendingMedicationOrder) return;
+    const notificationId = pendingMedicationOrder._id;
+    setSnoozedMedicationIds((current) => [...new Set([...current, notificationId])]);
+    window.setTimeout(() => {
+      setSnoozedMedicationIds((current) => current.filter((id) => id !== notificationId));
+    }, 5 * 60_000);
+  };
+
+  const openMedicationOrder = () => {
+    if (!pendingMedicationOrder) return;
+    snoozeMedicationOrder();
+    navigate("/dashboard?view=medications");
+  };
+
   const clinicalTabs = [
     { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
     { id: "records", label: "Student Records", icon: PatientsIcon },
-    { id: "consultation", label: "New Consultation", icon: VisitsIcon },
+    {
+      id: "consultation",
+      label: role === "nurse" ? "New Nursing Assessment" : "New Consultation",
+      icon: VisitsIcon,
+    },
     { id: "followups", label: "Follow-Ups", icon: CalendarIcon },
   ] as const;
 
@@ -496,6 +525,39 @@ function Layout({ children }: { children: React.ReactNode }) {
           onAccept={() => setReviewingTerms(false)}
           onDecline={() => setReviewingTerms(false)}
         />
+      )}
+      {pendingMedicationOrder && (
+        <Modal
+          title={pendingMedicationOrder.title}
+          onClose={snoozeMedicationOrder}
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm font-medium leading-6 text-blue-950">
+                {pendingMedicationOrder.message}
+              </p>
+            </div>
+            <p className="text-xs leading-5 text-gray-500">
+              Open the medication queue to review the student record and safety alerts, accept the request, and complete the required administration checklist.
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+              <button
+                type="button"
+                onClick={snoozeMedicationOrder}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Remind Me Later
+              </button>
+              <button
+                type="button"
+                onClick={openMedicationOrder}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Open Medication Queue
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

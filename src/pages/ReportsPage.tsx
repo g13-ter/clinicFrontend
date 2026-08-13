@@ -8,6 +8,9 @@ import {
 import { api } from "../services/api";
 import { reportFilename, saveBlobDownload } from "../utils/download";
 import type { ReactNode } from "react";
+import { useEffect } from "react";
+import type { InventoryLabel, MedicationInventoryReportRow } from "../utils/types";
+import Modal from "../components/Modal";
 
 type CsvReportType =
   | "inventory-current"
@@ -45,7 +48,28 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const [activeDownload, setActiveDownload] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [labels, setLabels] = useState<InventoryLabel[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [includeEmptyLabels, setIncludeEmptyLabels] = useState(true);
+  const [preview, setPreview] = useState<MedicationInventoryReportRow[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const rangeInvalid = new Date(startDate) > new Date(endDate);
+
+  useEffect(() => {
+    api.get<InventoryLabel[]>("/inventory-labels")
+      .then((response) => {
+        setLabels(response.data);
+        setSelectedLabels(response.data.map((label) => label.name));
+      })
+      .catch(() => {});
+  }, []);
+
+  const monthlyReportParams = () => {
+    const params = new URLSearchParams({ startDate, endDate, includeEmpty: String(includeEmptyLabels) });
+    if (selectedLabels.length === 0 && labels.length > 0) params.set("labels", "__none__");
+    else if (selectedLabels.length !== labels.length) params.set("labels", selectedLabels.join(","));
+    return params;
+  };
 
   const download = async (path: string, fallbackName: string, action: string) => {
     setActiveDownload(action);
@@ -108,6 +132,27 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
       "Annual_Medication_Report.xls",
       "annual-medication",
     );
+  };
+
+  const downloadMonthlyMedicationInventory = () => {
+    if (rangeInvalid) return;
+    const params = monthlyReportParams();
+    void download(
+      `/reports/monthly-medication-inventory?${params}`,
+      `Monthly_Medication_Inventory_${startDate}_to_${endDate}.xls`,
+      "monthly-medication-inventory",
+    );
+  };
+
+  const previewMonthlyMedicationInventory = async () => {
+    if (rangeInvalid) return;
+    setPreviewLoading(true);
+    try {
+      const response = await api.get<MedicationInventoryReportRow[]>(`/reports/monthly-medication-inventory/preview?${monthlyReportParams()}`);
+      setPreview(response.data);
+    } catch (requestError: unknown) {
+      setError(requestError instanceof Error ? requestError.message : "Report preview failed");
+    } finally { setPreviewLoading(false); }
   };
 
   const downloadCsv = (type: CsvReportType, label: string) => {
@@ -204,8 +249,11 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
           <ReportCard
             icon={<MedicineIcon />}
             title="Medication Reports"
-            description="Review medication consumption and student-level dispensing records."
+            description="Review medication consumption, student-level dispensing records, and a print-ready monthly inventory form."
           >
+            {labels.length > 0 && <div className="mb-2 rounded-lg border bg-slate-50 p-3 text-left"><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase text-gray-600">Labels included</span><button type="button" onClick={() => setSelectedLabels(selectedLabels.length === labels.length ? [] : labels.map((label) => label.name))} className="text-xs text-blue-700">{selectedLabels.length === labels.length ? "Clear all" : "Select all"}</button></div><div className="mt-2 flex max-h-28 flex-wrap gap-2 overflow-y-auto">{labels.map((label) => <label key={label._id} className="flex items-center gap-1.5 rounded-full border bg-white px-2 py-1 text-xs"><input type="checkbox" checked={selectedLabels.includes(label.name)} onChange={(event) => setSelectedLabels((current) => event.target.checked ? [...current, label.name] : current.filter((name) => name !== label.name))} /><span className="h-2 w-2 rounded-full" style={{ backgroundColor: label.color }} />{label.name}</label>)}</div><label className="mt-3 flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={includeEmptyLabels} onChange={(event) => setIncludeEmptyLabels(event.target.checked)} />Include empty label sections</label></div>}
+            <ActionButton label="Preview Monthly Inventory Form" loading={previewLoading} onClick={() => void previewMonthlyMedicationInventory()} />
+            <ActionButton label="Monthly Inventory Form (Excel / Print)" loading={activeDownload === "monthly-medication-inventory"} onClick={downloadMonthlyMedicationInventory} />
             <ActionButton label="Medication Report (Selected Period)" loading={activeDownload === "medication-inventory"} onClick={() => downloadCsv("medication-inventory", "Medication_Report")} />
             <ActionButton label="Consumption Summary (Selected Period)" loading={activeDownload === "medication-consumption"} onClick={() => downloadCsv("medication-consumption", "Medication_Consumption")} />
             <ActionButton label="Usage Details (Selected Period)" loading={activeDownload === "medication-usage-details"} onClick={() => downloadCsv("medication-usage-details", "Medication_Usage_Details")} />
@@ -227,6 +275,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
           </ReportCard>
 
         </section>
+        {preview && <Modal title="Monthly Inventory Report Preview" onClose={() => setPreview(null)}><div className="max-h-[65vh] overflow-auto"><table className="w-full min-w-[650px] border-collapse text-xs"><thead><tr>{["Label", "Medication", "Received", "Prescribed", "Remaining", "Expiration", "Remarks"].map((heading) => <th key={heading} className="border bg-gray-100 p-2 text-left">{heading}</th>)}</tr></thead><tbody>{preview.map((row) => <tr key={`${row.inventorySection}-${row.name}`}><td className="border p-2 font-medium">{row.inventorySection}</td><td className="border p-2">{row.name}</td><td className="border p-2">{row.dateReceived ? new Date(row.dateReceived).toLocaleDateString() : "—"}</td><td className="border p-2">{row.totalPrescribed}</td><td className="border p-2">{row.remainingStock} {row.unit}</td><td className="border p-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : "—"}</td><td className="border p-2">{row.remarks}</td></tr>)}</tbody></table>{preview.length === 0 && <p className="p-6 text-center text-gray-500">No items match the selected labels and period.</p>}</div></Modal>}
       </div>
     </PageFrame>
   );

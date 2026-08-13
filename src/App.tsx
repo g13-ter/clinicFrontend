@@ -21,6 +21,7 @@ const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
+const InventoryLabelsPage = lazy(() => import("./pages/InventoryLabelsPage"));
 
 function PageLoader() {
   return (
@@ -141,6 +142,14 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/medicines"]}>
               <MedicinesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory-labels"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/inventory-labels"]}>
+              <InventoryLabelsPage />
             </ProtectedRoute>
           }
         />
