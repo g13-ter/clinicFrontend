@@ -8,6 +8,7 @@ import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Medicine, PurchaseRequest, PurchaseRequestStatus } from "../utils/types";
+import InventorySectionSelector from "../features/inventory/InventorySectionSelector";
 
 const emptyForm = {
   requestType: "restock" as "restock" | "new_item",
@@ -15,6 +16,7 @@ const emptyForm = {
   itemName: "",
   unit: "",
   category: "",
+  inventorySection: "",
   quantityRequested: "",
   reason: "",
 };
@@ -146,6 +148,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
               itemName: form.itemName,
               unit: form.unit,
               category: form.category || undefined,
+              inventorySection: form.inventorySection || undefined,
             }),
         quantityRequested: Number(form.quantityRequested),
         reason: form.reason,
@@ -254,7 +257,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Purchase Requests</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Request approval to restock an existing item or purchase a medicine not yet in inventory.
+            Request approval to restock an existing item or purchase a new clinic item.
           </p>
         </div>
         {canSubmit && (
@@ -262,7 +265,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
             onClick={() => openCreate("new_item")}
             className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
           >
-            + Request Medicine
+            + Request Item
           </button>
         )}
       </div>
@@ -323,7 +326,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
                     <td className="px-4 py-3 font-medium">{r.itemName}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                        {r.requestType === "new_item" ? "New medicine" : "Restock"}
+                        {r.requestType === "new_item" ? "New item" : "Restock"}
                       </span>
                     </td>
                     <td className="px-4 py-3">{r.quantityRequested} {r.unit ?? ""}</td>
@@ -422,7 +425,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
                   onClick={() => f("requestType", "new_item")}
                   className={`rounded-md px-3 py-2 text-sm font-medium ${form.requestType === "new_item" ? "bg-white shadow-sm" : "text-gray-600"}`}
                 >
-                  New Medicine
+                  New Item
                 </button>
               </div>
             </div>
@@ -447,12 +450,12 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs text-gray-500">Medicine Name *</label>
+                  <label className="mb-1 block text-xs text-gray-500">Item Name *</label>
                   <input
                     value={form.itemName}
                     onChange={(e) => f("itemName", e.target.value)}
                     required
-                    placeholder="e.g. Cetirizine"
+                    placeholder="e.g. Cetirizine, oxygen inhalation, or glucose strips"
                     className={`input w-full ${createFieldErrors.itemName ? "input-error" : ""}`}
                   />
                   <FieldError message={createFieldErrors.itemName} />
@@ -475,6 +478,14 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
                     onChange={(e) => f("category", e.target.value)}
                     placeholder="e.g. Antihistamine"
                     className="input w-full"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs text-gray-500">Inventory Section / Label</label>
+                  <InventorySectionSelector
+                    value={form.inventorySection}
+                    onChange={(value) => f("inventorySection", value)}
+                    existingLabels={medicines.map((medicine) => medicine.inventorySection)}
                   />
                 </div>
               </div>

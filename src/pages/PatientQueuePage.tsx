@@ -12,6 +12,7 @@ import type { ClinicVisit, Patient } from "../utils/types";
 import { reportFilename, saveBlobDownload } from "../utils/download";
 import type { ReactNode } from "react";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
+import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 
 // Clinic-wide queue of open visits sorted by arrival time.
 const POLL_INTERVAL_MS = 15000;
@@ -41,8 +42,8 @@ const emptyVitalsForm = {
 const VITALS_FORM_FIELDS = Object.keys(emptyVitalsForm);
 
 function patientLabel(p: ClinicVisit["patientId"]): string {
-  if (p && typeof p === "object") return `${p.firstName} ${p.lastName} (${p.studentId})`;
-  return "Unknown Student";
+  if (p && typeof p === "object") return `${p.firstName} ${p.lastName} (${patientIdentifier(p)}) · ${patientTypeLabel(p)}`;
+  return "Unknown Patient";
 }
 
 function patientLink(p: ClinicVisit["patientId"]): string | null {
@@ -89,6 +90,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
   const [visitSearch, setVisitSearch] = useState("");
+  const [patientTypeFilter, setPatientTypeFilter] = useState<"all" | "student" | "teacher" | "staff">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -137,14 +139,16 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     if (showSpinner) setLoading(true);
     setError("");
     try {
-      const res = await api.get<ClinicVisit[]>("/visits/queue");
+      const params = new URLSearchParams();
+      if (patientTypeFilter !== "all") params.set("patientType", patientTypeFilter);
+      const res = await api.get<ClinicVisit[]>(`/visits/queue?${params}`);
       setQueue(res.data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load student queue");
+      setError(err instanceof Error ? err.message : "Failed to load patient visits");
     } finally {
       if (showSpinner) setLoading(false);
     }
-  }, []);
+  }, [patientTypeFilter]);
 
   useEffect(() => {
     fetchQueue(true);
@@ -159,7 +163,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     api.getAll<Patient>(path)
       .then((res) => setPatients(res.data))
       .catch((requestError: unknown) => {
-        setError(requestError instanceof Error ? requestError.message : "Failed to load students");
+        setError(requestError instanceof Error ? requestError.message : "Failed to load patients");
       });
   }, [canCheckIn, role]);
 
@@ -370,7 +374,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const openConsultation = async (visit: ClinicVisit) => {
     if (!visit.patientId || typeof visit.patientId !== "object") return;
     try {
-      if (visit.status !== "in_consultation") {
+      if (role === "doctor" && visit.status !== "in_consultation") {
         await api.put(`/visits/${visit._id}/status`, { status: "in_consultation" });
       }
       const params = new URLSearchParams({
@@ -401,7 +405,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
         return [
           patient?.firstName,
           patient?.lastName,
-          patient?.studentId,
+          patient ? patientIdentifier(patient) : undefined,
+          patient ? patientTypeLabel(patient) : undefined,
           visit.complaint,
           visit.treatment,
           visit.status?.replaceAll("_", " "),
@@ -435,12 +440,17 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
             Ready for Doctor
           </button>
         )}
-        {v.readyForDoctor && v.status !== "in_consultation" && (
+        {role === "nurse" && v.status !== "in_consultation" && v.status !== "paused" && (
+          <button onClick={() => openConsultation(v)} className="text-xs text-blue-600 hover:underline">
+            Start Assessment
+          </button>
+        )}
+        {role === "doctor" && v.readyForDoctor && v.status !== "in_consultation" && (
           <button onClick={() => openConsultation(v)} className="text-xs text-blue-600 hover:underline">
             Start Consultation
           </button>
         )}
-        {v.status === "in_consultation" && (
+        {role === "doctor" && v.status === "in_consultation" && (
           <>
             <button onClick={() => openConsultation(v)} className="text-xs text-blue-600 hover:underline">Open Consultation</button>
             <button onClick={() => handleStatus(v, "paused")} className="text-xs text-amber-600 hover:underline">Pause</button>
@@ -448,7 +458,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
             <button onClick={() => openStatusWorkflow(v, "referred")} className="text-xs text-red-600 hover:underline">Refer</button>
           </>
         )}
-        {v.status === "paused" && (
+        {role === "doctor" && v.status === "paused" && (
           <>
             <button onClick={() => handleStatus(v, "in_consultation")} className="text-xs text-blue-600 hover:underline">Resume</button>
             <button onClick={() => openStatusWorkflow(v, "cancelled")} className="text-xs text-red-600 hover:underline">Cancel</button>
@@ -463,10 +473,10 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
-            {embedded ? "Student Visits" : "Student Queue"}
+            {embedded ? "Patient Visits" : "Patient Queue"}
           </h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Check in, triage, and move students through the clinic.
+            Check in, triage, and move patients through the clinic.
           </p>
         </div>
         {canCheckIn && (
@@ -485,15 +495,27 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           : `${waitingCount} waiting for triage · ${readyCount} ready for doctor`}
       </p>
 
-      <div className="mb-4">
-        <label htmlFor="visit-search" className="sr-only">Search student visits</label>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+        <label className="sr-only" htmlFor="visit-patient-type">Filter visits by patient type</label>
+        <select
+          id="visit-patient-type"
+          value={patientTypeFilter}
+          onChange={(event) => setPatientTypeFilter(event.target.value as typeof patientTypeFilter)}
+          className="input sm:w-48"
+        >
+          <option value="all">All Patients</option>
+          <option value="student">Students</option>
+          <option value="teacher">Teachers</option>
+          <option value="staff">Staff</option>
+        </select>
+        <label htmlFor="visit-search" className="sr-only">Search patient visits</label>
         <input
           id="visit-search"
           type="search"
           value={visitSearch}
           onChange={(event) => setVisitSearch(event.target.value)}
-          placeholder="Search student name, ID, complaint, treatment, or status..."
-          className="input w-full"
+          placeholder="Search patient name, ID, type, complaint, treatment, or status..."
+          className="input min-w-0 flex-1"
         />
       </div>
 
@@ -514,7 +536,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           <div className="space-y-3 md:hidden">
             {filteredQueue.length === 0 ? (
               <div className="rounded-lg bg-white py-8 text-center text-sm text-gray-400 shadow">
-                {normalizedVisitSearch ? "No student visits match your search." : "Queue is empty."}
+                {normalizedVisitSearch ? "No patient visits match your search." : "Queue is empty."}
               </div>
             ) : (
               filteredQueue.map((v) => {
@@ -581,7 +603,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           <table className="w-full min-w-[900px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-medium text-slate-500">
               <tr>
-                <th className="text-left px-4 py-3">Student</th>
+                <th className="text-left px-4 py-3">Patient</th>
                 <th className="text-left px-4 py-3">Arrived</th>
                 <th className="text-left px-4 py-3">Complaint</th>
                 <th className="text-left px-4 py-3">Vitals</th>
@@ -593,7 +615,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               {filteredQueue.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-6 text-gray-400">
-                    {normalizedVisitSearch ? "No student visits match your search." : "Queue is empty."}
+                    {normalizedVisitSearch ? "No patient visits match your search." : "Queue is empty."}
                   </td>
                 </tr>
               ) : (
@@ -656,22 +678,22 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {showCheckIn && (
-        <Modal title="Check In Student" onClose={() => setShowCheckIn(false)} closeDisabled={checkingIn}>
+        <Modal title="Check In Patient" onClose={() => setShowCheckIn(false)} closeDisabled={checkingIn}>
           {checkInFormError && <p className="text-red-500 text-sm mb-3">{checkInFormError}</p>}
           <UnmatchedFieldErrors errors={unmatchedCheckInErrors(CHECKIN_FORM_FIELDS)} />
           <form onSubmit={handleCheckIn} className="flex flex-col gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Student *</label>
+              <label className="block text-xs text-gray-500 mb-1">Patient *</label>
               <select
                 value={checkInForm.patientId}
                 onChange={(e) => ci("patientId", e.target.value)}
                 required
                 className={`input w-full ${checkInFieldErrors.patientId ? "input-error" : ""}`}
               >
-                <option value="">Select a student…</option>
+                <option value="">Select a patient…</option>
                 {patients.map((p) => (
                   <option key={p._id} value={p._id}>
-                    {p.firstName} {p.lastName} ({p.studentId})
+                    {p.firstName} {p.lastName} ({patientIdentifier(p)}) · {patientTypeLabel(p)}
                   </option>
                 ))}
               </select>
@@ -954,7 +976,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
             )}
             {statusTarget.status === "completed" && (
               <label className="block text-xs font-medium text-gray-600">
-                Student disposition *
+                Patient disposition *
                 <select
                   value={statusForm.closureOutcome}
                   onChange={(event) => setStatusForm((current) => ({

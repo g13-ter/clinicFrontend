@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Patient } from "../utils/types";
+import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 
 interface Props {
   patients: Patient[];
@@ -10,14 +11,14 @@ interface Props {
 }
 
 const patientLabel = (patient: Patient) =>
-  `${patient.firstName} ${patient.lastName} (${patient.studentId})`;
+  `${patient.firstName} ${patient.lastName} (${patientIdentifier(patient)}) · ${patientTypeLabel(patient)}`;
 
 function SearchablePatientSelect({
   patients,
   value,
   onChange,
   disabled = false,
-  placeholder = "Search student name or ID...",
+  placeholder = "Search patient name or ID...",
 }: Props) {
   const inputId = useId();
   const listboxId = `${inputId}-listbox`;
@@ -33,7 +34,7 @@ function SearchablePatientSelect({
     if (!normalizedQuery) return patients.slice(0, 12);
     return patients
       .filter((patient) =>
-        `${patient.firstName} ${patient.lastName} ${patient.studentId}`
+        `${patient.firstName} ${patient.lastName} ${patientIdentifier(patient)} ${patientTypeLabel(patient)}`
           .toLowerCase()
           .includes(normalizedQuery)
       )
@@ -45,7 +46,7 @@ function SearchablePatientSelect({
   }, [selectedPatient]);
 
   useEffect(() => {
-    inputRef.current?.setCustomValidity(value ? "" : "Please choose a student from the matching results.");
+    inputRef.current?.setCustomValidity(value ? "" : "Please choose a patient from the matching results.");
   }, [value]);
 
   useEffect(() => {
@@ -96,7 +97,7 @@ function SearchablePatientSelect({
           role="combobox"
           autoComplete="off"
           aria-autocomplete="list"
-          aria-label="Search and select student"
+          aria-label="Search and select patient"
           aria-expanded={open}
           aria-controls={listboxId}
           aria-activedescendant={activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
@@ -117,7 +118,7 @@ function SearchablePatientSelect({
         {query && !disabled && (
           <button
             type="button"
-            aria-label="Clear selected student"
+            aria-label="Clear selected patient"
             onClick={() => {
               setQuery("");
               onChange("");
@@ -135,11 +136,11 @@ function SearchablePatientSelect({
         <div
           id={listboxId}
           role="listbox"
-          aria-label="Matching students"
+          aria-label="Matching patients"
           className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
         >
           {results.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-500">No students match that name or ID.</p>
+            <p className="px-4 py-3 text-sm text-slate-500">No patients match that name or ID.</p>
           ) : (
             results.map((patient, index) => (
               <button
@@ -158,7 +159,8 @@ function SearchablePatientSelect({
                 }`}
               >
                 <span className="font-medium">{patient.firstName} {patient.lastName}</span>
-                <span className="ml-2 font-mono text-xs text-slate-500">{patient.studentId}</span>
+                <span className="ml-2 font-mono text-xs text-slate-500">{patientIdentifier(patient)}</span>
+                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">{patientTypeLabel(patient)}</span>
               </button>
             ))
           )}

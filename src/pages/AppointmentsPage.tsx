@@ -11,6 +11,7 @@ import { api } from "../services/api";
 import type { Appointment, Doctor, Patient } from "../utils/types";
 import type { ReactNode } from "react";
 import SearchablePatientSelect from "../components/SearchablePatientSelect";
+import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 
 const CANCELLABLE_STATUSES = new Set(["unassigned", "pending", "confirmed", "needs_reassignment"]);
 const FORM_FIELDS = [
@@ -70,7 +71,7 @@ function patientName(patient: Patient | string | null): string {
   if (patient && typeof patient === "object") {
     return `${patient.firstName} ${patient.lastName}`;
   }
-  return patient ? String(patient) : "Unknown student";
+  return patient ? String(patient) : "Unknown patient";
 }
 
 function doctorName(doctor: Doctor | string | null | undefined): string {
@@ -448,7 +449,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
               <div className="grid gap-4 lg:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                    <span className="mr-2 text-blue-600">1.</span>Student
+                    <span className="mr-2 text-blue-600">1.</span>Patient
                   </label>
                   <SearchablePatientSelect
                     patients={patients}
@@ -549,7 +550,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                     Status after sending: {canAssignDoctor ? "Pending doctor confirmation" : "Waiting for nurse assignment"}
                   </p>
                   <p className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
-                    The student will receive scheduling and doctor-confirmation emails when a valid email address is saved in their student record.
+                    The patient will receive scheduling and doctor-confirmation emails when a valid email address is saved in their record.
                   </p>
                 </div>
               )}
@@ -582,7 +583,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search student, ID, doctor, reason, or status..."
+                placeholder="Search patient, ID, doctor, reason, or status..."
                 aria-label="Search appointments"
                 className="input min-w-0 flex-1"
               />
@@ -657,7 +658,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                   <tr>
                     <th className="px-2 py-3 font-medium">Date</th>
                     <th className="px-2 py-3 font-medium">Time</th>
-                    <th className="px-2 py-3 font-medium">Student</th>
+                    <th className="px-2 py-3 font-medium">Patient</th>
                     <th className="px-2 py-3 font-medium">Doctor</th>
                     <th className="px-2 py-3 font-medium">Reason</th>
                     <th className="px-2 py-3 font-medium">Status</th>
@@ -691,7 +692,7 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
                           </p>
                           {item.patientId && typeof item.patientId === "object" && (
                             <p className="mt-0.5 font-mono text-xs text-slate-400">
-                              {item.patientId.studentId}
+                              {patientIdentifier(item.patientId)} · {patientTypeLabel(item.patientId)}
                             </p>
                           )}
                         </td>

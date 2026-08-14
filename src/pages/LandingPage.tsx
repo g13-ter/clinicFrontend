@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "../components/BrandLogo";
+import { NAV_ITEMS } from "../config/permissions";
 import {
   AuditIcon,
   CalendarIcon,
@@ -16,14 +17,14 @@ import {
 
 const modules = [
   {
-    title: "Student Records",
+    title: "Patient Records",
     description: "Secure health profiles, medical alerts, consent, immunizations, and complete visit history.",
     icon: <PatientsIcon />,
     tone: "blue",
   },
   {
     title: "Appointments & Queue",
-    description: "Schedule clinic visits, check in walk-ins, prioritize emergencies, and manage waiting students.",
+    description: "Schedule clinic visits, check in walk-ins, prioritize emergencies, and manage waiting patients.",
     icon: <CalendarIcon />,
     tone: "cyan",
   },
@@ -57,7 +58,7 @@ const steps = [
   {
     number: "01",
     title: "Register",
-    text: "Create or find the student's secure clinic record.",
+    text: "Create or find the patient's secure clinic record.",
     icon: <PatientsIcon />,
     tone: "blue",
   },
@@ -86,6 +87,9 @@ const steps = [
 
 type ClinicRole = "admin" | "doctor" | "nurse" | "staff";
 
+const navigationFor = (role: ClinicRole): string[] =>
+  NAV_ITEMS.filter((item) => item.roles.includes(role)).map((item) => item.label);
+
 const roleWorkspaces: Record<ClinicRole, {
   label: string;
   eyebrow: string;
@@ -100,40 +104,40 @@ const roleWorkspaces: Record<ClinicRole, {
     label: "Admin",
     eyebrow: "Admin Dashboard",
     title: "User management and administrative oversight.",
-    description: "Admins manage students and clinic accounts, review medicine purchase requests, and audit important system activity.",
-    navigation: ["Dashboard", "Audit Log"],
+    description: "Admins view patient records, manage clinic accounts, review medicine purchase requests, audit activity, and maintain system settings.",
+    navigation: navigationFor("admin"),
     features: ["Management", "Purchase Requests"],
-    metrics: [["14", "Total Students", "Active student records"], ["13", "Active Users", "Available doctors, nurses, and staff"]],
+    metrics: [["14", "Total Patients", "Active patient records"], ["13", "Active Users", "Available doctors, nurses, and staff"]],
     icon: <DashboardIcon />,
   },
   doctor: {
     label: "Doctor",
     eyebrow: "Doctor Dashboard",
     title: "Consultation and physician care.",
-    description: "Doctors manage assigned appointments and the clinic queue, record consultations, update medical history, issue certificates, and generate reports.",
-    navigation: ["Dashboard", "Clinical Care", "Students", "Student Queue", "Appointments", "Reports"],
-    features: ["Appointments", "Student Visits", "Patient Records", "New Consultation", "Follow-Ups", "Reports"],
-    metrics: [["0", "Today's Appointments", "Scheduled today"], ["2", "Students Waiting", "In the clinic queue"], ["0", "Consultations Today", "Started or completed"], ["0", "Emergency Cases", "Recorded today"]],
+    description: "Doctors manage consultations and appointments, review medical history, issue certificates, and view patient-filtered analytics and reports.",
+    navigation: navigationFor("doctor"),
+    features: ["Appointments", "Patient Visits", "Patient Records", "Consultations", "Analytics", "Reports"],
+    metrics: [["0", "Today's Appointments", "Scheduled today"], ["2", "Patients Waiting", "In the clinic queue"], ["0", "Consultations Today", "Started or completed"], ["0", "Emergency Cases", "Recorded today"]],
     icon: <VisitsIcon />,
   },
   nurse: {
     label: "Nurse",
     eyebrow: "Nurse Dashboard",
     title: "Triage, queue, and inventory care.",
-    description: "Nurses edit student records, check in students, manage the queue, record vitals, maintain medicines, submit purchase requests, and view reports.",
-    navigation: ["Dashboard", "Clinical Care", "Students", "Student Queue", "Appointments", "Inventory", "Purchase Requests", "Reports"],
-    features: ["Students", "Student Visits", "Appointments", "Inventory", "Notifications"],
-    metrics: [["0", "Today's Appointments", "Scheduled today"], ["2", "Students Waiting", "In the clinic queue"], ["0", "Consultations Today", "Started or completed"], ["0", "Emergency Cases", "Recorded today"]],
+    description: "Nurses manage patient records and check-ins, record triage and vitals, view doctor consultations and medicine instructions, maintain inventory, and view analytics and reports.",
+    navigation: navigationFor("nurse"),
+    features: ["Patients", "Patient Visits", "Appointments", "Inventory", "Analytics", "Reports"],
+    metrics: [["0", "Today's Appointments", "Scheduled today"], ["2", "Patients Waiting", "In the clinic queue"], ["0", "Consultations Today", "Started or completed"], ["0", "Emergency Cases", "Recorded today"]],
     icon: <StaffIcon />,
   },
   staff: {
     label: "Staff",
     eyebrow: "Staff Dashboard",
-    title: "Student intake and appointments.",
-    description: "Staff maintain basic student records, schedule appointments, check in students, and monitor the clinic queue without accessing clinical documentation.",
-    navigation: ["Dashboard", "Students", "Student Queue", "Appointments"],
-    features: ["Students", "Student Visits", "Appointments", "Notifications"],
-    metrics: [["14", "Total Students", "Active student records"], ["0", "Visits Today", "Recorded today"], ["2", "Students Waiting", "In the clinic queue"], ["0", "Pending Appointments", "Awaiting confirmation"]],
+    title: "Patient intake and appointments.",
+    description: "Staff maintain patient information, schedule appointments, check in patients, and monitor visit progress without access to Analytics or Reports.",
+    navigation: navigationFor("staff"),
+    features: ["Patients", "Patient Visits", "Appointments", "Notifications"],
+    metrics: [["14", "Total Patients", "Active patient records"], ["0", "Visits Today", "Recorded today"], ["2", "Patients Waiting", "In the clinic queue"], ["0", "Pending Appointments", "Awaiting confirmation"]],
     icon: <CalendarIcon />,
   },
 };
@@ -228,9 +232,9 @@ function LandingPage() {
                 School Clinic
                 <span className="mt-1 block text-blue-600">Management System</span>
               </h1>
-              <p className="mt-6 text-xl font-medium text-slate-600">Better care. Healthier students.</p>
+              <p className="mt-6 text-xl font-medium text-slate-600">Better care. A healthier school community.</p>
               <p className="mt-4 max-w-lg text-base leading-7 text-slate-500">
-                Bring student records, appointments, consultations, medicine inventory, referrals, and reports together in one secure clinic workspace.
+                Bring patient records, appointments, consultations, medicine inventory, referrals, and reports together in one secure clinic workspace.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to="/login" className="inline-flex items-center justify-center gap-3 rounded-xl bg-blue-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700">
@@ -486,6 +490,8 @@ function CheckItem({ children }: { children: ReactNode }) {
 }
 
 function RoleShowcase({ activeRole, onChange }: { activeRole: ClinicRole; onChange: (role: ClinicRole) => void }) {
+  const activeWorkspace = roleWorkspaces[activeRole];
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-white via-blue-50/80 to-[#f4f8ff] py-28 text-slate-950">
       <div className="landing-curve landing-curve-role-left" />
@@ -497,7 +503,7 @@ function RoleShowcase({ activeRole, onChange }: { activeRole: ClinicRole; onChan
         <div>
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-600">Designed around your team</p>
           <h2 className="mt-4 max-w-xl text-4xl font-black leading-tight tracking-[-0.035em] sm:text-5xl">A focused workspace for every clinic role.</h2>
-          <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">Each team member sees the tools they need, while role-based access keeps sensitive student information appropriately protected.</p>
+          <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">Each team member sees the tools they need, while role-based access keeps sensitive patient information appropriately protected.</p>
 
           <div role="tablist" aria-label="Clinic roles" className="mt-9 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-xl">
             {(Object.keys(roleWorkspaces) as ClinicRole[]).map((role) => {
@@ -518,6 +524,19 @@ function RoleShowcase({ activeRole, onChange }: { activeRole: ClinicRole; onChan
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-7 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm backdrop-blur-sm">
+            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">{activeWorkspace.title}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{activeWorkspace.description}</p>
+            <p className="mt-4 text-xs font-bold text-slate-900">Pages this role can access</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {activeWorkspace.navigation.map((item) => (
+                <span key={item} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm">
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-slate-600">
@@ -552,16 +571,16 @@ function RoleDashboardPreview({ role }: { role: ClinicRole }) {
       <div className="flex h-16 items-center border-b border-slate-200 bg-white px-4 sm:px-5">
         <BrandLogo className="mr-3 h-9 w-9" />
         <div className="leading-tight"><p className="text-[11px] font-extrabold sm:text-sm">School Clinic Management</p><p className="mt-1 text-[8px] capitalize text-slate-400 sm:text-[9px]">{role} dashboard</p></div>
-        {showSearch && <div className="ml-auto hidden h-8 w-[34%] items-center rounded-md border border-slate-200 px-3 text-[8px] text-slate-400 sm:flex">Search students...<span className="ml-auto">⌕</span></div>}
+        {showSearch && <div className="ml-auto hidden h-8 w-[34%] items-center rounded-md border border-slate-200 px-3 text-[8px] text-slate-400 sm:flex">Search patients...<span className="ml-auto">⌕</span></div>}
         <div className={`${showSearch ? "ml-3" : "ml-auto"} hidden text-right xs:block sm:block`}><p className="text-[9px] font-bold sm:text-[10px]">{name}</p><p className="text-[7px] text-slate-400 sm:text-[8px]">{email}</p></div>
         <span className="ml-3 rounded-lg border border-slate-200 px-3 py-2 text-[8px] font-bold text-slate-600 sm:text-[9px]">Logout</span>
       </div>
 
-      <div className={role === "admin" ? "grid min-h-[496px] sm:grid-cols-[130px_1fr]" : "min-h-[496px]"}>
-        {role === "admin" && <aside className="hidden border-r border-slate-200 bg-white p-3 sm:block">
+      <div className="grid min-h-[496px] sm:grid-cols-[142px_1fr]">
+        <aside className="hidden border-r border-slate-200 bg-white p-3 sm:block">
           <p className="px-2 py-2 text-[8px] font-bold uppercase tracking-wider text-slate-400">Navigation</p>
           {workspace.navigation.map((item, index) => <div key={item} className={`mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-[8px] font-semibold ${index === 0 ? "bg-blue-600 text-white" : "text-slate-600"}`}><span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{previewNavigationIcon(item)}</span>{item}</div>)}
-        </aside>}
+        </aside>
         <RoleDashboardBody role={role} />
       </div>
     </article>
@@ -583,14 +602,14 @@ function RoleDashboardBody({ role }: { role: ClinicRole }) {
   return (
     <div className="min-w-0 p-3 sm:p-5">
       <h3 className="text-base font-semibold tracking-tight sm:text-xl">{workspace.eyebrow}</h3>
-      <div className={`mt-3 grid grid-cols-2 gap-2 ${role === "admin" ? "" : "lg:grid-cols-4"}`}>
+      <div className={`mt-3 grid grid-cols-2 gap-2 ${role === "admin" ? "" : "xl:grid-cols-4"}`}>
         {workspace.metrics.map(([value, label, caption], index) => <RoleMetricCard key={label} value={value} label={label} caption={caption} icon={metricIcons[index]} tone={metricTones[index]} />)}
       </div>
 
       <div className="mt-3 flex overflow-hidden rounded-lg border border-slate-200 bg-white text-[8px] font-semibold text-slate-600 sm:text-[9px]">
         {workspace.features.map((feature, index) => (
           <span key={feature} className={`relative whitespace-nowrap px-3 py-2.5 sm:px-4 ${index === activeTab ? "border-b-2 border-blue-600 bg-blue-50 text-blue-600" : ""}`}>
-            {feature}{feature === "Notifications" && role === "nurse" && <b className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[7px] text-white">2</b>}
+            {feature}
           </span>
         ))}
       </div>
@@ -608,23 +627,23 @@ function RoleMetricCard({ value, label, caption, icon, tone }: { value: string; 
 function RoleNurseContent() {
   return (
     <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between"><div><p className="text-[11px] font-bold">Student Records</p><p className="mt-1 text-[8px] text-slate-400">Find a student, review the record, or start a clinic visit.</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Register Student</span></div>
-      <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[8px] text-blue-800"><b>Clinic workflow:</b> find the student, select Check In, then record vitals from the queue.</div>
-      <div className="mt-3 flex gap-2"><div className="w-52 rounded-md border border-slate-300 px-3 py-2 text-[8px] text-slate-400">Search by name or student ID...</div><span className="rounded-md bg-slate-100 px-3 py-2 text-[8px]">Search</span></div>
-      <PreviewTable headers={["Student ID", "Name", "Course / Year", "Gender", "Actions"]} rows={[["TEST-001", "TEST Patient", "BSIT — Yr 3", "Male", "View Record  Check In"], ["1234", "Sample Student", "BSIT — Yr 2", "Male", "View Record  Check In"]]} />
+      <div className="flex items-start justify-between"><div><p className="text-[11px] font-bold">Patient Records</p><p className="mt-1 text-[8px] text-slate-400">Find a patient, review the record, or start a clinic visit.</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Register Patient</span></div>
+      <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[8px] text-blue-800"><b>Clinic workflow:</b> find the patient, select Check In, then record vitals from the queue.</div>
+      <div className="mt-3 flex gap-2"><div className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-[8px] text-slate-400">Search name, student ID, or employee ID...</div><span className="rounded-md border border-slate-300 bg-white px-3 py-2 text-[8px]">All Patients</span></div>
+      <PreviewTable headers={["ID", "Name", "Patient Type", "School Details", "Actions"]} rows={[["STU-001", "Sample Student", "Student", "BSIT — Yr 2", "View  Check In"], ["EMP-014", "Sample Teacher", "Teacher", "Science Department", "View  Check In"], ["EMP-021", "Sample Employee", "Staff", "Administration", "View  Check In"]]} />
     </div>
   );
 }
 
 function RoleDoctorContent() {
-  return <><div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-4"><p className="text-[11px] font-bold">Today's Appointments</p><p className="mt-1 text-[8px] text-slate-400">Confirm pending appointments, then start the consultation when the student is ready.</p></div><p className="py-10 text-center text-[9px] text-slate-400">No appointments scheduled for today.</p></div><div className="mt-3 rounded-lg border border-slate-200 bg-white p-4 text-[11px] font-bold shadow-sm">Recent Consultations</div></>;
+  return <><div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-4"><p className="text-[11px] font-bold">Today's Appointments</p><p className="mt-1 text-[8px] text-slate-400">Confirm pending appointments, then start the consultation when the patient is ready.</p></div><p className="py-10 text-center text-[9px] text-slate-400">No appointments scheduled for today.</p></div><div className="mt-3 rounded-lg border border-slate-200 bg-white p-4 text-[11px] font-bold shadow-sm">Recent Consultations</div></>;
 }
 
 function RoleStaffContent() {
   return (
     <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between"><div><p className="text-[11px] font-bold">Student Visits</p><p className="mt-1 text-[8px] text-slate-400">Check in students and monitor their progress through the clinic queue.</p><p className="mt-2 text-[8px] text-slate-500">2 waiting for nurse triage · 0 ready for doctor</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Register Visit</span></div>
-      <PreviewTable headers={["Student", "Arrived", "Complaint", "Vitals", "Status"]} rows={[["TEST Patient (2024)", "03:32 PM", "—", "Vitals not yet recorded", "In Consultation"], ["Sample Student (1234)", "02:02 PM", "—", "Vitals not yet recorded", "Waiting for Nurse Triage"]]} />
+      <div className="flex items-start justify-between"><div><p className="text-[11px] font-bold">Patient Visits</p><p className="mt-1 text-[8px] text-slate-400">Check in patients and monitor their progress through the clinic queue.</p><p className="mt-2 text-[8px] text-slate-500">2 waiting for nurse triage · 0 ready for doctor</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Register Visit</span></div>
+      <PreviewTable headers={["Patient", "Type", "Arrived", "Vitals", "Status"]} rows={[["Sample Teacher", "Teacher", "03:32 PM", "Not yet recorded", "In Consultation"], ["Sample Student", "Student", "02:02 PM", "Not yet recorded", "Waiting for Triage"]]} />
     </div>
   );
 }
@@ -634,7 +653,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: string[][] }
 }
 
 function RoleAdminManagement() {
-  return <div className="mt-4"><div className="flex items-end justify-between"><div><p className="text-[8px] text-slate-400">Students and clinic accounts</p><p className="mt-1 text-[13px] font-bold">Management</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Add Clinic User</span></div><div className="mt-3 grid grid-cols-3 gap-2"><PreviewManagementCard label="Students" value="14" action="Manage Students" /><PreviewManagementCard label="Doctors" value="6" action="Manage Doctors" /><PreviewManagementCard label="Nurses and Staff" value="13" action="Manage Staff" /></div></div>;
+  return <div className="mt-4"><div className="flex items-end justify-between"><div><p className="text-[8px] text-slate-400">Patients and clinic accounts</p><p className="mt-1 text-[13px] font-bold">Management</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[8px] font-semibold text-white">+ Add Clinic User</span></div><div className="mt-3 grid grid-cols-3 gap-2"><PreviewManagementCard label="Patients" value="14" action="Manage Patients" /><PreviewManagementCard label="Doctors" value="6" action="Manage Doctors" /><PreviewManagementCard label="Nurses and Staff" value="13" action="Manage Staff" /></div></div>;
 }
 
 function PreviewManagementCard({ label, value, action }: { label: string; value: string; action: string }) {
@@ -643,11 +662,12 @@ function PreviewManagementCard({ label, value, action }: { label: string; value:
 
 function previewNavigationIcon(item: string) {
   if (item === "Dashboard") return <DashboardIcon />;
-  if (item === "Audit Log") return <AuditIcon />;
-  if (item === "Students" || item === "Student Queue") return <PatientsIcon />;
+  if (item === "Audit Log" || item === "Audit Logs" || item === "System Settings") return <AuditIcon />;
+  if (item === "Patients" || item === "Patient Visits") return <PatientsIcon />;
   if (item === "Appointments") return <CalendarIcon />;
   if (item === "Inventory" || item === "Purchase Requests") return <MedicineIcon />;
-  if (item === "Reports") return <ReportsIcon />;
+  if (item === "Reports" || item === "Analytics") return <ReportsIcon />;
+  if (item === "User Management" || item === "Roles & Permissions" || item === "Profile") return <StaffIcon />;
   return <VisitsIcon />;
 }
 
@@ -670,7 +690,7 @@ function HeroStatusRail() {
     <div className="relative z-20 mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:absolute xl:right-0 xl:top-8 xl:mt-0 xl:w-[158px] xl:grid-cols-1 xl:gap-3">
       <HeroStatusCard label="Purchase Requests" value="3" note="Pending review" icon={<MedicineIcon />} tone="rose" />
       <HeroStatusCard label="Clinic Users" value="13" note="Active accounts" icon={<StaffIcon />} tone="emerald" />
-      <HeroStatusCard label="Student Records" value="14" note="Active students" icon={<PatientsIcon />} tone="blue" />
+      <HeroStatusCard label="Patient Records" value="14" note="Active patients" icon={<PatientsIcon />} tone="blue" />
       <HeroStatusCard label="Audit Logging" value="Enabled" note="Activity protected" icon={<AuditIcon />} tone="violet" />
     </div>
   );
@@ -712,7 +732,7 @@ function AdminDashboardMock() {
           <p className="text-[9px] font-extrabold sm:text-[11px]">School Clinic Management</p>
           <p className="text-[7px] text-slate-400 sm:text-[8px]">Admin Dashboard</p>
         </div>
-        <div className="ml-auto hidden h-7 w-[31%] items-center rounded border border-slate-200 px-2 text-[8px] text-slate-400 sm:flex">Search students...<span className="ml-auto">⌕</span></div>
+        <div className="ml-auto hidden h-7 w-[31%] items-center rounded border border-slate-200 px-2 text-[8px] text-slate-400 sm:flex">Search patients...<span className="ml-auto">⌕</span></div>
         <div className="ml-3 text-right"><p className="text-[9px] font-bold sm:text-[10px]">Admin User</p><p className="text-[7px] text-slate-400 sm:text-[8px]">admin@clinic.com</p></div>
         <span className="ml-2 rounded-md border border-slate-200 px-2 py-1 text-[8px]">Logout</span>
       </div>
@@ -721,21 +741,25 @@ function AdminDashboardMock() {
         <aside className="border-r border-slate-200 bg-white p-2 sm:p-3">
           <p className="px-2 py-2 text-[7px] font-semibold uppercase tracking-wider text-slate-400 sm:text-[8px]">Navigation</p>
           <div className="mt-1 flex items-center gap-2 rounded-md bg-blue-600 px-2 py-2 text-[8px] font-semibold text-white sm:text-[9px]"><DashboardIcon className="h-3.5 w-3.5" />Dashboard</div>
-          <div className="mt-1 flex items-center gap-2 px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]"><AuditIcon className="h-3.5 w-3.5" />Audit Log</div>
+          <div className="mt-1 flex items-center gap-2 px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]"><PatientsIcon className="h-3.5 w-3.5" />Patients</div>
+          <div className="mt-1 flex items-center gap-2 px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]"><MedicineIcon className="h-3.5 w-3.5" />Purchase Requests</div>
+          <div className="mt-1 flex items-center gap-2 px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]"><StaffIcon className="h-3.5 w-3.5" />User Management</div>
+          <div className="mt-1 flex items-center gap-2 px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]"><AuditIcon className="h-3.5 w-3.5" />Audit Logs</div>
+          <div className="mt-1 flex items-center gap-2 px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]"><AuditIcon className="h-3.5 w-3.5" />System Settings</div>
         </aside>
 
         <div className="min-w-0 p-3 sm:p-5">
           <h3 className="text-sm font-bold tracking-tight sm:text-base">Admin Dashboard</h3>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <AdminStat label="Total Students" value="14" caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+            <AdminStat label="Total Patients" value="14" caption="Active patient records" icon={<PatientsIcon />} tone="blue" />
             <AdminStat label="Active Users" value="13" caption="Available doctors, nurses, and staff" icon={<StaffIcon />} tone="violet" />
           </div>
           <div className="mt-3 flex rounded-lg border border-slate-200 bg-white text-[8px] font-semibold text-slate-600 sm:text-[9px]">
             <span className="border-b-2 border-blue-600 bg-blue-50 px-3 py-2 text-blue-600">Management</span><span className="px-3 py-2">Purchase Requests</span>
           </div>
-          <div className="mt-4 flex items-end justify-between"><div><p className="text-[7px] text-slate-400">Students and clinic accounts</p><p className="mt-1 text-[12px] font-bold">Management</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[7px] font-semibold text-white">+ Add Clinic User</span></div>
+          <div className="mt-4 flex items-end justify-between"><div><p className="text-[7px] text-slate-400">Patients and clinic accounts</p><p className="mt-1 text-[12px] font-bold">Management</p></div><span className="rounded-md bg-blue-600 px-3 py-2 text-[7px] font-semibold text-white">+ Add Clinic User</span></div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <PreviewManagementCard label="Students" value="14" action="Manage Students" />
+            <PreviewManagementCard label="Patients" value="14" action="Manage Patients" />
             <PreviewManagementCard label="Doctors" value="6" action="Manage Doctors" />
             <PreviewManagementCard label="Nurses and Staff" value="13" action="Manage Staff" />
           </div>

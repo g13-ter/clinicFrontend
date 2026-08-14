@@ -240,7 +240,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm text-gray-500">{isSuperAdmin ? "System accounts and administrative access" : "Students and clinic accounts"}</p>
+            <p className="text-sm text-gray-500">{isSuperAdmin ? "System accounts and administrative access" : "Patients and clinic accounts"}</p>
             <h2 className="mt-1 text-2xl font-bold text-gray-900">{isSuperAdmin ? "User Management" : "Management"}</h2>
           </div>
           {managementView !== "students" && (
@@ -265,7 +265,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           <ManagementCard label="Administrators" value={administrators.length} icon={<StaffIcon />} selected={managementView === "admin"} action={<button type="button" onClick={() => selectManagementView("admin")} className="management-card-action">Manage Administrators</button>} />
         </section> : <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ManagementCard
-            label="Students"
+            label="Patients"
             value={studentCount}
             icon={<PatientsIcon />}
             selected={managementView === "students"}
@@ -276,7 +276,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                 className="management-card-action"
                 aria-pressed={managementView === "students"}
               >
-                Manage Students
+                Manage Patients
               </button>
             }
           />

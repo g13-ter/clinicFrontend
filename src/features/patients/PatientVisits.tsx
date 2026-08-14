@@ -143,7 +143,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search complaint, treatment, notes, or status..."
-          aria-label="Search student visit history"
+          aria-label="Search patient visit history"
           className="input min-w-0 flex-1"
         />
         <button type="submit" className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">

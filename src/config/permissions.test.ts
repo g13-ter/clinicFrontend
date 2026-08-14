@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can, hasRole, patientsListPath, ROUTE_ACCESS } from "../config/permissions";
+import { can, hasRole, NAV_ITEMS, patientsListPath, ROUTE_ACCESS } from "../config/permissions";
 
 describe("permissions", () => {
   it("grants manageAppointments to staff and nurse only", () => {
@@ -26,12 +26,16 @@ describe("permissions", () => {
     expect(hasRole("doctor", ROUTE_ACCESS["/clinical-workspace"])).toBe(true);
     expect(hasRole("nurse", ROUTE_ACCESS["/clinical-workspace"])).toBe(true);
     expect(hasRole("staff", ROUTE_ACCESS["/clinical-workspace"])).toBe(false);
+    expect(ROUTE_ACCESS["/analytics"]).toEqual(["doctor", "nurse"]);
     expect(ROUTE_ACCESS["/medicines"]).toEqual(["nurse"]);
     expect(ROUTE_ACCESS["/reports"]).toEqual(["doctor", "nurse"]);
     expect(can("doctor", "searchPrescriptionMedicines")).toBe(true);
     expect(can("doctor", "viewMedicines")).toBe(false);
     expect(can("admin", "viewReports")).toBe(false);
     expect(can("staff", "viewAnalytics")).toBe(false);
+    expect(can("admin", "viewAnalytics")).toBe(false);
+    expect(can("doctor", "viewAnalytics")).toBe(true);
+    expect(can("nurse", "viewAnalytics")).toBe(true);
     expect(hasRole("superadmin", ROUTE_ACCESS["/users"])).toBe(true);
     expect(hasRole("superadmin", ROUTE_ACCESS["/roles-permissions"])).toBe(true);
     expect(hasRole("superadmin", ROUTE_ACCESS["/appointments"])).toBe(false);
@@ -46,5 +50,12 @@ describe("permissions", () => {
     expect(can("doctor", "editPatients")).toBe(false);
     expect(hasRole("staff", ROUTE_ACCESS["/patients"])).toBe(true);
     expect(hasRole("nurse", ROUTE_ACCESS["/patients"])).toBe(true);
+  });
+
+  it("exposes Analytics navigation only to doctors and nurses", () => {
+    const analytics = NAV_ITEMS.find((item) => item.to === "/analytics");
+    expect(analytics?.roles).toEqual(["doctor", "nurse"]);
+    expect(analytics?.roles.includes("admin")).toBe(false);
+    expect(analytics?.roles.includes("staff")).toBe(false);
   });
 });

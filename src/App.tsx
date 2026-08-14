@@ -16,11 +16,13 @@ const UsersPage = lazy(() => import("./pages/UsersPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
 const ClinicalWorkspacePage = lazy(() => import("./pages/ClinicalWorkspacePage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
+const InventoryLabelsPage = lazy(() => import("./pages/InventoryLabelsPage"));
 
 function PageLoader() {
   return (
@@ -141,6 +143,22 @@ function App() {
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/medicines"]}>
               <MedicinesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory-labels"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/inventory-labels"]}>
+              <InventoryLabelsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/analytics"]}>
+              <AnalyticsPage />
             </ProtectedRoute>
           }
         />

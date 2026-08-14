@@ -8,15 +8,20 @@ import { useToast } from "../hooks/useToast";
 import type { Patient } from "../utils/types";
 import AdminSectionTabs from "../components/AdminSectionTabs";
 import type { ReactNode } from "react";
+import { patientAffiliation, patientIdentifier, patientTypeLabel, patientTypeOf, type PatientType } from "../utils/patient";
 
 const emptyForm = {
+  patientType: "student" as PatientType,
   studentId: "",
+  employeeId: "",
   firstName: "",
   lastName: "",
   age: "",
   gender: "Male",
   course: "",
   yearLevel: "1",
+  department: "",
+  position: "",
   contactNumber: "",
   email: "",
   address: "",
@@ -24,6 +29,8 @@ const emptyForm = {
   bloodType: "",
   guardianName: "",
   guardianContactNumber: "",
+  emergencyContactName: "",
+  emergencyContactNumber: "",
   healthConditions: "",
   allergies: "",
   chronicConditions: "",
@@ -60,6 +67,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [patientTypeFilter, setPatientTypeFilter] = useState(searchParams.get("patientType") ?? "all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -72,14 +80,16 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const [formError, setFormError] = useState("");
   const limit = 10;
   const requestedSearch = searchParams.get("search") ?? "";
+  const requestedPatientType = searchParams.get("patientType") ?? "all";
 
-  const fetchPatients = async (p = page, q = search) => {
+  const fetchPatients = async (p = page, q = search, type = patientTypeFilter) => {
     setLoading(true);
     setError("");
     try {
       if (isBasicView) {
         const params = new URLSearchParams();
         if (q) params.set("search", q);
+        if (type !== "all") params.set("patientType", type);
         const res = await api.get<Patient[]>(`/patients/basic?${params}`);
         setPatients(res.data);
         setTotal(res.data.length);
@@ -88,11 +98,12 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
 
       const params = new URLSearchParams({ page: String(p), limit: String(limit) });
       if (q) params.set("search", q);
+      if (type !== "all") params.set("patientType", type);
       const res = await api.get<Patient[]>(`/patients?${params}`);
       setPatients(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load students");
+      setError(err instanceof Error ? err.message : "Failed to load patients");
     } finally {
       setLoading(false);
     }
@@ -100,9 +111,10 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     setSearch(requestedSearch);
-    fetchPatients(page, requestedSearch);
+    setPatientTypeFilter(requestedPatientType);
+    fetchPatients(page, requestedSearch, requestedPatientType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, requestedSearch]);
+  }, [page, requestedSearch, requestedPatientType]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +122,8 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     const next = new URLSearchParams(searchParams);
     if (search.trim()) next.set("search", search.trim());
     else next.delete("search");
+    if (patientTypeFilter === "all") next.delete("patientType");
+    else next.set("patientType", patientTypeFilter);
     if ((searchParams.get("search") ?? "") === search.trim()) {
       fetchPatients(1, search.trim());
     } else {
@@ -127,13 +141,17 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const openEdit = (p: Patient) => {
     setEditTarget(p);
     setForm({
+      patientType: patientTypeOf(p),
       studentId: p.studentId,
+      employeeId: p.employeeId ?? "",
       firstName: p.firstName,
       lastName: p.lastName,
       age: String(p.age),
       gender: p.gender,
       course: p.course,
       yearLevel: String(p.yearLevel),
+      department: p.department ?? "",
+      position: p.position ?? "",
       contactNumber: p.contactNumber,
       email: p.email ?? "",
       address: p.address,
@@ -141,6 +159,8 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
       bloodType: p.bloodType ?? "",
       guardianName: p.guardianName ?? "",
       guardianContactNumber: p.guardianContactNumber ?? "",
+      emergencyContactName: p.emergencyContactName ?? "",
+      emergencyContactNumber: p.emergencyContactNumber ?? "",
       healthConditions: p.healthConditions ?? "",
       allergies: p.medicalAlerts?.allergies?.join(", ") ?? "",
       chronicConditions: p.medicalAlerts?.chronicConditions?.join(", ") ?? "",
@@ -160,6 +180,19 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
       age: Number(form.age),
       yearLevel: Number(form.yearLevel),
     };
+    if (form.patientType === "student") {
+      delete body.employeeId;
+      delete body.department;
+      delete body.position;
+      delete body.emergencyContactName;
+      delete body.emergencyContactNumber;
+    } else {
+      delete body.studentId;
+      delete body.course;
+      delete body.yearLevel;
+      delete body.guardianName;
+      delete body.guardianContactNumber;
+    }
     delete body.allergies;
     delete body.chronicConditions;
     delete body.currentMedications;
@@ -221,10 +254,10 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-700">
-            {isBasicView ? "Search Students" : "Student Records"}
+            {isBasicView ? "Search Patients" : "Patient Records"}
           </h2>
           <p className="mt-0.5 text-sm text-gray-500">
-            Find a student, review the record, or start a clinic visit.
+            Find a student, teacher, or staff member, review the record, or start a clinic visit.
           </p>
         </div>
         {canEdit && (
@@ -233,7 +266,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
               onClick={openCreate}
               className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
             >
-              + Register Student
+              + Register Patient
             </button>
           </div>
         )}
@@ -241,15 +274,26 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
 
       {canCheckIn && (
         <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          <span className="font-medium">Clinic workflow:</span> find the student, select
+          <span className="font-medium">Clinic workflow:</span> find the patient, select
           <span className="font-medium"> Check In</span>, then record vitals from the queue.
         </div>
       )}
 
       <form onSubmit={handleSearch} className="mb-4 flex flex-col gap-2 sm:flex-row">
+        <select
+          value={patientTypeFilter}
+          onChange={(e) => { setPatientTypeFilter(e.target.value); setPage(1); }}
+          aria-label="Filter by patient type"
+          className="rounded border px-3 py-2 text-sm"
+        >
+          <option value="all">All</option>
+          <option value="student">Students</option>
+          <option value="teacher">Teachers</option>
+          <option value="staff">Staff</option>
+        </select>
         <input
           type="text"
-          placeholder="Search by name or student ID…"
+          placeholder="Search by name, ID, department, or position…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded border px-3 py-2 text-sm sm:max-w-sm"
@@ -268,7 +312,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
           <div className="space-y-3 md:hidden">
             {patients.length === 0 ? (
               <div className="rounded-lg bg-white py-8 text-center text-sm text-gray-400 shadow">
-                No students found.
+                No patients found.
               </div>
             ) : (
               patients.map((p) => (
@@ -278,10 +322,10 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                       <h3 className="truncate font-medium text-gray-900">
                         {p.firstName} {p.lastName}
                       </h3>
-                      <p className="mt-0.5 font-mono text-xs text-gray-500">{p.studentId}</p>
+                      <p className="mt-0.5 font-mono text-xs text-gray-500">{patientIdentifier(p)}</p>
                     </div>
                     <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
-                      {p.course} · Yr {p.yearLevel}
+                      {patientTypeLabel(p)}
                     </span>
                   </div>
                   {!isBasicView && (
@@ -333,9 +377,9 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
-                  <th className="text-left px-4 py-3">Student ID</th>
+                  <th className="text-left px-4 py-3">Type / ID</th>
                   <th className="text-left px-4 py-3">Name</th>
-                  <th className="text-left px-4 py-3">Course / Year</th>
+                  <th className="text-left px-4 py-3">School Information</th>
                   {!isBasicView && (
                     <>
                       <th className="text-left px-4 py-3">Gender</th>
@@ -349,15 +393,15 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                 {patients.length === 0 ? (
                   <tr>
                     <td colSpan={isBasicView ? 3 : 6} className="text-center py-6 text-gray-400">
-                      No students found.
+                      No patients found.
                     </td>
                   </tr>
                 ) : (
                   patients.map((p) => (
                     <tr key={p._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono">{p.studentId}</td>
+                      <td className="px-4 py-3"><span className="mb-1 block w-fit rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{patientTypeLabel(p)}</span><span className="font-mono">{patientIdentifier(p)}</span></td>
                       <td className="px-4 py-3">{p.firstName} {p.lastName}</td>
-                      <td className="px-4 py-3">{p.course} — Yr {p.yearLevel}</td>
+                      <td className="px-4 py-3">{patientAffiliation(p) || "—"}</td>
                       {!isBasicView && (
                         <>
                           <td className="px-4 py-3">{p.gender}</td>
@@ -429,19 +473,26 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
 
       {/* Modal */}
       {showModal && (
-        <Modal title={editTarget ? "Edit Student" : "Register Student"} onClose={() => setShowModal(false)} closeDisabled={saving}>
+        <Modal title={editTarget ? "Edit Patient" : "Register Patient"} onClose={() => setShowModal(false)} closeDisabled={saving}>
             {formError && <p className="text-red-500 text-sm mb-3">{formError}</p>}
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {!editTarget && (
                 <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800 sm:col-span-2">
-                  Enter the student&apos;s basic school, contact, and guardian information.
+                  Select the patient category, then enter the applicable school and contact information.
                   Medical details can be updated by the nurse afterward.
                 </p>
               )}
-              <Field label="Student ID">
+              <Field label="Patient Type">
+                <select value={form.patientType} onChange={(e) => setForm({ ...form, patientType: e.target.value as PatientType })} className="input">
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </Field>
+              <Field label={form.patientType === "student" ? "Student ID" : "Employee ID"}>
                 <input
-                  value={form.studentId}
-                  onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+                  value={form.patientType === "student" ? form.studentId : form.employeeId}
+                  onChange={(e) => form.patientType === "student" ? setForm({ ...form, studentId: e.target.value }) : setForm({ ...form, employeeId: e.target.value })}
                   required
                   className="input"
                 />
@@ -497,25 +548,21 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                   <option>Female</option>
                 </select>
               </Field>
-              <Field label="Course">
-                <input
-                  value={form.course}
-                  onChange={(e) => setForm({ ...form, course: e.target.value })}
-                  required
-                  className="input"
-                />
-              </Field>
-              <Field label="Year Level">
-                <input
-                  type="number"
-                  value={form.yearLevel}
-                  onChange={(e) => setForm({ ...form, yearLevel: e.target.value })}
-                  required
-                  min={1}
-                  max={10}
-                  className="input"
-                />
-              </Field>
+              {form.patientType === "student" ? <>
+                <Field label="Course">
+                  <input value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} required className="input" />
+                </Field>
+                <Field label="Year Level">
+                  <input type="number" value={form.yearLevel} onChange={(e) => setForm({ ...form, yearLevel: e.target.value })} required min={1} max={10} className="input" />
+                </Field>
+              </> : <>
+                <Field label="Department">
+                  <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} required className="input" />
+                </Field>
+                <Field label="Position">
+                  <input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} required className="input" />
+                </Field>
+              </>}
               <Field label="Contact Number">
                 <input
                   value={form.contactNumber}
@@ -540,12 +587,21 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                   className="input"
                 />
               </Field>
-              <Field label="Guardian Name">
-                <input value={form.guardianName} onChange={(e) => setForm({ ...form, guardianName: e.target.value })} className="input" />
-              </Field>
-              <Field label="Guardian Emergency Contact Number">
-                <input value={form.guardianContactNumber} onChange={(e) => setForm({ ...form, guardianContactNumber: e.target.value })} className="input" />
-              </Field>
+              {form.patientType === "student" ? <>
+                <Field label="Guardian Name">
+                  <input value={form.guardianName} onChange={(e) => setForm({ ...form, guardianName: e.target.value })} className="input" />
+                </Field>
+                <Field label="Guardian Emergency Contact Number">
+                  <input value={form.guardianContactNumber} onChange={(e) => setForm({ ...form, guardianContactNumber: e.target.value })} className="input" />
+                </Field>
+              </> : <>
+                <Field label="Emergency Contact Name">
+                  <input value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })} required className="input" />
+                </Field>
+                <Field label="Emergency Contact Number">
+                  <input value={form.emergencyContactNumber} onChange={(e) => setForm({ ...form, emergencyContactNumber: e.target.value })} required className="input" />
+                </Field>
+              </>}
               {role === "nurse" && (
                 <>
                   <Field label="Blood Type">
@@ -582,7 +638,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                   disabled={saving}
                   className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {saving ? "Saving…" : editTarget ? "Save Changes" : "Register Student"}
+                  {saving ? "Saving…" : editTarget ? "Save Changes" : "Register Patient"}
                 </button>
               </div>
             </form>

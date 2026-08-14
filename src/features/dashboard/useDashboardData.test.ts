@@ -7,6 +7,8 @@ describe("dashboard data normalization", () => {
     const result = normalizeDashboardStats({ totalPatients: 12, todaysAppointments: 3 });
 
     expect(result.totalStudents).toBe(12);
+    expect(result.analyticsPatientType).toBe("all");
+    expect(result.analyticsVisitBreakdown).toEqual({ student: 0, teacher: 0, staff: 0 });
     expect(result.pendingAppointments).toBe(3);
     expect(result.usersByRole).toEqual({ doctor: 0, nurse: 0, staff: 0, admin: 0 });
     expect(result.recentCases).toEqual([]);

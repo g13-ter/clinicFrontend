@@ -9,6 +9,8 @@ type LegacyDashboardStats = Partial<DashboardStats> & { totalPatients?: number }
 export function normalizeDashboardStats(data: LegacyDashboardStats): DashboardStats {
   return {
     totalStudents: data.totalStudents ?? data.totalPatients ?? 0,
+    totalPatients: data.totalPatients ?? data.totalStudents ?? 0,
+    patientsByType: data.patientsByType ?? { student: data.totalStudents ?? data.totalPatients ?? 0, teacher: 0, staff: 0 },
     usersByRole: {
       doctor: 0,
       nurse: 0,
@@ -30,10 +32,15 @@ export function normalizeDashboardStats(data: LegacyDashboardStats): DashboardSt
     activeUsers: data.activeUsers ?? [],
     commonComplaints: data.commonComplaints ?? [],
     monthlyVisits: data.monthlyVisits ?? [],
+    analyticsPatientType: data.analyticsPatientType ?? "all",
+    analyticsTotalVisits: data.analyticsTotalVisits ?? 0,
+    analyticsVisitBreakdown: data.analyticsVisitBreakdown ?? { student: 0, teacher: 0, staff: 0 },
     recentCases: data.recentCases ?? [],
     recentActivity: data.recentActivity ?? [],
   };
 }
+
+export type AnalyticsPatientType = DashboardStats["analyticsPatientType"];
 
 export function useDashboardData(role: UserRole | null, userId?: string) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -49,9 +56,7 @@ export function useDashboardData(role: UserRole | null, userId?: string) {
     let cancelled = false;
 
     api
-      .get<LegacyDashboardStats>(
-        role === "doctor" || role === "nurse" ? "/dashboard/analytics" : "/dashboard/stats",
-      )
+      .get<LegacyDashboardStats>("/dashboard/stats")
       .then((response) => {
         if (!cancelled) setStats(normalizeDashboardStats(response.data));
       })

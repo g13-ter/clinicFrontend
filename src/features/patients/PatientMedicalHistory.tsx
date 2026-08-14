@@ -20,9 +20,17 @@ interface PrescribedItemRow {
   medicineId: string;
   quantity: string;
   instructions: string;
+  route: string;
+  scheduledTime: string;
 }
 
-const emptyRow = (): PrescribedItemRow => ({ medicineId: "", quantity: "", instructions: "" });
+const emptyRow = (): PrescribedItemRow => ({
+  medicineId: "",
+  quantity: "",
+  instructions: "",
+  route: "Oral",
+  scheduledTime: "",
+});
 
 function PatientMedicalHistory({ patientId }: { patientId: string }) {
   const { can } = useAuth();
@@ -84,7 +92,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
       diagnosis: h.diagnosis ?? "",
       prescription: h.prescription ?? "",
     });
-    // Prescribed items are immutable after stock is deducted.
+    // Prescribed items are immutable after the medication order is created.
     setPrescribedRows([]);
     resetFormErrors();
     setOpen(true);
@@ -106,11 +114,11 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
   };
 
   const hasInvalidRows = prescribedRows.some(
-    (r) => (r.medicineId && !r.quantity) || rowExceedsStock(r)
+    (r) => (r.medicineId && (!r.quantity || !r.route || !r.scheduledTime)) || rowExceedsStock(r)
   );
 
   // Map indexed backend errors to their prescription rows.
-  const rowFieldError = (i: number, key: "medicineId" | "quantity" | "instructions") =>
+  const rowFieldError = (i: number, key: keyof PrescribedItemRow) =>
     fieldErrors[`prescribedItems.${i}.${key}`];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +134,8 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
           medicineId: r.medicineId,
           quantity: Number(r.quantity),
           ...(r.instructions ? { instructions: r.instructions } : {}),
+          route: r.route,
+          scheduledTime: r.scheduledTime,
         }));
       if (items.length > 0) body.prescribedItems = items;
     }
@@ -185,7 +195,15 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                 </div>
                 <dl className="mt-4 space-y-3 text-sm">
                   <div><dt className="font-medium text-gray-500">Prescription</dt><dd className="mt-1 text-gray-800">{entry.prescription || "—"}</dd></div>
-                  <div><dt className="font-medium text-gray-500">Dispensed</dt><dd className="mt-1 text-gray-800">{entry.prescribedItems?.length ? entry.prescribedItems.map((item) => `${item.medicineName} × ${item.quantity} ${item.unit}`).join(", ") : "—"}</dd></div>
+                  <div>
+                    <dt className="font-medium text-gray-500">Medication Request</dt>
+                    <dd className="mt-1 text-gray-800">
+                      {entry.prescribedItems?.length ? entry.prescribedItems.map((item) => `${item.medicineName} × ${item.quantity} ${item.unit} (${item.route || "route not specified"}; ${item.scheduledTime || "time not specified"})`).join(", ") : "—"}
+                      {entry.medicationStatus && <span className="ml-2 text-xs font-semibold uppercase text-blue-700">{entry.medicationStatus}</span>}
+                      {entry.medicationNotGivenNotes && <p className="mt-1 text-xs text-red-700">Not given: {entry.medicationNotGivenNotes}</p>}
+                      {entry.medicationAdverseReaction && <p className="mt-1 text-xs font-medium text-red-700">Adverse reaction: {entry.medicationAdverseReaction}</p>}
+                    </dd>
+                  </div>
                   <div><dt className="font-medium text-gray-500">Allergies</dt><dd className="mt-1 text-gray-800">{entry.allergies || "—"}</dd></div>
                   <div><dt className="font-medium text-gray-500">Family history</dt><dd className="mt-1 text-gray-800">{entry.familyHistory || "—"}</dd></div>
                 </dl>
@@ -200,7 +218,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                 <th className="text-left px-4 py-3">Date</th>
                 <th className="text-left px-4 py-3">Diagnosis</th>
                 <th className="text-left px-4 py-3">Prescription</th>
-                <th className="text-left px-4 py-3">Dispensed from Inventory</th>
+                <th className="text-left px-4 py-3">Medication Request</th>
                 <th className="text-left px-4 py-3">Allergies</th>
                 <th className="text-left px-4 py-3">Family History</th>
                 {canEdit && <th className="px-4 py-3" />}
@@ -224,12 +242,24 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                               {item.instructions ? (
                                 <span className="text-gray-400"> — {item.instructions}</span>
                               ) : null}
+                              <span className="block text-xs text-gray-500">{item.route || "Route not specified"} · {item.scheduledTime || "Time not specified"}</span>
                             </li>
                           ))}
                         </ul>
                       ) : (
                         "—"
                       )}
+                      {h.medicationStatus && (
+                        <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${
+                          h.medicationStatus === "dispensed"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {h.medicationStatus}
+                        </span>
+                      )}
+                      {h.medicationNotGivenNotes && <p className="mt-1 text-xs text-red-700">Not given: {h.medicationNotGivenNotes}</p>}
+                      {h.medicationAdverseReaction && <p className="mt-1 text-xs font-medium text-red-700">Adverse reaction: {h.medicationAdverseReaction}</p>}
                     </td>
                     <td className="px-4 py-3">{h.allergies || "—"}</td>
                     <td className="px-4 py-3">{h.familyHistory || "—"}</td>
@@ -278,7 +308,7 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-xs text-gray-500">
-                    Prescribe from Inventory (deducts stock immediately)
+                    Prescribe from Inventory (nurse confirms before stock is deducted)
                   </label>
                   <button
                     type="button"
@@ -300,6 +330,8 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                     const medicineIdError = rowFieldError(i, "medicineId");
                     const quantityError = rowFieldError(i, "quantity");
                     const instructionsError = rowFieldError(i, "instructions");
+                    const routeError = rowFieldError(i, "route");
+                    const scheduledTimeError = rowFieldError(i, "scheduledTime");
                     return (
                       <div key={i} className="border rounded p-2 flex flex-col gap-2">
                         <div className="flex flex-col gap-2 sm:flex-row">
@@ -356,6 +388,38 @@ function PatientMedicalHistory({ patientId }: { patientId: string }) {
                           className={`input text-sm ${instructionsError ? "input-error" : ""}`}
                         />
                         <FieldError message={instructionsError} />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <select
+                              value={row.route}
+                              onChange={(e) => {
+                                updateRow(i, { route: e.target.value });
+                                clearField(`prescribedItems.${i}.route`);
+                              }}
+                              className={`input text-sm ${routeError ? "input-error" : ""}`}
+                            >
+                              <option value="Oral">Oral</option>
+                              <option value="Nebulization">Nebulization</option>
+                              <option value="Topical">Topical</option>
+                              <option value="Ophthalmic">Eye / ophthalmic</option>
+                              <option value="Inhalation">Inhalation</option>
+                              <option value="Other">Other</option>
+                            </select>
+                            <FieldError message={routeError} />
+                          </div>
+                          <div>
+                            <input
+                              value={row.scheduledTime}
+                              onChange={(e) => {
+                                updateRow(i, { scheduledTime: e.target.value });
+                                clearField(`prescribedItems.${i}.scheduledTime`);
+                              }}
+                              placeholder="Time/frequency (e.g. now or 1:00 PM)"
+                              className={`input text-sm ${scheduledTimeError ? "input-error" : ""}`}
+                            />
+                            <FieldError message={scheduledTimeError} />
+                          </div>
+                        </div>
                         {exceeds && (
                           <p className="text-red-500 text-xs">
                             Only {med?.quantity} {med?.unit} available - reduce quantity.
