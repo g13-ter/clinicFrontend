@@ -365,7 +365,6 @@ function Layout({ children }: { children: React.ReactNode }) {
               <span className="block text-sm font-bold text-gray-900 sm:text-base">
                 School Clinic Management
               </span>
-              <span className="block text-xs text-gray-500">{role === "superadmin" ? "Super Admin dashboard" : `${role} dashboard`}</span>
             </span>
           </button>
 
