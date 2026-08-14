@@ -8,6 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 import type { Patient, ClinicVisit, MedicalHistory } from "../utils/types";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
+import { patientIdentifier, patientTypeLabel, patientTypeOf } from "../utils/patient";
 
 function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,7 +78,7 @@ function PatientDetailPage() {
       <div className="print:hidden">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <button onClick={() => navigate(safeReturnTo)} className="text-sm text-blue-600 hover:underline inline-block">
-            ← Back to Student Records
+            ← Back to Patient Records
           </button>
           <div className="flex flex-wrap gap-2">
             {canCheckIn && (
@@ -85,7 +86,7 @@ function PatientDetailPage() {
                 onClick={() => navigate(`/patient-queue?patientId=${encodeURIComponent(patient._id)}`)}
                 className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
               >
-                Check In Student
+              Check In Patient
               </button>
             )}
             <button
@@ -106,17 +107,23 @@ function PatientDetailPage() {
         <div className="mb-6 rounded bg-white p-4 shadow sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             {patient.firstName} {patient.lastName}
+            <span className="ml-2 rounded-full bg-blue-50 px-2 py-1 align-middle text-xs font-semibold text-blue-700">{patientTypeLabel(patient)}</span>
           </h2>
           <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 md:grid-cols-3">
-            <Field label="Student ID" value={patient.studentId} />
+            <Field label={patientTypeOf(patient) === "student" ? "Student ID" : "Employee ID"} value={patientIdentifier(patient)} />
             <Field label="Age" value={String(patient.age)} />
             <Field label="Date of Birth" value={patient.dateOfBirth ? new Date(patient.dateOfBirth).toLocaleDateString() : "Not recorded"} />
             <Field label="Gender" value={patient.gender} />
             <Field label="Blood Type" value={patient.bloodType || "Not recorded"} />
-            <Field label="Course" value={patient.course} />
-            <Field label="Year Level" value={String(patient.yearLevel)} />
+            {patientTypeOf(patient) === "student" ? <>
+              <Field label="Course" value={patient.course} />
+              <Field label="Year Level" value={String(patient.yearLevel)} />
+            </> : <>
+              <Field label="Department" value={patient.department || "Not recorded"} />
+              <Field label="Position" value={patient.position || "Not recorded"} />
+            </>}
             <Field label="Contact" value={patient.contactNumber} />
-            <Field label="Guardian Emergency Contact" value={patient.guardianName ? `${patient.guardianName}${patient.guardianContactNumber ? ` (${patient.guardianContactNumber})` : ""}` : "Not recorded"} />
+            <Field label="Emergency Contact" value={patientTypeOf(patient) === "student" ? (patient.guardianName ? `${patient.guardianName}${patient.guardianContactNumber ? ` (${patient.guardianContactNumber})` : ""}` : "Not recorded") : (patient.emergencyContactName ? `${patient.emergencyContactName}${patient.emergencyContactNumber ? ` (${patient.emergencyContactNumber})` : ""}` : "Not recorded")} />
             <Field label="Health Conditions" value={patient.healthConditions || "None recorded"} />
             <Field label="Address" value={patient.address} className="sm:col-span-2 md:col-span-3" />
           </div>

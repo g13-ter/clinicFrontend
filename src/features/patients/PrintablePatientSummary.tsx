@@ -1,4 +1,5 @@
 import type { Patient, ClinicVisit, MedicalHistory } from "../../utils/types";
+import { patientIdentifier, patientTypeLabel, patientTypeOf } from "../../utils/patient";
 
 interface Props {
   patient: Patient;
@@ -17,7 +18,7 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
       <div className="flex justify-between items-start border-b-2 border-black pb-3 mb-4">
         <div>
           <h1 className="text-xl font-bold">School Clinic System</h1>
-          <p className="text-sm">Student Clinic Summary</p>
+          <p className="text-sm">{patientTypeLabel(patient)} Clinic Summary</p>
         </div>
         <p className="text-xs text-right">Printed {generatedAt}</p>
       </div>
@@ -26,11 +27,16 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
         {patient.firstName} {patient.lastName}
       </h2>
       <div className="grid grid-cols-3 gap-3 text-sm mb-6">
-        <SummaryField label="Student ID" value={patient.studentId} />
+        <SummaryField label={patientTypeOf(patient) === "student" ? "Student ID" : "Employee ID"} value={patientIdentifier(patient)} />
         <SummaryField label="Age" value={String(patient.age)} />
         <SummaryField label="Gender" value={patient.gender} />
-        <SummaryField label="Course" value={patient.course} />
-        <SummaryField label="Year Level" value={String(patient.yearLevel)} />
+        {patientTypeOf(patient) === "student" ? <>
+          <SummaryField label="Course" value={patient.course} />
+          <SummaryField label="Year Level" value={String(patient.yearLevel)} />
+        </> : <>
+          <SummaryField label="Department" value={patient.department || "Not recorded"} />
+          <SummaryField label="Position" value={patient.position || "Not recorded"} />
+        </>}
         <SummaryField label="Contact" value={patient.contactNumber} />
         <SummaryField label="Address" value={patient.address} className="col-span-3" />
       </div>

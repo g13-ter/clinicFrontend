@@ -1,5 +1,6 @@
 import type { Appointment, Patient } from "../../utils/types";
 import { localDateKey } from "../../utils/date";
+import { patientAffiliation, patientIdentifier, patientTypeLabel } from "../../utils/patient";
 
 export interface ConsultationForm {
   visitId: string;
@@ -16,12 +17,9 @@ export interface ConsultationForm {
   assessment: string;
   treatment: string;
   recommendations: string;
-  labRequest: string;
   medicineId: string;
   quantity: string;
   instructions: string;
-  medicationRoute: string;
-  medicationSchedule: string;
   followUpDate: string;
   followUpReason: string;
   closureOutcome: string;
@@ -45,12 +43,9 @@ export function createEmptyConsultation(
     assessment: "",
     treatment: "",
     recommendations: "",
-    labRequest: "",
     medicineId: "",
     quantity: "",
     instructions: "",
-    medicationRoute: "oral",
-    medicationSchedule: "",
     followUpDate: "",
     followUpReason: "",
     closureOutcome: "returned_to_class",
@@ -83,15 +78,17 @@ export function buildVisitPayload(form: ConsultationForm, isDoctor: boolean) {
   };
 }
 
-export function buildMedicalHistoryPayload(form: ConsultationForm, visitId: string) {
+export function buildMedicalHistoryPayload(
+  form: ConsultationForm,
+  visitId: string,
+  includeNurseClosure = false,
+) {
   const prescribedItems =
     form.medicineId && form.quantity
       ? [{
           medicineId: form.medicineId,
           quantity: Number(form.quantity),
           ...(form.instructions ? { instructions: form.instructions } : {}),
-          route: form.medicationRoute,
-          scheduledTime: form.medicationSchedule,
         }]
       : undefined;
 
@@ -101,7 +98,7 @@ export function buildMedicalHistoryPayload(form: ConsultationForm, visitId: stri
     diagnosis: form.diagnosis || undefined,
     prescription: form.treatment || undefined,
     prescribedItems,
-    labRequest: form.labRequest || undefined,
+    ...(includeNurseClosure ? { closureOutcome: form.closureOutcome } : {}),
   };
 }
 
@@ -129,7 +126,7 @@ export function filterStudentRecords(patients: Patient[], search: string): Patie
   const query = search.trim().toLowerCase();
   if (!query) return patients;
   return patients.filter((patient) =>
-    `${patient.firstName} ${patient.lastName} ${patient.studentId}`
+    `${patient.firstName} ${patient.lastName} ${patientIdentifier(patient)} ${patientTypeLabel(patient)} ${patientAffiliation(patient)}`
       .toLowerCase()
       .includes(query),
   );

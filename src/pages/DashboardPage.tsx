@@ -30,8 +30,8 @@ import type { DoctorWorkspaceTab } from "../components/DoctorWorkspaceTabs";
 import SuperAdminDashboardPage from "./SuperAdminDashboardPage";
 import MedicationOrdersPage from "./MedicationOrdersPage";
 import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
-
-const CHART_COLORS = ["#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#8b5cf6"];
+import { patientIdentifier, patientTypeLabel } from "../utils/patient";
+import ClinicAnalytics from "../features/dashboard/ClinicAnalytics";
 
 function DashboardPage() {
   const { role, user } = useAuth();
@@ -51,6 +51,7 @@ function DashboardPage() {
   const requestedView = searchParams.get("view");
   const workspaceView =
     requestedView === "students" ||
+    requestedView === "records" ||
     requestedView === "appointments" ||
     requestedView === "inventory" ||
     requestedView === "medications" ||
@@ -114,22 +115,11 @@ function DashboardPage() {
             </h2>
           </div>
 
-          {isClinicalRole && (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Clinic Analytics</h2>
-                <p className="mt-1 text-sm text-slate-500">Trends from recorded clinic activity</p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <CommonComplaintsChart items={stats.commonComplaints} />
-                <MonthlyVisitsChart items={stats.monthlyVisits} />
-              </div>
-            </section>
-          )}
+          {isClinicalRole && <ClinicAnalytics />}
 
           {isAdmin && (
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+              <StatCard label="Total Patients" value={stats.totalPatients} caption={`${stats.patientsByType.student} students · ${stats.patientsByType.teacher} teachers · ${stats.patientsByType.staff} staff`} icon={<PatientsIcon />} tone="blue" />
               <StatCard label="Active Users" value={activeUsers} caption="Available doctors, nurses, and staff" icon={<StaffIcon />} tone="purple" />
             </section>
           )}
@@ -138,20 +128,20 @@ function DashboardPage() {
             {isClinicalRole ? (
               <>
                 <StatCard label="Today's Appointments" value={stats.todaysAppointments} caption="Scheduled today" icon={<CalendarIcon />} tone="blue" />
-                <StatCard label="Students Waiting" value={stats.waitingPatients} caption="In the clinic queue" icon={<PatientsIcon />} tone="orange" />
+                <StatCard label="Patients Waiting" value={stats.waitingPatients} caption="All patient types in the clinic queue" icon={<PatientsIcon />} tone="orange" />
                 <StatCard label="Consultations Today" value={stats.consultationsToday} caption="Started or completed" icon={<VisitsIcon />} tone="green" />
                 <StatCard label="Emergency Cases" value={stats.emergencyCasesToday} caption="Recorded today" icon={<VisitsIcon />} tone="red" />
               </>
             ) : isStaff ? (
               <>
-                <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+                <StatCard label="Total Patients" value={stats.totalPatients} caption={`${stats.patientsByType.student} students · ${stats.patientsByType.teacher} teachers · ${stats.patientsByType.staff} staff`} icon={<PatientsIcon />} tone="blue" />
                 <StatCard label="Visits Today" value={stats.todayVisits} caption="Recorded today" icon={<VisitsIcon />} tone="green" />
-                <StatCard label="Students Waiting" value={stats.waitingPatients} caption="In the clinic queue" icon={<StaffIcon />} tone="purple" />
+                <StatCard label="Patients Waiting" value={stats.waitingPatients} caption="All patient types in the clinic queue" icon={<StaffIcon />} tone="purple" />
                 <StatCard label="Pending Appointments" value={stats.pendingAppointments} caption="Awaiting confirmation" icon={<CalendarIcon />} tone="orange" />
               </>
             ) : (
               <>
-                <StatCard label="Total Students" value={stats.totalStudents} caption="Active student records" icon={<PatientsIcon />} tone="blue" />
+                <StatCard label="Total Patients" value={stats.totalPatients} caption={`${stats.patientsByType.student} students · ${stats.patientsByType.teacher} teachers · ${stats.patientsByType.staff} staff`} icon={<PatientsIcon />} tone="blue" />
                 <StatCard label="Clinic Visits Today" value={stats.todayVisits} caption="Recorded today" icon={<VisitsIcon />} tone="green" />
                 <StatCard label="Active Users" value={activeUsers} caption="Available doctors, nurses, and staff" icon={<StaffIcon />} tone="purple" />
                 <StatCard label="Pending Appointments" value={stats.pendingAppointments} caption="Awaiting confirmation" icon={<CalendarIcon />} tone="orange" />
@@ -185,6 +175,8 @@ function DashboardPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <PatientsPage embedded />
             </section>
+          ) : workspaceView === "records" ? (
+            <ClinicalWorkspacePage embedded />
           ) : workspaceView === "inventory" ? (
             <MedicinesPage embedded />
           ) : workspaceView === "medications" ? (
@@ -252,12 +244,13 @@ function RoleWorkspaceTabs({
 }: {
   role: string | null;
   unreadCount: number;
-  activeView: "students" | "visits" | "appointments" | "inventory" | "medications" | "notifications";
+  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "medications" | "notifications";
   onOpenNotifications: () => void;
 }) {
   const tabs = [
-    { label: "Students", to: "/dashboard?view=students", view: "students", roles: ["nurse", "staff"] },
-    { label: "Student Visits", to: "/dashboard?view=visits", view: "visits", roles: ["nurse", "staff"] },
+    { label: "Patients", to: "/dashboard?view=students", view: "students", roles: ["nurse", "staff"] },
+    { label: "Patient Records", to: "/dashboard?view=records&tab=records", view: "records", roles: ["nurse"] },
+    { label: "Patient Visits", to: "/dashboard?view=visits", view: "visits", roles: ["nurse", "staff"] },
     { label: "Appointments", to: "/dashboard?view=appointments", view: "appointments", roles: ["nurse", "staff"] },
     { label: "Inventory", to: "/dashboard?view=inventory", view: "inventory", roles: ["nurse"] },
     { label: "Medication Requests", to: "/dashboard?view=medications", view: "medications", roles: ["nurse"] },
@@ -467,96 +460,6 @@ function StatCard({
   );
 }
 
-function CommonComplaintsChart({
-  items,
-}: {
-  items: DashboardStats["commonComplaints"];
-}) {
-  const total = items.reduce((sum, item) => sum + item.count, 0);
-  let current = 0;
-  const segments = items.map((item, index) => {
-    const start = current;
-    current += total > 0 ? (item.count / total) * 100 : 0;
-    return `${CHART_COLORS[index % CHART_COLORS.length]} ${start}% ${current}%`;
-  });
-  const background = total > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
-
-  return (
-    <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div>
-        <h3 className="font-semibold text-gray-900">Most Common Complaints</h3>
-        <p className="mt-1 text-xs text-gray-500">Based on recorded clinic visits</p>
-      </div>
-      {items.length === 0 ? (
-        <EmptyChart label="No clinic complaints recorded yet." />
-      ) : (
-        <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
-          <div
-            className="relative h-40 w-40 shrink-0 rounded-full"
-            style={{ background }}
-            aria-label="Common complaints chart"
-          >
-            <div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{total}</p>
-                <p className="text-[11px] text-gray-500">recorded visits</p>
-              </div>
-            </div>
-          </div>
-          <div className="grid w-full gap-3 sm:max-w-xs">
-            {items.map((item, index) => (
-              <div key={item.label} className="flex items-center gap-3 text-sm">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-                />
-                <span className="min-w-0 flex-1 truncate text-gray-700">{item.label}</span>
-                <span className="font-medium text-gray-900">
-                  {Math.round((item.count / total) * 100)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </article>
-  );
-}
-
-function MonthlyVisitsChart({
-  items,
-}: {
-  items: DashboardStats["monthlyVisits"];
-}) {
-  const max = Math.max(...items.map((item) => item.visits), 1);
-
-  return (
-    <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div>
-        <h3 className="font-semibold text-gray-900">Monthly Clinic Visits</h3>
-        <p className="mt-1 text-xs text-gray-500">Last six months</p>
-      </div>
-      <div className="mt-5 flex h-48 items-end gap-2 border-b border-l border-gray-200 px-3 pt-4 sm:gap-4">
-        {items.map((item) => (
-          <div key={item.key} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-            <div className="flex min-h-0 flex-1 items-end">
-              <div
-                className="group relative w-full rounded-t bg-blue-500 transition-colors hover:bg-blue-600"
-                style={{ height: item.visits > 0 ? `${Math.max((item.visits / max) * 100, 5)}%` : "2px" }}
-              >
-                <span className="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-xs text-white group-hover:block">
-                  {item.visits}
-                </span>
-              </div>
-            </div>
-            <div className="h-8 pt-2 text-center text-xs text-gray-500">{item.month}</div>
-          </div>
-        ))}
-      </div>
-    </article>
-  );
-}
-
 function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -642,8 +545,8 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-5 py-3">Time</th>
-                <th className="px-5 py-3">Student</th>
-                <th className="px-5 py-3">Student ID</th>
+                <th className="px-5 py-3">Patient</th>
+                <th className="px-5 py-3">Patient ID</th>
                 <th className="px-5 py-3">Reason</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Action</th>
@@ -670,8 +573,8 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
                     <td className="whitespace-nowrap px-5 py-4 font-medium">
                       {new Date(appointment.appointmentDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </td>
-                    <td className="px-5 py-4">{student ? `${student.firstName} ${student.lastName}` : "Unknown student"}</td>
-                    <td className="px-5 py-4 font-mono text-xs">{student?.studentId ?? "—"}</td>
+                    <td className="px-5 py-4">{student ? `${student.firstName} ${student.lastName}` : "Unknown patient"}</td>
+                    <td className="px-5 py-4 font-mono text-xs">{student ? `${patientIdentifier(student)} · ${patientTypeLabel(student)}` : "—"}</td>
                     <td className="px-5 py-4">{appointment.reason}</td>
                     <td className="px-5 py-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
@@ -759,7 +662,7 @@ function RecentCases({
                       {new Date(caseItem.date).toLocaleDateString()}
                     </p>
                   </div>
-                  {!doctorView && <ProviderBadge provider={caseItem.provider} />}
+                  <ProviderBadge provider={caseItem.provider} />
                 </div>
                 <div className="grid gap-2 text-sm">
                   <p><span className="text-gray-400">Complaint:</span> {caseItem.complaint}</p>
@@ -775,11 +678,11 @@ function RecentCases({
               <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 font-medium">Student</th>
+                  <th className="px-5 py-3 font-medium">Patient</th>
                   <th className="px-5 py-3 font-medium">Complaint</th>
                   <th className="px-5 py-3 font-medium">{doctorView ? "Diagnosis" : "Assessment / Findings"}</th>
                   <th className="px-5 py-3 font-medium">Treatment</th>
-                  {!doctorView && <th className="px-5 py-3 font-medium">Doctor / Nurse</th>}
+                  <th className="px-5 py-3 font-medium">Attending Clinician</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -794,7 +697,7 @@ function RecentCases({
                           <Link to={`/patients/${caseItem.student.id}`} className="font-medium text-blue-600 hover:underline">
                             {caseItem.student.name}
                           </Link>
-                          <p className="text-xs text-gray-400">{caseItem.student.studentId}</p>
+                          <p className="text-xs text-gray-400">{caseItem.student.studentId} · {caseItem.student.patientType === "student" ? "Student" : caseItem.student.patientType === "teacher" ? "Teacher" : "Staff"}</p>
                         </>
                       ) : (
                         <span className="text-gray-400">Archived student</span>
@@ -803,7 +706,7 @@ function RecentCases({
                     <td className="max-w-xs px-5 py-3 text-gray-700">{caseItem.complaint}</td>
                     <td className="max-w-sm px-5 py-3 text-gray-700">{caseItem.assessment}</td>
                     <td className="max-w-sm px-5 py-3 text-gray-700">{caseItem.treatment}</td>
-                    {!doctorView && <td className="px-5 py-3"><ProviderBadge provider={caseItem.provider} /></td>}
+                    <td className="px-5 py-3"><ProviderBadge provider={caseItem.provider} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -825,14 +728,6 @@ function ProviderBadge({
     <div>
       <p className="whitespace-nowrap text-sm font-medium text-gray-800">{provider.name}</p>
       <p className="text-xs capitalize text-gray-400">{provider.role}</p>
-    </div>
-  );
-}
-
-function EmptyChart({ label }: { label: string }) {
-  return (
-    <div className="mt-6 flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-      {label}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -27,6 +27,7 @@ import {
 import type { ReactNode } from "react";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 import { EmptyState, Panel, StatusBadge } from "../components/ui";
+import { patientAffiliation, patientIdentifier, patientTypeLabel } from "../utils/patient";
 
 type Tab = "appointments" | "records" | "consultation" | "followups";
 
@@ -46,6 +47,7 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
 function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const { role, user } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isDoctor = role === "doctor";
   const requestedTab = searchParams.get("tab") as Tab | null;
@@ -128,12 +130,12 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       const [patientResponse, appointmentResponse, medicineResponse] = await Promise.all([
         api.getAll<Patient>("/patients"),
         api.getAll<Appointment>(`/appointments?${appointmentParams}`),
-        isDoctor ? api.getAll<Medicine>("/medicines/prescription-search") : Promise.resolve(null),
+        api.getAll<Medicine>("/medicines/prescription-search"),
       ]);
 
       setPatients(patientResponse.data);
       setAppointments(appointmentResponse.data);
-      setMedicines(medicineResponse?.data ?? []);
+      setMedicines(medicineResponse.data);
     } catch (error: unknown) {
       setLoadError(error instanceof Error ? error.message : "Failed to load clinical workspace");
     } finally {
@@ -283,12 +285,22 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       setForm((current) => ({ ...current, visitId }));
 
       let savedHistory: MedicalHistory | null = null;
-      if (isDoctor) {
+      let nurseMedicationClaimed = false;
+      const nurseMedicationOrder = !isDoctor && Boolean(form.medicineId);
+      if (isDoctor || nurseMedicationOrder) {
         const historyResponse = await api.post<MedicalHistory>(
           "/medical-history",
-          buildMedicalHistoryPayload(form, visitId),
+          buildMedicalHistoryPayload(form, visitId, nurseMedicationOrder),
         );
         savedHistory = historyResponse.data;
+        if (nurseMedicationOrder) {
+          try {
+            await api.post(`/medical-history/${savedHistory._id}/claim`, {});
+            nurseMedicationClaimed = true;
+          } catch {
+            relatedWarnings.push("the medication order still needs to be accepted");
+          }
+        }
       } else {
         await api.put(`/visits/${visitId}/status`, {
           status: "completed",
@@ -344,7 +356,11 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
         }
       }
 
-      const recordLabel = isDoctor ? "Consultation" : "Nursing assessment";
+      const recordLabel = isDoctor
+        ? "Consultation"
+        : form.medicineId
+          ? "Nursing assessment and medication order"
+          : "Nursing assessment";
       showToast(
         relatedWarnings.length > 0
           ? `${recordLabel} saved, but ${relatedWarnings.join(" and ")}.`
@@ -356,7 +372,16 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       setDraftStatus("");
       setForm(createEmptyConsultation());
       await fetchWorkspace();
-      changeTab(form.followUpDate ? "followups" : "appointments");
+      if (nurseMedicationOrder && savedHistory) {
+        const medicationParams = new URLSearchParams({
+          view: "medications",
+          order: savedHistory._id,
+        });
+        if (nurseMedicationClaimed) medicationParams.set("review", "1");
+        navigate(`/dashboard?${medicationParams}`);
+      } else {
+        changeTab(form.followUpDate ? "followups" : "appointments");
+      }
     } catch (error: unknown) {
       setFormError(
         error instanceof Error
@@ -419,7 +444,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                   subtitle="Physician consultations begin after the nurse records vitals and marks the student ready"
                 >
                   <div className="rounded-lg bg-sky-50 p-5 text-sm text-sky-900">
-                    Open <Link to="/patient-queue" className="font-semibold underline">Student Queue</Link> or
+                    Open <Link to="/patient-queue" className="font-semibold underline">Patient Queue</Link> or
                     select a ready student from Today&apos;s Appointments to begin the consultation.
                   </div>
                 </Panel>
@@ -476,8 +501,8 @@ function AppointmentsTab({
                 <article key={appointment._id} className="rounded-xl border border-gray-200 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-gray-950">{student ? `${student.firstName} ${student.lastName}` : "Unknown student"}</p>
-                      <p className="mt-1 font-mono text-xs text-gray-500">{student?.studentId ?? "—"}</p>
+                      <p className="font-semibold text-gray-950">{student ? `${student.firstName} ${student.lastName}` : "Unknown patient"}</p>
+                      <p className="mt-1 font-mono text-xs text-gray-500">{student ? `${patientIdentifier(student)} · ${patientTypeLabel(student)}` : "—"}</p>
                     </div>
                     <StatusBadge status={appointment.status} />
                   </div>
@@ -506,8 +531,8 @@ function AppointmentsTab({
             <thead className="border-b text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-3 py-3">Time</th>
-                <th className="px-3 py-3">Student</th>
-                <th className="px-3 py-3">Student ID</th>
+                <th className="px-3 py-3">Patient</th>
+                <th className="px-3 py-3">Patient ID</th>
                 <th className="px-3 py-3">Reason</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Action</th>
@@ -528,8 +553,8 @@ function AppointmentsTab({
                     <td className="whitespace-nowrap px-3 py-4">
                       {new Date(appointment.appointmentDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </td>
-                    <td className="px-3 py-4">{student ? `${student.firstName} ${student.lastName}` : "Unknown student"}</td>
-                    <td className="px-3 py-4 font-mono text-xs">{student?.studentId ?? "—"}</td>
+                    <td className="px-3 py-4">{student ? `${student.firstName} ${student.lastName}` : "Unknown patient"}</td>
+                    <td className="px-3 py-4 font-mono text-xs">{student ? `${patientIdentifier(student)} · ${patientTypeLabel(student)}` : "—"}</td>
                     <td className="px-3 py-4">{appointment.reason}</td>
                     <td className="px-3 py-4"><StatusBadge status={appointment.status} /></td>
                     <td className="px-3 py-4">
@@ -570,24 +595,24 @@ function StudentRecordsTab({
 }) {
   return (
     <Panel
-      title="Search Student Records"
+      title="Search Patient Records"
       subtitle={onStart
-        ? "Open a student profile or begin a nursing assessment"
-        : "Review the student's clinic record"}
+        ? "Open a patient profile or begin a nursing assessment"
+        : "Review the patient’s clinic record"}
     >
       <input
         type="search"
         value={search}
         onChange={(event) => onSearch(event.target.value)}
-        placeholder="Search by name or student ID..."
+        placeholder="Search by name, ID, type, department, or position..."
         className="input"
       />
       <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {patients.slice(0, 24).map((patient) => (
           <article key={patient._id} className="rounded-lg border p-4">
             <p className="font-semibold text-gray-900">{patient.firstName} {patient.lastName}</p>
-            <p className="mt-1 font-mono text-xs text-gray-500">{patient.studentId}</p>
-            <p className="mt-2 text-sm text-gray-600">{patient.course} · Year {patient.yearLevel}</p>
+            <p className="mt-1 font-mono text-xs text-gray-500">{patientIdentifier(patient)}</p>
+            <p className="mt-2 text-sm text-gray-600"><span className="font-semibold">{patientTypeLabel(patient)}</span> · {patientAffiliation(patient)}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link to={`/patients/${patient._id}`} className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50">
                 View Record
@@ -601,7 +626,7 @@ function StudentRecordsTab({
           </article>
         ))}
       </div>
-      {patients.length === 0 && <EmptyState text="No students match your search." />}
+      {patients.length === 0 && <EmptyState text="No patients match your search." />}
     </Panel>
   );
 }
@@ -638,7 +663,7 @@ function ConsultationForm({
   return (
     <Panel
       title={isDoctor ? "Record New Consultation" : "Record New Nursing Assessment"}
-      subtitle={isDoctor ? "Document diagnosis, treatment, and prescriptions" : "Document nursing assessment and interventions"}
+      subtitle={isDoctor ? "Document diagnosis, treatment, and prescriptions" : "Document nursing care and order medication when no doctor is available"}
     >
       {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <div className="mb-4 flex min-h-6 justify-end" aria-live="polite">
@@ -649,7 +674,7 @@ function ConsultationForm({
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-gray-950">{selectedPatient.firstName} {selectedPatient.lastName}</p>
             <p className="mt-0.5 text-xs text-gray-600">
-              {selectedPatient.studentId} · {selectedPatient.course} · Year {selectedPatient.yearLevel}
+              {patientIdentifier(selectedPatient)} · {patientTypeLabel(selectedPatient)} · {patientAffiliation(selectedPatient)}
             </p>
           </div>
           <Link to={`/patients/${selectedPatient._id}`} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -658,12 +683,12 @@ function ConsultationForm({
         </div>
       )}
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Field label="Select Student" className="md:col-span-1 xl:col-span-2">
+        <Field label="Select Patient" className="md:col-span-1 xl:col-span-2">
           <select required value={form.patientId} onChange={(event) => onChange("patientId", event.target.value)} className="input">
-            <option value="">Choose student...</option>
+            <option value="">Choose patient...</option>
             {patients.map((patient) => (
               <option key={patient._id} value={patient._id}>
-                {patient.firstName} {patient.lastName} ({patient.studentId})
+                {patient.firstName} {patient.lastName} ({patientIdentifier(patient)}) · {patientTypeLabel(patient)}
               </option>
             ))}
           </select>
@@ -738,9 +763,14 @@ function ConsultationForm({
           </Field>
         )}
 
-        {isDoctor && (
-          <>
-            <Field label="Prescription from Inventory" className="md:col-span-2">
+        {!isDoctor && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2 xl:col-span-3">
+            When no doctor is available, you may create a medication order here. The order is recorded under your nurse account and must still pass the medication safety check before it is given.
+          </div>
+        )}
+
+        <>
+            <Field label={isDoctor ? "Prescription from Inventory" : "Medicine to Prescribe / Give"} className="md:col-span-2">
               <select value={form.medicineId} onChange={(event) => onChange("medicineId", event.target.value)} className="input">
                 <option value="">No medicine selected</option>
                 {medicines.filter((medicine) => medicine.quantity > 0).map((medicine) => (
@@ -756,24 +786,7 @@ function ConsultationForm({
             <Field label="Medication Instructions" className="md:col-span-2">
               <input value={form.instructions} onChange={(event) => onChange("instructions", event.target.value)} className="input" placeholder="e.g. Take one tablet every 8 hours" />
             </Field>
-            <Field label="Administration Route">
-              <select value={form.medicationRoute} onChange={(event) => onChange("medicationRoute", event.target.value)} className="input" disabled={!form.medicineId}>
-                <option value="oral">Oral</option>
-                <option value="topical">Topical</option>
-                <option value="inhalation">Inhalation / Nebulization</option>
-                <option value="ophthalmic">Eye</option>
-                <option value="otic">Ear</option>
-                <option value="other">Other</option>
-              </select>
-            </Field>
-            <Field label="Time / Frequency">
-              <input required={Boolean(form.medicineId)} value={form.medicationSchedule} onChange={(event) => onChange("medicationSchedule", event.target.value)} className="input" disabled={!form.medicineId} placeholder="e.g. Give now or every 8 hours" />
-            </Field>
-            <Field label="Laboratory Request">
-              <input value={form.labRequest} onChange={(event) => onChange("labRequest", event.target.value)} className="input" placeholder="Optional" />
-            </Field>
           </>
-        )}
 
         {!isDoctor && (
           <Field label="Student Outcome">
@@ -836,7 +849,7 @@ function FollowUpsTab({
   onStart: (appointment: Appointment) => void;
 }) {
   return (
-    <Panel title="Scheduled Follow-Up Visits" subtitle="Students requiring monitoring or follow-up care">
+    <Panel title="Scheduled Follow-Up Visits" subtitle="Patients requiring monitoring or follow-up care">
       {appointments.length === 0 ? (
         <EmptyState text="No follow-up visits scheduled." />
       ) : (

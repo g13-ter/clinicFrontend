@@ -11,9 +11,8 @@ export type DoctorWorkspaceTab =
 
 const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
   { id: "appointments", label: "Appointments", to: "/dashboard" },
-  { id: "visits", label: "Student Visits", to: "/dashboard?tab=visits" },
+  { id: "visits", label: "Patient Visits", to: "/dashboard?tab=visits" },
   { id: "records", label: "Patient Records", to: "/dashboard?tab=records" },
-  { id: "consultation", label: "New Consultation", to: "/dashboard?tab=consultation" },
   { id: "followups", label: "Follow-Ups", to: "/dashboard?tab=followups" },
   { id: "reports", label: "Reports", to: "/reports" },
 ];

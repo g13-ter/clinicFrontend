@@ -45,6 +45,7 @@ function PageFrame({ embedded, children }: { embedded: boolean; children: ReactN
 function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const [startDate, setStartDate] = useState(startOfMonth());
   const [endDate, setEndDate] = useState(today());
+  const [patientType, setPatientType] = useState("all");
   const [activeDownload, setActiveDownload] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -118,7 +119,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
 
   const downloadVisitReport = (period: ReportPeriod) => {
     const { start, end } = reportRange(period);
-    const params = new URLSearchParams({ startDate: start, endDate: end, period });
+    const params = new URLSearchParams({ startDate: start, endDate: end, period, patientType });
     void download(
       `/reports/clinic-summary?${params}`,
       `Clinic_${period}_report_${end}.docx`,
@@ -157,7 +158,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
 
   const downloadCsv = (type: CsvReportType, label: string) => {
     if (rangeInvalid) return;
-    const params = new URLSearchParams({ startDate, endDate });
+    const params = new URLSearchParams({ startDate, endDate, patientType });
     void download(
       `/reports/export/${type}?${params}`,
       `${label}_${startDate}_to_${endDate}.csv`,
@@ -167,7 +168,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
 
   const downloadHealthSummary = () => {
     if (rangeInvalid) return;
-    const params = new URLSearchParams({ startDate, endDate });
+    const params = new URLSearchParams({ startDate, endDate, patientType });
     void download(
       `/reports/clinic-summary?${params}`,
       `Health_Summary_${startDate}_to_${endDate}.docx`,
@@ -190,7 +191,17 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
               <PeriodButton label="This Month" onClick={() => applyPeriod("monthly")} />
               <PeriodButton label="This Year" onClick={() => applyPeriod("yearly")} />
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="text-xs font-medium text-gray-600">
+                Patient type
+                <select value={patientType} onChange={(event) => setPatientType(event.target.value)} className="input mt-1">
+                  <option value="all">All (clearly separated)</option>
+                  <option value="student">Students</option>
+                  <option value="employees">Teachers &amp; Staff</option>
+                  <option value="teacher">Teachers</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </label>
               <label className="text-xs font-medium text-gray-600">
                 Start date
                 <input
@@ -249,7 +260,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
           <ReportCard
             icon={<MedicineIcon />}
             title="Medication Reports"
-            description="Review medication consumption, student-level dispensing records, and a print-ready monthly inventory form."
+            description="Review medication consumption, patient-level dispensing records, and a print-ready monthly inventory form."
           >
             {labels.length > 0 && <div className="mb-2 rounded-lg border bg-slate-50 p-3 text-left"><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase text-gray-600">Labels included</span><button type="button" onClick={() => setSelectedLabels(selectedLabels.length === labels.length ? [] : labels.map((label) => label.name))} className="text-xs text-blue-700">{selectedLabels.length === labels.length ? "Clear all" : "Select all"}</button></div><div className="mt-2 flex max-h-28 flex-wrap gap-2 overflow-y-auto">{labels.map((label) => <label key={label._id} className="flex items-center gap-1.5 rounded-full border bg-white px-2 py-1 text-xs"><input type="checkbox" checked={selectedLabels.includes(label.name)} onChange={(event) => setSelectedLabels((current) => event.target.checked ? [...current, label.name] : current.filter((name) => name !== label.name))} /><span className="h-2 w-2 rounded-full" style={{ backgroundColor: label.color }} />{label.name}</label>)}</div><label className="mt-3 flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={includeEmptyLabels} onChange={(event) => setIncludeEmptyLabels(event.target.checked)} />Include empty label sections</label></div>}
             <ActionButton label="Preview Monthly Inventory Form" loading={previewLoading} onClick={() => void previewMonthlyMedicationInventory()} />
@@ -267,7 +278,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
           <ReportCard
             icon={<VisitsIcon />}
             title="Health Analytics"
-            description="Analyze student health trends using recorded clinical data."
+            description="Analyze health trends by student, teacher, staff, or all patient types."
           >
             <ActionButton label="Disease Trends" loading={activeDownload === "disease-trends"} onClick={() => downloadCsv("disease-trends", "Disease_Trends")} />
             <ActionButton label="Vaccination Status" loading={activeDownload === "vaccination-status"} onClick={() => downloadCsv("vaccination-status", "Vaccination_Status")} />

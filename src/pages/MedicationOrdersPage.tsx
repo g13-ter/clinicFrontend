@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import Modal from "../components/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
@@ -37,6 +37,10 @@ function alerts(patient: Patient): string {
 export default function MedicationOrdersPage({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
+  const requestedOrderId = searchParams.get("order") ?? "";
+  const shouldOpenReview = searchParams.get("review") === "1";
+  const openedRequestedOrder = useRef("");
   const [orders, setOrders] = useState<MedicationOrder[]>([]);
   const [recent, setRecent] = useState<MedicationOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,12 +159,27 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
       ? order.medicationClaimedBy === user?.id
       : order.medicationClaimedBy?._id === user?.id;
 
+  useEffect(() => {
+    if (!shouldOpenReview || !requestedOrderId || openedRequestedOrder.current === requestedOrderId) return;
+    const requestedOrder = orders.find((order) => order._id === requestedOrderId);
+    const claimedByCurrentNurse = requestedOrder && (
+      typeof requestedOrder.medicationClaimedBy === "string"
+        ? requestedOrder.medicationClaimedBy === user?.id
+        : requestedOrder.medicationClaimedBy?._id === user?.id
+    );
+    if (!requestedOrder || requestedOrder.medicationStatus !== "accepted" || !claimedByCurrentNurse) return;
+    openedRequestedOrder.current = requestedOrderId;
+    setChecks([false, false, false, false]);
+    setNotes("");
+    setAdministering(requestedOrder);
+  }, [orders, requestedOrderId, shouldOpenReview, user?.id]);
+
   return (
     <section className={embedded ? "space-y-5" : "mx-auto max-w-6xl space-y-5 p-4 sm:p-6"}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-950">Medication Requests</h2>
-          <p className="mt-1 text-sm text-slate-500">Doctor orders waiting for nurse review and administration.</p>
+          <p className="mt-1 text-sm text-slate-500">Doctor or covering-nurse orders waiting for safety review and administration.</p>
         </div>
         <button type="button" onClick={() => void reload()} className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">Refresh</button>
       </div>
@@ -174,7 +193,7 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
             const mine = ownedByCurrentNurse(order);
             const claimed = order.medicationStatus === "accepted";
             return (
-              <article key={order._id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <article key={order._id} className={`rounded-xl border bg-white p-4 shadow-sm ${requestedOrderId === order._id ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <Link to={`/patients/${order.patientId._id}`} className="font-semibold text-blue-700 hover:underline">
@@ -193,12 +212,11 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
                   {order.prescribedItems?.map((item, index) => (
                     <li key={`${item.medicineId}-${index}`} className="p-3">
                       <p className="font-semibold">{item.medicineName} — {item.quantity} {item.unit}</p>
-                      <p className="mt-1 text-gray-600">Route: {item.route || "Not specified"} · Time: {item.scheduledTime || "Not specified"}</p>
                       {item.instructions && <p className="mt-1 text-gray-600">Instructions: {item.instructions}</p>}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-3 text-xs text-gray-500">Prescribed by {personName(order.recordedBy)} · {new Date(order.dateRecorded).toLocaleString()}</p>
+                <p className="mt-3 text-xs text-gray-500">Ordered by {personName(order.recordedBy)} · {new Date(order.dateRecorded).toLocaleString()}</p>
                 {claimed && !mine && <p className="mt-3 text-sm font-medium text-violet-700">Being handled by {personName(order.medicationClaimedBy)}</p>}
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
                   <Link to={`/patients/${order.patientId._id}`} className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">View Student Record</Link>
@@ -225,15 +243,15 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
         <div className="space-y-4 text-sm">
           <div className="rounded-lg bg-slate-50 p-3"><p className="font-semibold">{administering.patientId.firstName} {administering.patientId.lastName}</p><p>{administering.patientId.studentId}</p></div>
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-900"><strong>Alerts:</strong> {alerts(administering.patientId)}</div>
-          <ul className="rounded-lg border p-3">{administering.prescribedItems?.map((item, index) => <li key={index} className="mb-2 last:mb-0"><strong>{item.medicineName}: {item.quantity} {item.unit}</strong><br />{item.route || "Route not specified"} · {item.scheduledTime || "Time not specified"}{item.instructions ? ` · ${item.instructions}` : ""}</li>)}</ul>
+          <ul className="rounded-lg border p-3">{administering.prescribedItems?.map((item, index) => <li key={index} className="mb-2 last:mb-0"><strong>{item.medicineName}: {item.quantity} {item.unit}</strong>{item.instructions ? <><br />{item.instructions}</> : null}</li>)}</ul>
           {[
             "I matched the student using name and student ID.",
             "I matched the medication and prescribed dose.",
             "I reviewed allergies, conditions, and current medications.",
-            "I verified the route, instructions, and administration time.",
+            "I reviewed the medication instructions before administration.",
           ].map((label, index) => <label key={label} className="flex gap-3 rounded-lg border p-3"><input type="checkbox" checked={checks[index]} onChange={(event) => setChecks((current) => current.map((value, i) => i === index ? event.target.checked : value))} /><span>{label}</span></label>)}
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className="input" placeholder="Administration notes (optional)" />
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => { setNotGiving(administering); setNotes(""); }} className="rounded-lg border border-red-200 px-4 py-2 text-red-700">Not Given / Return to Doctor</button><button type="button" disabled={checks.some((checked) => !checked) || busyId === administering._id} onClick={() => void administer()} className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white disabled:opacity-50">{busyId === administering._id ? "Recording..." : "Confirm Medication Given"}</button></div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => { setNotGiving(administering); setNotes(""); }} className="rounded-lg border border-red-200 px-4 py-2 text-red-700">Not Given / Needs Review</button><button type="button" disabled={checks.some((checked) => !checked) || busyId === administering._id} onClick={() => void administer()} className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white disabled:opacity-50">{busyId === administering._id ? "Recording..." : "Confirm Medication Given"}</button></div>
         </div>
       </Modal>}
 

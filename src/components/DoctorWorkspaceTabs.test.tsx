@@ -27,4 +27,16 @@ describe("DoctorWorkspaceTabs", () => {
     expect(html).toContain("Notifications");
     expect(html).not.toContain(">0<");
   });
+
+  it("starts consultations from Patient Visits instead of a redundant tab", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <DoctorWorkspaceTabs active="visits" />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain("Patient Visits");
+    expect(html).not.toContain("New Consultation");
+    expect(html).not.toContain('href="/dashboard?tab=consultation"');
+  });
 });

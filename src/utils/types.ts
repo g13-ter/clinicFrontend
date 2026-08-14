@@ -2,13 +2,17 @@
 
 export interface Patient {
   _id: string;
+  patientType?: "student" | "teacher" | "staff";
   studentId: string;
+  employeeId?: string;
   firstName: string;
   lastName: string;
   age: number;
   gender: string;
   course: string;
   yearLevel: number;
+  department?: string;
+  position?: string;
   contactNumber: string;
   email?: string;
   address: string;
@@ -16,6 +20,8 @@ export interface Patient {
   bloodType?: string;
   guardianName?: string;
   guardianContactNumber?: string;
+  emergencyContactName?: string;
+  emergencyContactNumber?: string;
   healthConditions?: string;
   familyHistory?: string;
   pastMedicalHistory?: string;
@@ -203,6 +209,8 @@ export interface AuditLog {
 
 export interface DashboardStats {
   totalStudents: number;
+  totalPatients: number;
+  patientsByType: { student: number; teacher: number; staff: number };
   usersByRole: { doctor: number; nurse: number; staff: number; admin: number };
   todaysAppointments: number;
   todayVisits: number;
@@ -224,10 +232,13 @@ export interface DashboardStats {
   }[];
   commonComplaints: { label: string; count: number }[];
   monthlyVisits: { key: string; month: string; visits: number }[];
+  analyticsPatientType: "all" | "student" | "teacher" | "staff";
+  analyticsTotalVisits: number;
+  analyticsVisitBreakdown: { student: number; teacher: number; staff: number };
   recentCases: {
     id: string;
     date: string;
-    student: { id: string; name: string; studentId: string } | null;
+    student: { id: string; name: string; studentId: string; patientType: "student" | "teacher" | "staff" } | null;
     complaint: string;
     assessment: string;
     treatment: string;

@@ -143,7 +143,7 @@ function SettingsPage() {
             <SettingsSection
               id="operating-hours"
               title="Operating Hours"
-              description="Define when the clinic normally accepts student visits."
+              description="Define when the clinic normally accepts patient visits."
             >
               <div className="grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="text-sm font-medium text-gray-700">

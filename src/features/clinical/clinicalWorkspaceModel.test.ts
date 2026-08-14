@@ -39,12 +39,10 @@ describe("clinical workspace model", () => {
       medicineId: "medicine-1",
       quantity: "2",
       instructions: "After meals",
-      medicationRoute: "oral",
-      medicationSchedule: "Give now",
     });
 
     expect(buildMedicalHistoryPayload(form, "visit-1").prescribedItems).toEqual([
-      { medicineId: "medicine-1", quantity: 2, instructions: "After meals", route: "oral", scheduledTime: "Give now" },
+      { medicineId: "medicine-1", quantity: 2, instructions: "After meals" },
     ]);
   });
 

@@ -237,12 +237,12 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const clinicalTabs = [
     { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
-    { id: "records", label: "Student Records", icon: PatientsIcon },
-    {
+    { id: "records", label: "Patient Records", icon: PatientsIcon },
+    ...(role === "nurse" ? [{
       id: "consultation",
-      label: role === "nurse" ? "New Nursing Assessment" : "New Consultation",
+      label: "New Nursing Assessment",
       icon: VisitsIcon,
-    },
+    }] : []),
     { id: "followups", label: "Follow-Ups", icon: CalendarIcon },
   ] as const;
 
@@ -378,12 +378,12 @@ function Layout({ children }: { children: React.ReactNode }) {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search students..."
+                placeholder="Search patients..."
                 className="input pr-9"
               />
               <button
                 type="submit"
-                aria-label="Search students"
+                aria-label="Search patients"
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
               >
                 <SearchIcon />
