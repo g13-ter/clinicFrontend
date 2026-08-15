@@ -15,6 +15,7 @@ import type { ClinicRole } from "../../../data/landingData";
 import { roleWorkspaces } from "../../../data/landingData";
 
 import RoleAnalyticsPreview from "./RoleAnalyticsPreview";
+
 import {
   RoleAdminContent,
   RoleDoctorContent,
@@ -58,43 +59,40 @@ export default function RoleDashboardPreview({
   const [name, email] = users[role];
 
   /*
-    Based on your screenshots:
-    - Admin = has sidebar
-    - Doctor = no sidebar
-    - Nurse = no sidebar
-    - Staff = no sidebar
+    Based on the actual dashboard layouts:
+
+    Admin  = has sidebar
+    Doctor = no sidebar
+    Nurse  = no sidebar
+    Staff  = no sidebar
   */
   const hasSidebar = role === "admin";
 
   return (
     <article className="relative overflow-hidden rounded-[24px] border border-white bg-[#f8fafc] text-slate-950 shadow-[0_28px_70px_rgba(30,64,175,0.16)] ring-1 ring-blue-100/80">
-      {/* ===============================
-          TOP BAR
-      =============================== */}
+      {/* TOP BAR */}
       <PreviewHeader
-        role={role}
         name={name}
         email={email}
       />
 
-      {/* ===============================
-          ADMIN WITH SIDEBAR
-      =============================== */}
+      {/* ADMIN */}
       {hasSidebar ? (
         <div className="grid min-h-[545px] sm:grid-cols-[128px_1fr]">
           <AdminSidebar
             navigation={workspace.navigation}
           />
 
-          <RoleDashboardBody role={role} />
+          <RoleDashboardBody
+            role={role}
+          />
         </div>
       ) : (
-        /* =============================
-           DOCTOR / NURSE / STAFF
-           NO SIDEBAR
-        ============================= */
+        /* DOCTOR / NURSE / STAFF */
         <div className="min-h-[545px]">
-          <RoleDashboardBody role={role} />
+          <RoleDashboardBody
+            role={role}
+          />
         </div>
       )}
     </article>
@@ -106,23 +104,23 @@ export default function RoleDashboardPreview({
 ========================================================= */
 
 function PreviewHeader({
-  role,
   name,
   email,
 }: {
-  role: ClinicRole;
   name: string;
   email: string;
 }) {
   return (
     <div className="flex h-14 items-center border-b border-slate-200 bg-white px-4 sm:h-16 sm:px-5">
+      {/* LOGO */}
       <BrandLogo className="mr-2 h-8 w-8 sm:h-9 sm:w-9" />
 
+      {/* SYSTEM NAME */}
       <p className="whitespace-nowrap text-[10px] font-extrabold sm:text-[13px]">
         School Clinic Management
       </p>
 
-      {/* Search bar based on your screenshots */}
+      {/* SEARCH */}
       <div className="ml-auto hidden h-8 w-[34%] items-center rounded-md border border-slate-200 bg-white px-3 text-[7px] text-slate-400 md:flex">
         Search patients...
 
@@ -131,6 +129,7 @@ function PreviewHeader({
         </span>
       </div>
 
+      {/* USER INFO */}
       <div className="ml-3 text-right">
         <p className="text-[8px] font-medium sm:text-[9px]">
           {name}
@@ -141,6 +140,7 @@ function PreviewHeader({
         </p>
       </div>
 
+      {/* LOGOUT */}
       <span className="ml-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[7px] text-slate-600 sm:text-[8px]">
         Logout
       </span>
@@ -151,12 +151,9 @@ function PreviewHeader({
 /* =========================================================
    ADMIN SIDEBAR
 
-   IMPORTANT:
-   Based on your real Admin screenshot:
+   Admin only has:
    - Dashboard
    - Audit Logs
-
-   Nothing else.
 ========================================================= */
 
 function AdminSidebar({
@@ -170,22 +167,26 @@ function AdminSidebar({
         Navigation
       </p>
 
-      {navigation.map((item, index) => (
-        <div
-          key={item}
-          className={`mt-1 flex items-center gap-2 rounded-md px-2.5 py-2 text-[8px] font-medium ${
-            index === 0
-              ? "bg-blue-600 text-white"
-              : "text-slate-600"
-          }`}
-        >
-          <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">
-            {previewNavigationIcon(item)}
-          </span>
+      {navigation.map(
+        (item, index) => (
+          <div
+            key={item}
+            className={`mt-1 flex items-center gap-2 rounded-md px-2.5 py-2 text-[8px] font-medium ${
+              index === 0
+                ? "bg-blue-600 text-white"
+                : "text-slate-600"
+            }`}
+          >
+            <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">
+              {previewNavigationIcon(
+                item,
+              )}
+            </span>
 
-          {item}
-        </div>
-      ))}
+            {item}
+          </div>
+        ),
+      )}
     </aside>
   );
 }
@@ -199,8 +200,17 @@ function RoleDashboardBody({
 }: {
   role: ClinicRole;
 }) {
-  const workspace = roleWorkspaces[role];
+  const workspace =
+    roleWorkspaces[role];
 
+  /*
+    Active dashboard tab based on screenshots.
+
+    Admin  = Management
+    Doctor = Appointments
+    Nurse  = Patient Visits
+    Staff  = Patient Visits
+  */
   const activeTab =
     role === "staff"
       ? 1
@@ -208,9 +218,11 @@ function RoleDashboardBody({
         ? 2
         : 0;
 
-  const metricIcons = getMetricIcons(role);
+  const metricIcons =
+    getMetricIcons(role);
 
-  const metricTones = getMetricTones(role);
+  const metricTones =
+    getMetricTones(role);
 
   return (
     <div className="min-w-0 p-3 sm:p-4 lg:p-5">
@@ -219,22 +231,22 @@ function RoleDashboardBody({
         {workspace.eyebrow}
       </h3>
 
-      {/* =================================
+      {/* =================================================
           ANALYTICS
 
-          Based on screenshots:
           Doctor = yes
-          Nurse = yes
-          Staff = no
-          Admin = no
-      ================================= */}
-      {(role === "doctor" || role === "nurse") && (
+          Nurse  = yes
+          Admin  = no
+          Staff  = no
+      ================================================= */}
+      {(role === "doctor" ||
+        role === "nurse") && (
         <RoleAnalyticsPreview />
       )}
 
-      {/* =================================
+      {/* =================================================
           METRIC CARDS
-      ================================= */}
+      ================================================= */}
       <div
         className={`mt-3 grid gap-2 ${
           role === "admin"
@@ -243,25 +255,39 @@ function RoleDashboardBody({
         }`}
       >
         {workspace.metrics.map(
-          ([value, label, caption], index) => (
+          (
+            [
+              value,
+              label,
+              caption,
+            ],
+            index,
+          ) => (
             <RoleMetricCard
               key={label}
               value={value}
               label={label}
               caption={caption}
-              icon={metricIcons[index]}
-              tone={metricTones[index]}
+              icon={
+                metricIcons[index]
+              }
+              tone={
+                metricTones[index]
+              }
             />
           ),
         )}
       </div>
 
-      {/* =================================
+      {/* =================================================
           ROLE TABS
-      ================================= */}
+      ================================================= */}
       <div className="mt-3 flex overflow-x-auto rounded-lg border border-slate-200 bg-white text-[7px] font-medium text-slate-600 sm:text-[8px]">
         {workspace.features.map(
-          (feature, index) => (
+          (
+            feature,
+            index,
+          ) => (
             <span
               key={feature}
               className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 sm:px-4 ${
@@ -276,9 +302,10 @@ function RoleDashboardBody({
         )}
       </div>
 
-      {/* =================================
+      {/* =================================================
           ROLE-SPECIFIC CONTENT
-      ================================= */}
+      ================================================= */}
+
       {role === "admin" && (
         <RoleAdminContent />
       )}
@@ -345,10 +372,12 @@ function RoleMetricCard({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
+        {/* LABEL */}
         <p className="truncate text-[7px] font-medium text-slate-600 sm:text-[8px]">
           {label}
         </p>
 
+        {/* ICON */}
         <span
           className={`grid h-6 w-6 shrink-0 place-items-center rounded-md [&>svg]:h-3.5 [&>svg]:w-3.5 ${tones[tone]}`}
         >
@@ -356,10 +385,12 @@ function RoleMetricCard({
         </span>
       </div>
 
+      {/* VALUE */}
       <p className="mt-2 text-lg font-medium">
         {value}
       </p>
 
+      {/* DESCRIPTION */}
       <p className="mt-1 truncate text-[6px] text-slate-400 sm:text-[7px]">
         {caption}
       </p>
@@ -374,29 +405,38 @@ function RoleMetricCard({
 function getMetricIcons(
   role: ClinicRole,
 ): ReactNode[] {
+  /* ADMIN */
   if (role === "admin") {
     return [
       <PatientsIcon key="patients" />,
-      <StaffIcon key="staff" />,
+
+      <StaffIcon key="users" />,
     ];
   }
 
+  /* STAFF */
   if (role === "staff") {
     return [
       <PatientsIcon key="patients" />,
+
       <VisitsIcon key="visits" />,
+
       <StaffIcon key="waiting" />,
+
       <CalendarIcon key="appointments" />,
     ];
   }
 
   /*
-    Doctor / Nurse
+    DOCTOR + NURSE
   */
   return [
     <CalendarIcon key="appointments" />,
+
     <PatientsIcon key="patients" />,
+
     <VisitsIcon key="consultations" />,
+
     <VisitsIcon key="emergency" />,
   ];
 }
@@ -408,6 +448,7 @@ function getMetricIcons(
 function getMetricTones(
   role: ClinicRole,
 ): MetricTone[] {
+  /* ADMIN */
   if (role === "admin") {
     return [
       "blue",
@@ -415,6 +456,7 @@ function getMetricTones(
     ];
   }
 
+  /* STAFF */
   if (role === "staff") {
     return [
       "blue",
@@ -425,7 +467,7 @@ function getMetricTones(
   }
 
   /*
-    Doctor / Nurse
+    DOCTOR + NURSE
   */
   return [
     "blue",
@@ -436,7 +478,7 @@ function getMetricTones(
 }
 
 /* =========================================================
-   SIDEBAR ICON
+   ADMIN SIDEBAR ICONS
 ========================================================= */
 
 function previewNavigationIcon(
