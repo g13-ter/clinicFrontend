@@ -32,6 +32,7 @@ import MedicationOrdersPage from "./MedicationOrdersPage";
 import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
 import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 import ClinicAnalytics from "../features/dashboard/ClinicAnalytics";
+import ReportsPage from "./ReportsPage";
 
 function DashboardPage() {
   const { role, user } = useAuth();
@@ -55,6 +56,7 @@ function DashboardPage() {
     requestedView === "appointments" ||
     requestedView === "inventory" ||
     requestedView === "medications" ||
+    requestedView === "reports" ||
     requestedView === "notifications"
       ? requestedView
       : "visits";
@@ -64,6 +66,7 @@ function DashboardPage() {
     requestedDoctorTab === "records" ||
     requestedDoctorTab === "consultation" ||
     requestedDoctorTab === "followups" ||
+    requestedDoctorTab === "reports" ||
     requestedDoctorTab === "notifications"
       ? requestedDoctorTab
       : "appointments";
@@ -168,6 +171,7 @@ function DashboardPage() {
           )}
         </div>
 
+        <div className="min-h-[32rem] [overflow-anchor:none]">
         {!isAdmin && !isDoctor ? (
           workspaceView === "notifications" ? (
             <NotificationsPanel alerts={alerts} />
@@ -181,6 +185,8 @@ function DashboardPage() {
             <MedicinesPage embedded />
           ) : workspaceView === "medications" ? (
             <MedicationOrdersPage embedded />
+          ) : workspaceView === "reports" ? (
+            <ReportsPage embedded />
           ) : workspaceView === "appointments" ? (
             <AppointmentsPage embedded />
           ) : (
@@ -208,6 +214,8 @@ function DashboardPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <PatientQueuePage embedded />
             </section>
+          ) : doctorTab === "reports" ? (
+            <ReportsPage embedded />
           ) : (
             <ClinicalWorkspacePage embedded />
           )
@@ -220,6 +228,7 @@ function DashboardPage() {
             <UsersPage embedded />
           )
         ) : null}
+        </div>
       </div>
     </Layout>
   );
@@ -244,7 +253,7 @@ function RoleWorkspaceTabs({
 }: {
   role: string | null;
   unreadCount: number;
-  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "medications" | "notifications";
+  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "medications" | "reports" | "notifications";
   onOpenNotifications: () => void;
 }) {
   const tabs = [
@@ -275,8 +284,13 @@ function RoleWorkspaceTabs({
         ))}
         {role === "nurse" && (
           <Link
-            to="/reports"
-            className="border-b-2 border-transparent px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950"
+            to="/dashboard?view=reports"
+            aria-current={activeView === "reports" ? "page" : undefined}
+            className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+              activeView === "reports"
+                ? "border-blue-600 bg-blue-50/70 text-blue-700"
+                : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+            }`}
           >
             Reports
           </Link>

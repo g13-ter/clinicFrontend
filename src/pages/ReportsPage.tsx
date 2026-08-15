@@ -195,7 +195,7 @@ function ReportsPage({ embedded = false }: { embedded?: boolean }) {
               <label className="text-xs font-medium text-gray-600">
                 Patient type
                 <select value={patientType} onChange={(event) => setPatientType(event.target.value)} className="input mt-1">
-                  <option value="all">All (clearly separated)</option>
+                  <option value="all">All</option>
                   <option value="student">Students</option>
                   <option value="employees">Teachers &amp; Staff</option>
                   <option value="teacher">Teachers</option>
