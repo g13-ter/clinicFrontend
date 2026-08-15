@@ -14,7 +14,7 @@ const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
   { id: "visits", label: "Patient Visits", to: "/dashboard?tab=visits" },
   { id: "records", label: "Patient Records", to: "/dashboard?tab=records" },
   { id: "followups", label: "Follow-Ups", to: "/dashboard?tab=followups" },
-  { id: "reports", label: "Reports", to: "/reports" },
+  { id: "reports", label: "Reports", to: "/dashboard?tab=reports" },
 ];
 
 function DoctorWorkspaceTabs({

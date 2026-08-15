@@ -253,6 +253,10 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [location.pathname]);
+
+  useEffect(() => {
     if (!sidebarOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setSidebarOpen(false);
