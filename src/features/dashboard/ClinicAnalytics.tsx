@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../../services/api";
 import type { DashboardStats } from "../../utils/types";
 import { normalizeDashboardStats, type AnalyticsPatientType } from "./useDashboardData";
+import { CLINIC_ANALYTICS_UPDATED_EVENT } from "../../utils/clinicEvents";
 
 const CHART_COLORS = ["#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#8b5cf6"];
 
@@ -25,22 +26,27 @@ export default function ClinicAnalytics({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError("");
-    api.get<Partial<DashboardStats>>(`/dashboard/analytics?patientType=${encodeURIComponent(patientType)}`)
-      .then((response) => {
-        if (!cancelled) setStats(normalizeDashboardStats(response.data));
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled) {
-          setError(requestError instanceof Error ? requestError.message : "Analytics could not be loaded");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const loadAnalytics = () => {
+      setLoading(true);
+      setError("");
+      api.get<Partial<DashboardStats>>(`/dashboard/analytics?patientType=${encodeURIComponent(patientType)}`)
+        .then((response) => {
+          if (!cancelled) setStats(normalizeDashboardStats(response.data));
+        })
+        .catch((requestError: unknown) => {
+          if (!cancelled) {
+            setError(requestError instanceof Error ? requestError.message : "Analytics could not be loaded");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    loadAnalytics();
+    window.addEventListener(CLINIC_ANALYTICS_UPDATED_EVENT, loadAnalytics);
     return () => {
       cancelled = true;
+      window.removeEventListener(CLINIC_ANALYTICS_UPDATED_EVENT, loadAnalytics);
     };
   }, [patientType]);
 
@@ -163,26 +169,26 @@ function BmiDistributionChart({
     <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="font-semibold text-gray-900">BMI Screening Categories</h3>
       <p className="mt-1 text-xs text-gray-500">
-        BMI distribution for patients age 18 and above.
+        BMI ranges across all recorded patient ages.
       </p>
       {recordedCount === 0 ? (
         <EmptyChart label="No visits with both height and weight recorded for this patient type." />
       ) : (
-        <div className="mt-6 flex flex-col items-center gap-7 sm:flex-row sm:justify-center">
+        <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
           <div
-            className="relative h-44 w-44 shrink-0 rounded-full"
+            className="relative h-40 w-40 shrink-0 rounded-full"
             style={{ background }}
             role="img"
             aria-label={`BMI screening ranges for ${recordedCount} recorded visits`}
           >
-            <div className="absolute inset-11 flex items-center justify-center rounded-full bg-white text-center">
+            <div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center">
               <div>
                 <p className="text-2xl font-bold text-gray-900">{recordedCount}</p>
                 <p className="text-[11px] leading-tight text-gray-500">recorded BMIs</p>
               </div>
             </div>
           </div>
-          <div className="grid w-full gap-3 sm:max-w-md">
+          <div className="grid w-full gap-3 sm:max-w-xs">
             {categories.map((category) => (
               <div key={category.key} className="flex items-center gap-3 text-sm">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />

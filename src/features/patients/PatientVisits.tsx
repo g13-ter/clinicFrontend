@@ -7,6 +7,7 @@ import { useToast } from "../../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { ClinicVisit } from "../../utils/types";
 import { BmiPreview } from "../../components/BmiPreview";
+import { notifyClinicAnalyticsUpdated } from "../../utils/clinicEvents";
 
 const empty = {
   complaint: "",
@@ -112,6 +113,7 @@ function PatientVisits({ patientId, patientAge }: { patientId: string; patientAg
       const res = editing
         ? await api.put(`/visits/${editing._id}`, body)
         : await api.post("/visits", body);
+      notifyClinicAnalyticsUpdated();
       showToast(res.message);
       setOpen(false);
       reload();
