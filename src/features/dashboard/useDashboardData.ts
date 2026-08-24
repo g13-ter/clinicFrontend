@@ -35,6 +35,8 @@ export function normalizeDashboardStats(data: LegacyDashboardStats): DashboardSt
     analyticsPatientType: data.analyticsPatientType ?? "all",
     analyticsTotalVisits: data.analyticsTotalVisits ?? 0,
     analyticsVisitBreakdown: data.analyticsVisitBreakdown ?? { student: 0, teacher: 0, staff: 0 },
+    bmiRecordedCount: data.bmiRecordedCount ?? 0,
+    bmiBreakdown: data.bmiBreakdown ?? { underweight: 0, normalWeight: 0, overweight: 0, obese: 0 },
     recentCases: data.recentCases ?? [],
     recentActivity: data.recentActivity ?? [],
   };

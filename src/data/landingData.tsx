@@ -255,7 +255,6 @@ export const roleWorkspaces: Record<
     pages: [
       "Dashboard",
       "Patients",
-      "Patient Records",
       "Patient Visits",
       "Appointments",
       "Inventory",
@@ -266,7 +265,6 @@ export const roleWorkspaces: Record<
 
     features: [
       "Patients",
-      "Patient Records",
       "Patient Visits",
       "Appointments",
       "Inventory",

@@ -7,7 +7,7 @@ import type { InventoryLabel, InventoryLabelActivity, Medicine } from "../utils/
 
 const blank = { name: "", description: "", color: "#64748b" };
 
-export default function InventoryLabelsPage() {
+export default function InventoryLabelsPage({ embedded = false }: { embedded?: boolean }) {
   const { showToast } = useToast();
   const [labels, setLabels] = useState<InventoryLabel[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -91,7 +91,7 @@ export default function InventoryLabelsPage() {
     finally { setBusy(false); }
   };
 
-  return <Layout><div className="mx-auto max-w-6xl space-y-5">
+  const content = <div className="mx-auto max-w-6xl space-y-5">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-bold">Manage Inventory Labels</h2><p className="mt-1 text-sm text-gray-500">Control report headings, descriptions, colors, order, and item assignments.</p></div><button type="button" onClick={() => { setEditing("new"); setForm(blank); }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">+ Add Label</button></div>
     {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <section className="overflow-hidden rounded-xl border bg-white shadow-sm"><div className="divide-y">{labels.map((label, index) => <article key={label._id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center">
@@ -106,5 +106,7 @@ export default function InventoryLabelsPage() {
 
     {editing && <Modal title={editing === "new" ? "Add Inventory Label" : "Edit Inventory Label"} onClose={() => setEditing(null)} closeDisabled={busy}><form onSubmit={save} className="space-y-3"><label className="block text-sm">Label name<input required disabled={editing !== "new" && editing.isSystem} maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="input mt-1 disabled:bg-gray-100" /></label>{editing !== "new" && editing.isSystem && <p className="text-xs text-gray-500">The name of a standard label is protected, but its description and color can be changed.</p>}<label className="block text-sm">Description<textarea maxLength={300} rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="input mt-1" /></label><label className="flex items-center gap-3 text-sm">Color<input type="color" value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })} className="h-10 w-16" /></label><button disabled={busy} className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-50">{busy ? "Saving..." : "Save Label"}</button></form></Modal>}
     {mergeSource && <Modal title={`Merge ${mergeSource.name}`} onClose={() => setMergeSource(null)} closeDisabled={busy}><div className="space-y-3"><p className="text-sm text-gray-600">All {mergeSource.itemCount} item(s) will move to the target label. The source label will then be archived.</p><select value={mergeTargetId} onChange={(event) => setMergeTargetId(event.target.value)} className="input"><option value="">Select target label...</option>{labels.filter((label) => label._id !== mergeSource._id).map((label) => <option key={label._id} value={label._id}>{label.name}</option>)}</select><button type="button" disabled={!mergeTargetId || busy} onClick={() => void merge()} className="w-full rounded-lg bg-amber-600 px-4 py-2 font-medium text-white disabled:opacity-50">Merge Labels</button></div></Modal>}
-  </div></Layout>;
+  </div>;
+
+  return embedded ? content : <Layout>{content}</Layout>;
 }

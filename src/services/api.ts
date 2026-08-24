@@ -43,7 +43,12 @@ interface ErrorPayload {
 
 const parseJson = async (res: Response): Promise<unknown> => {
   const text = await res.text();
-  if (!text) return null;
+  if (!text) {
+    if (res.ok) {
+      throw new ApiError("The server returned an empty response", res.status);
+    }
+    return null;
+  }
 
   try {
     return JSON.parse(text) as unknown;
@@ -57,7 +62,7 @@ const parseJson = async (res: Response): Promise<unknown> => {
   }
 };
 
-const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
+export const readApiResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
   if (res.status === 401) {
     clearCurrentSession();
     if (!redirectingToLogin && window.location.pathname !== "/login") {
@@ -114,7 +119,7 @@ const getWithRetry = async <T>(path: string): Promise<ApiSuccess<T>> => {
         continue;
       }
 
-      return await handleResponse<T>(response);
+      return await readApiResponse<T>(response);
     } catch (error: unknown) {
       lastError = error;
       if (error instanceof ApiError) throw error;
@@ -168,7 +173,7 @@ const send = async <T>(
       credentials: "include",
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    return await handleResponse<T>(response);
+    return await readApiResponse<T>(response);
   } catch (error: unknown) {
     throw connectionError(error);
   }
@@ -183,7 +188,7 @@ export const api = {
 
   put: <T = unknown>(path: string, body: unknown) => send<T>(path, "PUT", body),
 
-  delete: <T = unknown>(path: string) => send<T>(path, "DELETE"),
+  delete: <T = unknown>(path: string, body?: unknown) => send<T>(path, "DELETE", body),
 
   download: async (path: string) => {
     const response = await fetch(`${BASE}${path}`, {

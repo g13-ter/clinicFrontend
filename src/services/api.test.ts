@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "./api";
+import { api, readApiResponse } from "./api";
 
 describe("API client recovery", () => {
   afterEach(() => {
@@ -57,5 +57,25 @@ describe("API client recovery", () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns an empty error response into a useful API error", async () => {
+    await expect(readApiResponse(new Response(null, { status: 503 }))).rejects.toEqual(
+      expect.objectContaining({
+        name: "ApiError",
+        message: "Request failed (503)",
+        status: 503,
+      }),
+    );
+  });
+
+  it("rejects an empty success response instead of throwing a JSON syntax error", async () => {
+    await expect(readApiResponse(new Response(null, { status: 200 }))).rejects.toEqual(
+      expect.objectContaining({
+        name: "ApiError",
+        message: "The server returned an empty response",
+        status: 200,
+      }),
+    );
   });
 });

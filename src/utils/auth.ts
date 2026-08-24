@@ -6,6 +6,7 @@ export type { UserRole };
 export interface CurrentUser {
   id: string;
   role: UserRole;
+  mustChangePassword: boolean;
   termsAccepted: true;
   exp?: number;
 }
@@ -38,14 +39,14 @@ const isUserRole = (value: unknown): value is UserRole =>
   typeof value === "string" && (USER_ROLES as readonly string[]).includes(value);
 
 export const saveCurrentSession = (
-  user: { id: string; role: UserRole },
+  user: { id: string; role: UserRole; mustChangePassword?: boolean },
   expiresAt: string
 ): void => {
   const expiry = new Date(expiresAt).getTime();
   if (!Number.isFinite(expiry)) return;
   sessionStorage.setItem(
     SESSION_KEY,
-    JSON.stringify({ id: user.id, role: user.role, termsAccepted: true, exp: Math.floor(expiry / 1000) })
+    JSON.stringify({ id: user.id, role: user.role, mustChangePassword: user.mustChangePassword === true, termsAccepted: true, exp: Math.floor(expiry / 1000) })
   );
   notifySessionChanged("authenticated");
 };
@@ -59,7 +60,7 @@ export const clearCurrentSession = (): void => {
 
 export type SessionRestoreResult =
   | { status: "authenticated"; user: CurrentUser }
-  | { status: "terms_required"; user: { id: string; role: UserRole }; expiresAt: string }
+  | { status: "terms_required"; user: { id: string; role: UserRole; mustChangePassword: boolean }; expiresAt: string }
   | { status: "unauthenticated" }
   | { status: "unavailable"; message: string };
 
@@ -83,7 +84,7 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
 
     const payload = (await response.json()) as {
       data?: {
-        user?: { id?: unknown; role?: unknown };
+        user?: { id?: unknown; role?: unknown; mustChangePassword?: unknown };
         termsAccepted?: unknown;
         expiresAt?: unknown;
       };
@@ -93,6 +94,7 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
     const role = payload.data?.user?.role;
     const expiresAt = payload.data?.expiresAt;
     const termsAccepted = payload.data?.termsAccepted;
+    const mustChangePassword = payload.data?.user?.mustChangePassword === true;
 
     if (
       typeof id !== "string" ||
@@ -109,10 +111,10 @@ export const restoreCurrentSession = async (): Promise<SessionRestoreResult> => 
 
     if (!termsAccepted) {
       clearCurrentSession();
-      return { status: "terms_required", user: { id, role }, expiresAt };
+      return { status: "terms_required", user: { id, role, mustChangePassword }, expiresAt };
     }
 
-    saveCurrentSession({ id, role }, expiresAt);
+    saveCurrentSession({ id, role, mustChangePassword }, expiresAt);
 
     const user = getCurrentUser();
 
@@ -154,6 +156,7 @@ export const getCurrentUser = (): CurrentUser | null => {
     return {
       id: payload.id,
       role: payload.role,
+      mustChangePassword: payload.mustChangePassword === true,
       termsAccepted: true,
       exp: payload.exp as number | undefined,
     };

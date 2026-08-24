@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
 import type { AuditLog } from "../utils/types";
+import Modal from "../components/Modal";
 
 const ACTION_COLORS: Record<string, string> = {
   create: "bg-green-100 text-green-700",
@@ -22,6 +23,7 @@ function AuditLogPage() {
   const [error, setError] = useState("");
   const [filters, setFilters] = useState(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   const limit = 20;
 
@@ -114,12 +116,13 @@ function AuditLogPage() {
                   <th className="text-left px-4 py-3">Action</th>
                   <th className="text-left px-4 py-3">Resource</th>
                   <th className="text-left px-4 py-3">Performed By</th>
+                  <th className="px-4 py-3"><span className="sr-only">Details</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {logs.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-6 text-gray-400">
+                    <td colSpan={5} className="text-center py-6 text-gray-400">
                       No logs found.
                     </td>
                   </tr>
@@ -169,6 +172,7 @@ function AuditLogPage() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-right"><button type="button" onClick={() => setSelectedLog(log)} className="text-xs font-medium text-blue-600 hover:underline">View Details</button></td>
                     </tr>
                     );
                   })
@@ -200,8 +204,22 @@ function AuditLogPage() {
           )}
         </>
       )}
+      {selectedLog && <AuditDetails log={selectedLog} onClose={() => setSelectedLog(null)} />}
     </Layout>
   );
+}
+
+function AuditDetails({ log, onClose }: { log: AuditLog; onClose: () => void }) {
+  const sections = [["Before", log.changes?.before], ["After", log.changes?.after]] as const;
+  return <Modal title="Audit event details" onClose={onClose}>
+    <dl className="grid gap-3 text-sm sm:grid-cols-2">
+      <div><dt className="text-xs text-gray-500">Action</dt><dd className="font-medium capitalize">{log.action}</dd></div>
+      <div><dt className="text-xs text-gray-500">Resource</dt><dd className="font-medium">{log.resource} #{log.resourceId}</dd></div>
+      <div><dt className="text-xs text-gray-500">Time</dt><dd>{new Date(log.createdAt).toLocaleString()}</dd></div>
+      <div><dt className="text-xs text-gray-500">Request</dt><dd className="font-mono text-xs">{[log.metadata?.method, log.metadata?.path].filter(Boolean).join(" ") || "Not recorded"}</dd></div>
+    </dl>
+    <div className="mt-5 space-y-4">{sections.map(([label, value]) => <section key={label}><h3 className="mb-2 text-sm font-semibold text-gray-800">{label}</h3>{value ? <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-100">{JSON.stringify(value, null, 2)}</pre> : <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">No {label.toLowerCase()} snapshot recorded.</p>}</section>)}</div>
+  </Modal>;
 }
 
 export default AuditLogPage;

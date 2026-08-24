@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
@@ -24,10 +24,12 @@ import {
   todaysAppointments,
   type ConsultationForm,
 } from "../features/clinical/clinicalWorkspaceModel";
-import type { ReactNode } from "react";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 import { EmptyState, Panel, StatusBadge } from "../components/ui";
 import { patientAffiliation, patientIdentifier, patientTypeLabel } from "../utils/patient";
+import { BmiPreview } from "../components/BmiPreview";
+import SearchablePatientSelect from "../components/SearchablePatientSelect";
+import PatientRecordModal from "../components/PatientRecordModal";
 
 type Tab = "appointments" | "records" | "consultation" | "followups";
 
@@ -39,10 +41,6 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const CONSULTATION_DRAFT_PREFIX = "clinic-consultation-draft";
-
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
 
 function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const { role, user } = useAuth();
@@ -60,6 +58,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [recordSearch, setRecordSearch] = useState("");
+  const [viewingPatientId, setViewingPatientId] = useState<string | null>(null);
   const [form, setForm] = useState<ConsultationForm>(() => createEmptyConsultation({
     visitId: searchParams.get("visitId") ?? "",
     patientId: searchParams.get("patientId") ?? "",
@@ -434,18 +433,27 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                 patients={filteredPatients}
                 search={recordSearch}
                 onSearch={setRecordSearch}
-                onStart={isDoctor ? undefined : (patient) => startConsultation(undefined, patient)}
+                onView={(patient) => setViewingPatientId(patient._id)}
               />
             )}
             {activeTab === "consultation" && (
-              isDoctor && !form.visitId ? (
+              !form.visitId ? (
                 <Panel
-                  title="Select a Triaged Student"
-                  subtitle="Physician consultations begin after the nurse records vitals and marks the student ready"
+                  title={isDoctor ? "Select a Triaged Patient" : "Check In a Patient First"}
+                  subtitle={isDoctor
+                    ? "Physician consultations begin after the nurse records vitals and marks the patient ready"
+                    : "Nursing assessments must be linked to an active clinic visit"}
                 >
                   <div className="rounded-lg bg-sky-50 p-5 text-sm text-sky-900">
-                    Open <Link to="/patient-queue" className="font-semibold underline">Patient Queue</Link> or
-                    select a ready student from Today&apos;s Appointments to begin the consultation.
+                    Open <Link
+                      to={embedded
+                        ? isDoctor ? "/dashboard?tab=visits" : "/dashboard?view=visits"
+                        : "/patient-queue"}
+                      className="font-semibold underline"
+                    >Patient Visits</Link>
+                    {isDoctor
+                      ? " and select a patient marked ready for the doctor."
+                      : " to check in the patient before recording an assessment."}
                   </div>
                 </Panel>
               ) : (
@@ -461,6 +469,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                   onChange={updateForm}
                   onSubmit={handleConsultation}
                   onProfileSaved={handleProfileSaved}
+                  onViewPatient={() => form.patientId && setViewingPatientId(form.patientId)}
                 />
               )
             )}
@@ -472,6 +481,11 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
             )}
           </>
         )}
+
+        <PatientRecordModal
+          patientId={viewingPatientId}
+          onClose={() => setViewingPatientId(null)}
+        />
       </div>
     </PageFrame>
   );
@@ -586,19 +600,17 @@ function StudentRecordsTab({
   patients,
   search,
   onSearch,
-  onStart,
+  onView,
 }: {
   patients: Patient[];
   search: string;
   onSearch: (value: string) => void;
-  onStart?: (patient: Patient) => void;
+  onView: (patient: Patient) => void;
 }) {
   return (
     <Panel
       title="Search Patient Records"
-      subtitle={onStart
-        ? "Open a patient profile or begin a nursing assessment"
-        : "Review the patient’s clinic record"}
+      subtitle="Review the patient’s clinic record"
     >
       <input
         type="search"
@@ -614,14 +626,9 @@ function StudentRecordsTab({
             <p className="mt-1 font-mono text-xs text-gray-500">{patientIdentifier(patient)}</p>
             <p className="mt-2 text-sm text-gray-600"><span className="font-semibold">{patientTypeLabel(patient)}</span> · {patientAffiliation(patient)}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link to={`/patients/${patient._id}`} className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50">
+              <button type="button" onClick={() => onView(patient)} className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50">
                 View Record
-              </Link>
-              {onStart && (
-                <button onClick={() => onStart(patient)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800">
-                  New Nursing Assessment
-                </button>
-              )}
+              </button>
             </div>
           </article>
         ))}
@@ -643,6 +650,7 @@ function ConsultationForm({
   onChange,
   onSubmit,
   onProfileSaved,
+  onViewPatient,
 }: {
   form: ConsultationForm;
   patients: Patient[];
@@ -655,6 +663,7 @@ function ConsultationForm({
   onChange: (field: keyof typeof form, value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
   onProfileSaved: (patient: Patient) => void;
+  onViewPatient: () => void;
 }) {
   const selectedPatient = patients.find((patient) => patient._id === form.patientId);
   const persistentAllergies = selectedPatient?.medicalAlerts?.allergies ?? [];
@@ -677,21 +686,18 @@ function ConsultationForm({
               {patientIdentifier(selectedPatient)} · {patientTypeLabel(selectedPatient)} · {patientAffiliation(selectedPatient)}
             </p>
           </div>
-          <Link to={`/patients/${selectedPatient._id}`} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button type="button" onClick={onViewPatient} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
             View full record
-          </Link>
+          </button>
         </div>
       )}
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Select Patient" className="md:col-span-1 xl:col-span-2">
-          <select required value={form.patientId} onChange={(event) => onChange("patientId", event.target.value)} className="input">
-            <option value="">Choose patient...</option>
-            {patients.map((patient) => (
-              <option key={patient._id} value={patient._id}>
-                {patient.firstName} {patient.lastName} ({patientIdentifier(patient)}) · {patientTypeLabel(patient)}
-              </option>
-            ))}
-          </select>
+          <SearchablePatientSelect
+            patients={patients}
+            value={form.patientId}
+            onChange={(patientId) => onChange("patientId", patientId)}
+          />
         </Field>
         <Field label="Visit Date">
           <input value={localDateKey()} disabled className="input bg-gray-50" />
@@ -737,11 +743,12 @@ function ConsultationForm({
           <input type="number" min={1} value={form.respiratoryRate} onChange={(event) => onChange("respiratoryRate", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Height (cm)">
-          <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
+          <input type="number" min={30} max={250} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
         <Field label="Weight (kg)">
-          <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
+          <input type="number" min={1} max={500} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
+        <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={selectedPatient?.age} className="md:col-span-2 xl:col-span-3" />
 
         {isDoctor ? (
           <Field label="Diagnosis" className="md:col-span-2 xl:col-span-3">

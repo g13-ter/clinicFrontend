@@ -124,6 +124,7 @@ export interface User {
   email: string;
   role: "superadmin" | "admin" | "doctor" | "nurse" | "staff";
   isActive: boolean;
+  mustChangePassword?: boolean;
   deactivatedAt?: string;
   deactivatedBy?: string | { _id: string; name: string; email?: string; role?: string };
   isAvailable?: boolean;
@@ -235,6 +236,8 @@ export interface DashboardStats {
   analyticsPatientType: "all" | "student" | "teacher" | "staff";
   analyticsTotalVisits: number;
   analyticsVisitBreakdown: { student: number; teacher: number; staff: number };
+  bmiRecordedCount: number;
+  bmiBreakdown: { underweight: number; normalWeight: number; overweight: number; obese: number };
   recentCases: {
     id: string;
     date: string;

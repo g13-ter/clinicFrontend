@@ -27,6 +27,7 @@ describe("auth utils", () => {
     expect(getCurrentUser()).toEqual({
       id: "abc123",
       role: "nurse",
+      mustChangePassword: false,
       termsAccepted: true,
       exp: expect.any(Number),
     });
@@ -82,6 +83,14 @@ describe("auth utils", () => {
     expect(localStorage.getItem("token")).toBeNull();
   });
 
+  it("preserves the mandatory password-change flag", () => {
+    saveCurrentSession(
+      { id: "temporary-1", role: "staff", mustChangePassword: true },
+      new Date(Date.now() + 60_000).toISOString(),
+    );
+    expect(getCurrentUser()?.mustChangePassword).toBe(true);
+  });
+
   it("reports a valid session that still requires Terms acceptance", async () => {
     const expiresAt = new Date(Date.now() + 60_000).toISOString();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -97,7 +106,7 @@ describe("auth utils", () => {
 
     await expect(restoreCurrentSession()).resolves.toEqual({
       status: "terms_required",
-      user: { id: "staff-1", role: "staff" },
+      user: { id: "staff-1", role: "staff", mustChangePassword: false },
       expiresAt,
     });
     expect(getCurrentUser()).toBeNull();

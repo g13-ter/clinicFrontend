@@ -39,34 +39,89 @@ no CORS, and cookies stay scoped correctly to the Vercel domain. See
 
 ---
 
-## Getting started
+## Run locally
+
+### Prerequisites
+
+- Node.js 22 or newer
+- npm
+- The backend configured and connected to MongoDB; follow
+  [the backend setup guide](../backend/README.md#run-locally) first
 
 ### 1. Install dependencies
 
-```bash
-npm install
-```
-
-### 2. Configure environment (optional for local dev)
-
-Local development doesn't need any env vars — Vite's dev server proxy
-(`vite.config.ts`) already forwards `/api` requests to
-`http://localhost:5000`, so just run the backend locally on port 5000
-alongside this app.
-
-If you ever do need to override the API target, copy the example file:
+From the `frontend` directory:
 
 ```bash
-cp src/.env.example .env
+npm ci
 ```
 
-### 3. Run the dev server
+Use `npm install` instead when you intentionally want to update dependencies or
+the lockfile.
+
+### 2. Start the backend
+
+In one terminal, from `backend/`:
 
 ```bash
 npm run dev
 ```
 
-### 4. Other scripts
+Wait until <http://localhost:5000/api/health/ready> reports that the database is
+connected. The frontend cannot log in or load clinic data without the API.
+
+### 3. Start the frontend
+
+In a second terminal, from `frontend/`:
+
+```bash
+npm run dev
+```
+
+Open <http://localhost:5173>. Sign in using the account created with the
+backend's `npm run seed-admin` command. The default local credentials are
+`admin@clinic.com` / `admin123` unless they were changed in `backend/.env`.
+
+No frontend environment file is needed for local development. All browser
+requests use `/api`, and Vite proxies that path to
+`http://127.0.0.1:5000` as configured in `vite.config.ts`.
+
+### Start both apps with one command
+
+After installing dependencies in both directories and configuring
+`backend/.env`, you can start the complete system from the repository root:
+
+```bash
+npm run dev
+```
+
+The root script starts the backend, waits for its readiness endpoint, and then
+starts Vite. Press `Ctrl+C` to stop both processes.
+
+### Production preview
+
+```bash
+npm run build
+npm run preview
+```
+
+This serves the optimized frontend assets for a UI check. Vite's preview
+server does not proxy `/api`; a fully working production-style preview also
+needs a reverse proxy configured like the deployment described below.
+
+### Common local problems
+
+- **Vite shows a proxy/network error:** make sure the backend is running on
+  port `5000` and its readiness endpoint returns `200`.
+- **Login fails:** seed an administrator, verify the credentials, and check the
+  backend terminal for errors.
+- **Port 5173 is already in use:** stop the other Vite process. If Vite selects
+  a different port, add that exact origin to `CLIENT_ORIGIN` in `backend/.env`
+  and restart the backend.
+- **API runs on another port:** update the `/api` proxy target in
+  `vite.config.ts` to match it.
+
+## Available scripts
 
 | Script | What it does |
 |---|---|
@@ -88,6 +143,7 @@ RBAC model:
 
 | Role | Can access |
 |---|---|
+| `superadmin` | Dashboard, Users, Role Permissions, Audit Log, Settings, Profile |
 | `admin` | Dashboard, Students, Appointments, Purchase Requests, Users, Reports, Audit Log, Settings |
 | `doctor` | Dashboard, Clinical Care, Students, Student Queue, Appointments, Inventory |
 | `nurse` | Dashboard, Clinical Care, Students, Student Queue, Appointments, Inventory, Purchase Requests, Reports |

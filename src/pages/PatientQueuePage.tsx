@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -10,9 +10,11 @@ import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
 import type { ClinicVisit, Patient } from "../utils/types";
 import { reportFilename, saveBlobDownload } from "../utils/download";
-import type { ReactNode } from "react";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 import { patientIdentifier, patientTypeLabel } from "../utils/patient";
+import { BmiPreview } from "../components/BmiPreview";
+import SearchablePatientSelect from "../components/SearchablePatientSelect";
+import PatientRecordModal from "../components/PatientRecordModal";
 
 // Clinic-wide queue of open visits sorted by arrival time.
 const POLL_INTERVAL_MS = 15000;
@@ -57,6 +59,7 @@ function vitalsSummary(v: ClinicVisit): string {
       v.temperature && `${v.temperature}°C`,
       v.bloodPressure && `BP: ${v.bloodPressure}`,
       v.pulseRate && `PR: ${v.pulseRate}`,
+      v.bmi != null && `BMI: ${v.bmi}`,
     ]
       .filter(Boolean)
       .join(" · ") || "Vitals not yet recorded"
@@ -69,10 +72,6 @@ function hasRecordedVitals(v: ClinicVisit): boolean {
 
 function hasCompleteCoreVitals(v: ClinicVisit): boolean {
   return Boolean(v.bloodPressure && v.temperature != null && v.pulseRate != null);
-}
-
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
 }
 
 function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
@@ -93,8 +92,10 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const [patientTypeFilter, setPatientTypeFilter] = useState<"all" | "student" | "teacher" | "staff">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [viewingPatientId, setViewingPatientId] = useState<string | null>(null);
 
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(canCheckIn);
 
   const [showCheckIn, setShowCheckIn] = useState(canCheckIn && Boolean(requestedPatientId));
   const [checkInForm, setCheckInForm] = useState({
@@ -159,12 +160,17 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     if (!canCheckIn) return;
     const path = patientsListPath(role);
-    if (!path) return;
+    if (!path) {
+      setPatientsLoading(false);
+      return;
+    }
+    setPatientsLoading(true);
     api.getAll<Patient>(path)
       .then((res) => setPatients(res.data))
       .catch((requestError: unknown) => {
         setError(requestError instanceof Error ? requestError.message : "Failed to load patients");
-      });
+      })
+      .finally(() => setPatientsLoading(false));
   }, [canCheckIn, role]);
 
   const openCheckIn = (patientId = "") => {
@@ -388,7 +394,12 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           typeof visit.appointmentId === "object" ? visit.appointmentId._id : visit.appointmentId,
         );
       }
-      navigate(`/clinical-workspace?${params}`);
+      const destination = embedded
+        ? role === "doctor"
+          ? `/dashboard?${params}`
+          : `/dashboard?view=records&${params}`
+        : `/clinical-workspace?${params}`;
+      navigate(destination);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Failed to start consultation", "error");
     }
@@ -557,9 +568,15 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 font-medium">
                         {link ? (
-                          <Link to={link} className="break-words text-blue-600 hover:underline">
-                            {patientLabel(v.patientId)}
-                          </Link>
+                          embedded ? (
+                            <button type="button" onClick={() => setViewingPatientId(link.slice("/patients/".length))} className="break-words text-left text-blue-600 hover:underline">
+                              {patientLabel(v.patientId)}
+                            </button>
+                          ) : (
+                            <Link to={link} className="break-words text-blue-600 hover:underline">
+                              {patientLabel(v.patientId)}
+                            </Link>
+                          )
                         ) : patientLabel(v.patientId)}
                         {v.isEmergency && (
                           <span className="ml-2 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
@@ -636,9 +653,15 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                     >
                       <td className="px-4 py-3 font-medium">
                         {link ? (
-                          <Link to={link} className="text-blue-600 hover:underline">
-                            {patientLabel(v.patientId)}
-                          </Link>
+                          embedded ? (
+                            <button type="button" onClick={() => setViewingPatientId(link.slice("/patients/".length))} className="text-left text-blue-600 hover:underline">
+                              {patientLabel(v.patientId)}
+                            </button>
+                          ) : (
+                            <Link to={link} className="text-blue-600 hover:underline">
+                              {patientLabel(v.patientId)}
+                            </Link>
+                          )
                         ) : (
                           patientLabel(v.patientId)
                         )}
@@ -684,19 +707,15 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           <form onSubmit={handleCheckIn} className="flex flex-col gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Patient *</label>
-              <select
+              <p id="patient-picker-help" className="mb-2 text-xs text-gray-400">
+                Search by name or patient ID, then select a patient from the list.
+              </p>
+              <SearchablePatientSelect
+                patients={patients}
                 value={checkInForm.patientId}
-                onChange={(e) => ci("patientId", e.target.value)}
-                required
-                className={`input w-full ${checkInFieldErrors.patientId ? "input-error" : ""}`}
-              >
-                <option value="">Select a patient…</option>
-                {patients.map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.firstName} {p.lastName} ({patientIdentifier(p)}) · {patientTypeLabel(p)}
-                  </option>
-                ))}
-              </select>
+                onChange={(patientId) => ci("patientId", patientId)}
+                disabled={patientsLoading}
+              />
               <FieldError message={checkInFieldErrors.patientId} />
             </div>
             <div>
@@ -897,6 +916,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               />
               <FieldError message={vitalsFieldErrors.weightKg} />
             </div>
+            <BmiPreview heightCm={vitalsForm.heightCm} weightKg={vitalsForm.weightKg} age={vitalsPatient?.age} className="sm:col-span-2" />
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Notes</label>
               <textarea
@@ -1013,6 +1033,10 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           </form>
         </Modal>
       )}
+      <PatientRecordModal
+        patientId={viewingPatientId}
+        onClose={() => setViewingPatientId(null)}
+      />
     </PageFrame>
   );
 }

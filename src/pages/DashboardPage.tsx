@@ -33,6 +33,8 @@ import { useInAppNotifications } from "../features/notifications/useInAppNotific
 import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 import ClinicAnalytics from "../features/dashboard/ClinicAnalytics";
 import ReportsPage from "./ReportsPage";
+import PatientRecordModal from "../components/PatientRecordModal";
+import InventoryLabelsPage from "./InventoryLabelsPage";
 
 function DashboardPage() {
   const { role, user } = useAuth();
@@ -43,6 +45,7 @@ function DashboardPage() {
   const [seenAlertKeys, setSeenAlertKeys] = useState<string[]>(() =>
     readSeenAlertKeys(alertStorageKey),
   );
+  const [viewingPatientId, setViewingPatientId] = useState<string | null>(null);
 
   const alerts = stats ? buildDashboardAlerts(role, stats) : [];
   const derivedUnreadCount = alerts.filter(
@@ -55,7 +58,9 @@ function DashboardPage() {
     requestedView === "records" ||
     requestedView === "appointments" ||
     requestedView === "inventory" ||
+    requestedView === "inventory-labels" ||
     requestedView === "medications" ||
+    requestedView === "purchase-requests" ||
     requestedView === "reports" ||
     requestedView === "notifications"
       ? requestedView
@@ -183,8 +188,12 @@ function DashboardPage() {
             <ClinicalWorkspacePage embedded />
           ) : workspaceView === "inventory" ? (
             <MedicinesPage embedded />
+          ) : workspaceView === "inventory-labels" ? (
+            <InventoryLabelsPage embedded />
           ) : workspaceView === "medications" ? (
             <MedicationOrdersPage embedded />
+          ) : workspaceView === "purchase-requests" ? (
+            <PurchaseRequestsPage embedded />
           ) : workspaceView === "reports" ? (
             <ReportsPage embedded />
           ) : workspaceView === "appointments" ? (
@@ -208,7 +217,11 @@ function DashboardPage() {
           ) : doctorTab === "appointments" ? (
             <>
               <TodayAppointments appointments={todayAppointments} />
-              <RecentCases cases={stats.recentCases} title="Recent Consultations" />
+              <RecentCases
+                cases={stats.recentCases}
+                title="Recent Consultations"
+                onViewPatient={setViewingPatientId}
+              />
             </>
           ) : doctorTab === "visits" ? (
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
@@ -229,6 +242,10 @@ function DashboardPage() {
           )
         ) : null}
         </div>
+        <PatientRecordModal
+          patientId={viewingPatientId}
+          onClose={() => setViewingPatientId(null)}
+        />
       </div>
     </Layout>
   );
@@ -253,15 +270,15 @@ function RoleWorkspaceTabs({
 }: {
   role: string | null;
   unreadCount: number;
-  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "medications" | "reports" | "notifications";
+  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "inventory-labels" | "medications" | "purchase-requests" | "reports" | "notifications";
   onOpenNotifications: () => void;
 }) {
   const tabs = [
     { label: "Patients", to: "/dashboard?view=students", view: "students", roles: ["nurse", "staff"] },
-    { label: "Patient Records", to: "/dashboard?view=records&tab=records", view: "records", roles: ["nurse"] },
     { label: "Patient Visits", to: "/dashboard?view=visits", view: "visits", roles: ["nurse", "staff"] },
     { label: "Appointments", to: "/dashboard?view=appointments", view: "appointments", roles: ["nurse", "staff"] },
     { label: "Inventory", to: "/dashboard?view=inventory", view: "inventory", roles: ["nurse"] },
+    { label: "Purchase Requests", to: "/dashboard?view=purchase-requests", view: "purchase-requests", roles: ["nurse"] },
     { label: "Medication Requests", to: "/dashboard?view=medications", view: "medications", roles: ["nurse"] },
   ].filter((tab) => role && tab.roles.includes(role));
 
@@ -420,7 +437,7 @@ function InAppNotificationsPanel({
           {visibleNotifications.map((notification) => (
             <Link
               key={notification._id}
-              to={notification.link}
+              to={dashboardNotificationLink(notification.link)}
               onClick={() => void onRead(notification._id)}
               className={`flex items-start gap-3 px-5 py-4 hover:bg-gray-50 ${notification.readAt ? "opacity-70" : "bg-blue-50/30"}`}
             >
@@ -437,6 +454,15 @@ function InAppNotificationsPanel({
       )}
     </section>
   );
+}
+
+function dashboardNotificationLink(link: string): string {
+  if (link.startsWith("/clinical-workspace?")) {
+    return `/dashboard?${link.slice(link.indexOf("?") + 1)}`;
+  }
+  if (link === "/patient-queue") return "/dashboard?tab=visits";
+  if (link === "/appointments") return "/dashboard?tab=appointments";
+  return link;
 }
 
 function StatCard({
@@ -644,9 +670,11 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
 function RecentCases({
   cases,
   title = "Recent Medical Cases",
+  onViewPatient,
 }: {
   cases: DashboardStats["recentCases"];
   title?: string;
+  onViewPatient: (patientId: string) => void;
 }) {
   const doctorView = title === "Recent Consultations";
 
@@ -666,9 +694,9 @@ function RecentCases({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     {caseItem.student ? (
-                      <Link to={`/patients/${caseItem.student.id}`} className="font-medium text-blue-600 hover:underline">
+                      <button type="button" onClick={() => onViewPatient(caseItem.student!.id)} className="text-left font-medium text-blue-600 hover:underline">
                         {caseItem.student.name}
-                      </Link>
+                      </button>
                     ) : (
                       <span className="font-medium text-gray-700">Archived student</span>
                     )}
@@ -708,9 +736,9 @@ function RecentCases({
                     <td className="px-5 py-3">
                       {caseItem.student ? (
                         <>
-                          <Link to={`/patients/${caseItem.student.id}`} className="font-medium text-blue-600 hover:underline">
+                          <button type="button" onClick={() => onViewPatient(caseItem.student!.id)} className="text-left font-medium text-blue-600 hover:underline">
                             {caseItem.student.name}
-                          </Link>
+                          </button>
                           <p className="text-xs text-gray-400">{caseItem.student.studentId} · {caseItem.student.patientType === "student" ? "Student" : caseItem.student.patientType === "teacher" ? "Teacher" : "Staff"}</p>
                         </>
                       ) : (

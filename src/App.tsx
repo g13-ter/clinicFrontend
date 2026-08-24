@@ -20,6 +20,7 @@ const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
 const InventoryLabelsPage = lazy(() => import("./pages/InventoryLabelsPage"));
@@ -43,6 +44,7 @@ function App() {
         <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/change-password" element={<ProtectedRoute roles={USER_ROLES}><ChangePasswordPage /></ProtectedRoute>} />
         <Route
           path="/privacy"
           element={

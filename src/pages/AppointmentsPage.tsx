@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
@@ -9,7 +9,6 @@ import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
 import type { Appointment, Doctor, Patient } from "../utils/types";
-import type { ReactNode } from "react";
 import SearchablePatientSelect from "../components/SearchablePatientSelect";
 import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 
@@ -40,10 +39,6 @@ const emptyRescheduleForm = {
   notes: "",
   durationMinutes: "30",
 };
-
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
 
 function localDateKey(date = new Date()): string {
   const offset = date.getTimezoneOffset() * 60_000;
