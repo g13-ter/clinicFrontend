@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import { MedicineIcon, ReportsIcon, VisitsIcon } from "../components/icons";
 import { api } from "../services/api";
@@ -9,7 +9,6 @@ import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { InventoryLabel, Medicine } from "../utils/types";
-import type { ReactNode } from "react";
 import {
   groupInventoryBySection,
   inventorySectionLabel,
@@ -51,10 +50,6 @@ const emptyBatchForm = {
   supplier: "",
   notes: "",
 };
-
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
 
 function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
   const { can } = useAuth();
@@ -280,13 +275,13 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
             {canEdit && (
               <>
                 <Link
-                  to="/inventory-labels"
+                  to={embedded ? "/dashboard?view=inventory-labels" : "/inventory-labels"}
                   className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Manage Labels
                 </Link>
                 <Link
-                  to="/purchase-requests?new=1&type=new"
+                  to={embedded ? "/dashboard?view=purchase-requests&new=1&type=new" : "/purchase-requests?new=1&type=new"}
                   className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
                 >
                   Request New Item
@@ -349,7 +344,9 @@ function MedicinesPage({ embedded = false }: { embedded?: boolean }) {
                         Receive Stock
                       </button>
                       <Link
-                        to={`/purchase-requests?new=1&medicineId=${medicine._id}`}
+                        to={embedded
+                          ? `/dashboard?view=purchase-requests&new=1&medicineId=${medicine._id}`
+                          : `/purchase-requests?new=1&medicineId=${medicine._id}`}
                         className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
                       >
                         Request Restock

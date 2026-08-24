@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
   getCurrentUser,
@@ -21,6 +21,7 @@ function ProtectedRoute({
   const [serviceError, setServiceError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
   const [termsRequired, setTermsRequired] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     if (user) return;
@@ -120,6 +121,10 @@ function ProtectedRoute({
 
   if (!user) {
     return <Navigate to={termsRequired ? "/login?reason=terms-required" : "/login"} replace />;
+  }
+
+  if (user.mustChangePassword && location.pathname !== "/change-password") {
+    return <Navigate to="/change-password" replace />;
   }
 
   if (roles && !roles.includes(user.role)) {

@@ -95,8 +95,9 @@ export default function ClinicAnalytics({
               )}
             </div>
           )}
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <CommonComplaintsChart items={stats.commonComplaints} />
+            <BmiDistributionChart breakdown={stats.bmiBreakdown} recordedCount={stats.bmiRecordedCount} />
             <MonthlyVisitsChart items={stats.monthlyVisits} />
           </div>
         </div>
@@ -137,10 +138,71 @@ function MonthlyVisitsChart({ items }: { items: DashboardStats["monthlyVisits"] 
   return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h3 className="font-semibold text-gray-900">Monthly Clinic Visits</h3><p className="mt-1 text-xs text-gray-500">Last six months, filtered by patient type</p><div className="mt-5 flex h-48 items-end gap-2 border-b border-l border-gray-200 px-3 pt-4 sm:gap-4">{items.map((item) => <div key={item.key} className="flex h-full min-w-0 flex-1 flex-col justify-end"><div className="flex min-h-0 flex-1 items-end"><div className="group relative w-full rounded-t bg-blue-500 transition-colors hover:bg-blue-600" style={{ height: item.visits > 0 ? `${Math.max((item.visits / max) * 100, 5)}%` : "2px" }}><span className="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-xs text-white group-hover:block">{item.visits}</span></div></div><div className="h-8 pt-2 text-center text-xs text-gray-500">{item.month}</div></div>)}</div></article>;
 }
 
+function BmiDistributionChart({
+  breakdown,
+  recordedCount,
+}: {
+  breakdown: DashboardStats["bmiBreakdown"];
+  recordedCount: number;
+}) {
+  const categories = [
+    { key: "underweight", label: "Underweight", value: breakdown.underweight, color: "#0ea5e9" },
+    { key: "normal", label: "Normal weight", value: breakdown.normalWeight, color: "#10b981" },
+    { key: "overweight", label: "Overweight", value: breakdown.overweight, color: "#f59e0b" },
+    { key: "obese", label: "Obese", value: breakdown.obese, color: "#f97316" },
+  ];
+  let current = 0;
+  const segments = categories.map((category) => {
+    const start = current;
+    current += recordedCount > 0 ? (category.value / recordedCount) * 100 : 0;
+    return `${category.color} ${start}% ${current}%`;
+  });
+  const background = recordedCount > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
+
+  return (
+    <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <h3 className="font-semibold text-gray-900">BMI Screening Categories</h3>
+      <p className="mt-1 text-xs text-gray-500">
+        BMI distribution for patients age 18 and above.
+      </p>
+      {recordedCount === 0 ? (
+        <EmptyChart label="No visits with both height and weight recorded for this patient type." />
+      ) : (
+        <div className="mt-6 flex flex-col items-center gap-7 sm:flex-row sm:justify-center">
+          <div
+            className="relative h-44 w-44 shrink-0 rounded-full"
+            style={{ background }}
+            role="img"
+            aria-label={`BMI screening ranges for ${recordedCount} recorded visits`}
+          >
+            <div className="absolute inset-11 flex items-center justify-center rounded-full bg-white text-center">
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{recordedCount}</p>
+                <p className="text-[11px] leading-tight text-gray-500">recorded BMIs</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid w-full gap-3 sm:max-w-md">
+            {categories.map((category) => (
+              <div key={category.key} className="flex items-center gap-3 text-sm">
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                <span className="min-w-0 flex-1 text-gray-700">{category.label}</span>
+                <span className="w-10 text-right font-semibold text-gray-900">
+                  {Math.round((category.value / recordedCount) * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
 function EmptyChart({ label }: { label: string }) {
   return <div className="mt-6 flex h-48 items-center justify-center rounded-lg bg-gray-50 px-4 text-center text-sm text-gray-500">{label}</div>;
 }
 
 function AnalyticsSkeleton({ showVisitCounts }: { showVisitCounts: boolean }) {
-  return <div className="animate-pulse space-y-4">{showVisitCounts && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-xl bg-slate-100" />)}</div>}<div className="grid gap-4 xl:grid-cols-2"><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /></div></div>;
+  return <div className="animate-pulse space-y-4">{showVisitCounts && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-xl bg-slate-100" />)}</div>}<div className="grid gap-4 xl:grid-cols-3"><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /></div></div>;
 }

@@ -78,7 +78,7 @@ export default function RoleDashboardPreview({
 
       {/* ADMIN */}
       {hasSidebar ? (
-        <div className="grid min-h-[545px] sm:grid-cols-[128px_1fr]">
+        <div className="grid h-[545px] overflow-hidden sm:grid-cols-[128px_1fr]">
           <AdminSidebar
             navigation={workspace.navigation}
           />
@@ -89,7 +89,7 @@ export default function RoleDashboardPreview({
         </div>
       ) : (
         /* DOCTOR / NURSE / STAFF */
-        <div className="min-h-[545px]">
+        <div className="h-[545px] overflow-hidden">
           <RoleDashboardBody
             role={role}
           />
@@ -215,7 +215,7 @@ function RoleDashboardBody({
     role === "staff"
       ? 1
       : role === "nurse"
-        ? 2
+        ? 1
         : 0;
 
   const metricIcons =

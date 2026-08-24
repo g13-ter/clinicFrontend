@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Modal from "../components/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
 import type { MedicalHistory, Patient, User } from "../utils/types";
+import PatientRecordModal from "../components/PatientRecordModal";
 
 type MedicationOrder = Omit<MedicalHistory, "patientId"> & {
   patientId: Patient;
@@ -53,6 +54,7 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
   const [notes, setNotes] = useState("");
   const [notGivenReason, setNotGivenReason] = useState("student_refused");
   const [reaction, setReaction] = useState("");
+  const [viewingPatientId, setViewingPatientId] = useState<string | null>(null);
 
   const reload = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -196,9 +198,9 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
               <article key={order._id} className={`rounded-xl border bg-white p-4 shadow-sm ${requestedOrderId === order._id ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <Link to={`/patients/${order.patientId._id}`} className="font-semibold text-blue-700 hover:underline">
+                    <button type="button" onClick={() => setViewingPatientId(order.patientId._id)} className="text-left font-semibold text-blue-700 hover:underline">
                       {order.patientId.firstName} {order.patientId.lastName}
-                    </Link>
+                    </button>
                     <p className="text-xs text-gray-500">{order.patientId.studentId} · {order.patientId.course} {order.patientId.yearLevel}</p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${claimed ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"}`}>
@@ -219,7 +221,7 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
                 <p className="mt-3 text-xs text-gray-500">Ordered by {personName(order.recordedBy)} · {new Date(order.dateRecorded).toLocaleString()}</p>
                 {claimed && !mine && <p className="mt-3 text-sm font-medium text-violet-700">Being handled by {personName(order.medicationClaimedBy)}</p>}
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <Link to={`/patients/${order.patientId._id}`} className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">View Student Record</Link>
+                  <button type="button" onClick={() => setViewingPatientId(order.patientId._id)} className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">View Student Record</button>
                   {!claimed && <button type="button" disabled={busyId === order._id} onClick={() => void claim(order)} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{busyId === order._id ? "Accepting..." : "Accept Request"}</button>}
                   {claimed && mine && <button type="button" onClick={() => { setChecks([false, false, false, false]); setNotes(""); setAdministering(order); }} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">Review & Give Medication</button>}
                 </div>
@@ -258,6 +260,7 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
       {notGiving && <Modal title="Medication Not Given" onClose={() => setNotGiving(null)} closeDisabled={busyId === notGiving._id}><div className="space-y-3"><select value={notGivenReason} onChange={(event) => setNotGivenReason(event.target.value)} className="input">{NOT_GIVEN_REASONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} className="input" placeholder="Explain what happened or what the doctor needs to clarify" /><button type="button" disabled={notes.trim().length < 3 || busyId === notGiving._id} onClick={() => void markNotGiven()} className="w-full rounded-lg bg-red-600 px-4 py-2 font-medium text-white disabled:opacity-50">Save as Not Given</button></div></Modal>}
 
       {reacting && <Modal title="Record Adverse Reaction" onClose={() => setReacting(null)} closeDisabled={busyId === reacting._id}><div className="space-y-3"><p className="text-sm text-gray-600">Describe the observed symptoms and immediate action taken. Follow the clinic emergency protocol when urgent.</p><textarea value={reaction} onChange={(event) => setReaction(event.target.value)} rows={5} className="input" placeholder="Reaction details and action taken" /><button type="button" disabled={reaction.trim().length < 3 || busyId === reacting._id} onClick={() => void reportReaction()} className="w-full rounded-lg bg-red-600 px-4 py-2 font-medium text-white disabled:opacity-50">Record Reaction</button></div></Modal>}
+      <PatientRecordModal patientId={viewingPatientId} onClose={() => setViewingPatientId(null)} />
     </section>
   );
 }

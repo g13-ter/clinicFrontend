@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AdminSectionTabs from "../components/AdminSectionTabs";
@@ -12,19 +12,15 @@ import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import type { Patient, User } from "../utils/types";
-import type { ReactNode } from "react";
+import { requiresAdministrativeStepUp } from "../features/admin/superAdminSecurity";
 
 type ManagementView = "students" | "all" | "admin" | "doctor" | "staff";
 type AccountStatus = "all" | "active" | "inactive";
 
 const ALL_ROLES: User["role"][] = ["superadmin", "admin", "doctor", "nurse", "staff"];
 const CLINIC_ROLES: User["role"][] = ["doctor", "nurse", "staff"];
-const FORM_FIELDS = ["name", "email", "password", "role"];
+const FORM_FIELDS = ["name", "email", "password", "role", "actorPassword"];
 const emptyForm: { name: string; email: string; password: string; role: User["role"] } = { name: "", email: "", password: "", role: "staff" };
-
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
 
 function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const { user: currentUser, role } = useAuth();
@@ -46,6 +42,12 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const [roleFilter, setRoleFilter] = useState<User["role"] | "all">("all");
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetPassword, setResetPassword] = useState("");
+  const [stepUpPassword, setStepUpPassword] = useState("");
+  const [resetActorPassword, setResetActorPassword] = useState("");
+  const [deactivateActorPassword, setDeactivateActorPassword] = useState("");
+  const [reactivateTarget, setReactivateTarget] = useState<User | null>(null);
+  const [reactivateActorPassword, setReactivateActorPassword] = useState("");
+  const [reactivating, setReactivating] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
   const {
@@ -140,6 +142,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     setEditTarget(null);
     setForm({ ...emptyForm, role: selectedRole });
     resetFormErrors();
+    setStepUpPassword("");
     setShowModal(true);
   };
 
@@ -147,6 +150,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     setEditTarget(user);
     setForm({ name: user.name, email: user.email, password: "", role: user.role });
     resetFormErrors();
+    setStepUpPassword("");
     setShowModal(true);
   };
 
@@ -165,6 +169,8 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
       role: form.role,
     };
     if (form.password) payload.password = form.password;
+    const requiresStepUp = requiresAdministrativeStepUp(role);
+    if (requiresStepUp) payload.actorPassword = stepUpPassword;
 
     try {
       if (!editTarget && !form.password) {
@@ -188,33 +194,57 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const response = await api.delete(`/users/${deleteTarget._id}`);
+      const requiresStepUp = requiresAdministrativeStepUp(role);
+      const response = await api.delete(
+        `/users/${deleteTarget._id}`,
+        requiresStepUp ? { actorPassword: deactivateActorPassword } : undefined,
+      );
       showToast(response.message);
       setDeleteTarget(null);
+      setDeactivateActorPassword("");
       await fetchManagementData();
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "Failed to deactivate account");
       setDeleteTarget(null);
+      setDeactivateActorPassword("");
     } finally {
       setDeleting(false);
     }
   };
 
-  const reactivateUser = async (user: User) => {
+  const reactivateUser = async (user: User, actorPassword?: string) => {
     setError("");
+    setReactivating(true);
     try {
-      const response = await api.put(`/users/${user._id}`, { isActive: true });
+      const response = await api.put(`/users/${user._id}`, {
+        isActive: true,
+        ...(actorPassword ? { actorPassword } : {}),
+      });
       showToast(response.message);
+      setReactivateTarget(null);
+      setReactivateActorPassword("");
       await fetchManagementData();
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "Failed to reactivate account");
+    } finally {
+      setReactivating(false);
     }
+  };
+
+  const requestReactivation = (user: User) => {
+    if (requiresAdministrativeStepUp(role)) {
+      setReactivateTarget(user);
+      setReactivateActorPassword("");
+      return;
+    }
+    void reactivateUser(user);
   };
 
   const openPasswordReset = (user: User) => {
     setResetTarget(user);
     setResetPassword("");
     setResetError("");
+    setResetActorPassword("");
   };
 
   const submitPasswordReset = async (event: React.FormEvent) => {
@@ -223,8 +253,11 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     setResetting(true);
     setResetError("");
     try {
-      await api.put(`/users/${resetTarget._id}`, { password: resetPassword });
-      showToast(`Password reset for ${resetTarget.name}. Their active sessions were revoked.`);
+      await api.put(`/users/${resetTarget._id}`, {
+        password: resetPassword,
+        ...(requiresAdministrativeStepUp(role) ? { actorPassword: resetActorPassword } : {}),
+      });
+      showToast(`Temporary password set for ${resetTarget.name}. They must change it at their next sign-in.`);
       setResetTarget(null);
     } catch (requestError: unknown) {
       setResetError(requestError instanceof Error ? requestError.message : "Failed to reset password");
@@ -265,7 +298,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           <ManagementCard label="Administrators" value={administrators.length} icon={<StaffIcon />} selected={managementView === "admin"} action={<button type="button" onClick={() => selectManagementView("admin")} className="management-card-action">Manage Administrators</button>} />
         </section> : <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ManagementCard
-            label="Patients"
+            label="Patient Directory"
             value={studentCount}
             icon={<PatientsIcon />}
             selected={managementView === "students"}
@@ -276,7 +309,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                 className="management-card-action"
                 aria-pressed={managementView === "students"}
               >
-                Manage Patients
+                View / Archive Patients
               </button>
             }
           />
@@ -396,7 +429,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                         onEdit={openEdit}
                         onReset={openPasswordReset}
                         onDelete={setDeleteTarget}
-                        onReactivate={reactivateUser}
+                        onReactivate={requestReactivation}
                       />
                     </div>
                   </article>
@@ -429,7 +462,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                             onEdit={openEdit}
                             onReset={openPasswordReset}
                             onDelete={setDeleteTarget}
-                            onReactivate={reactivateUser}
+                            onReactivate={requestReactivation}
                           />
                         </td>
                       </tr>
@@ -462,6 +495,11 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                 {(isSuperAdmin ? ALL_ROLES : CLINIC_ROLES).map((itemRole) => <option key={itemRole} value={itemRole}>{roleLabel(itemRole)}</option>)}
               </select>
             </UserField>
+            {requiresAdministrativeStepUp(role) && (
+              <UserField label="Confirm your current password" error={fieldErrors.actorPassword}>
+                <input type="password" value={stepUpPassword} onChange={(event) => { setStepUpPassword(event.target.value); clearField("actorPassword"); }} required autoComplete="current-password" className={`input ${fieldErrors.actorPassword ? "input-error" : ""}`} />
+              </UserField>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowModal(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
@@ -478,6 +516,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           {resetError && <p className="mb-3 text-sm text-red-600">{resetError}</p>}
           <form onSubmit={submitPasswordReset} className="space-y-4">
             <label className="block text-xs font-medium text-gray-600">New password<input type="password" minLength={12} required autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input mt-1" /></label>
+            {requiresAdministrativeStepUp(role) && <label className="block text-xs font-medium text-gray-600">Confirm your current password<input type="password" required autoComplete="current-password" value={resetActorPassword} onChange={(event) => setResetActorPassword(event.target.value)} className="input mt-1" /></label>}
             <div className="flex justify-end gap-2"><button type="button" onClick={() => setResetTarget(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={resetting} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{resetting ? "Resetting..." : "Reset Password"}</button></div>
           </form>
         </Modal>
@@ -489,8 +528,23 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           message={<>Are you sure you want to deactivate <strong>{deleteTarget.name}</strong> ({deleteTarget.email}), currently assigned the <strong>{roleLabel(deleteTarget.role)}</strong> role? The user will no longer be able to log in, but their historical clinic records and audit history will be preserved.</>}
           confirmLabel="Deactivate Account"
           busy={deleting}
+          confirmationContent={<label className="mb-5 block text-xs font-medium text-gray-600">Confirm your current password<input type="password" required autoComplete="current-password" value={deactivateActorPassword} onChange={(event) => setDeactivateActorPassword(event.target.value)} className="input mt-1" /></label>}
+          confirmDisabled={!deactivateActorPassword}
           onConfirm={deactivateUser}
-          onCancel={() => setDeleteTarget(null)}
+          onCancel={() => { setDeleteTarget(null); setDeactivateActorPassword(""); }}
+        />
+      )}
+      {reactivateTarget && (
+        <ConfirmDialog
+          title="Activate Privileged Account"
+          message={<>Confirm activation of <strong>{reactivateTarget.name}</strong> ({reactivateTarget.email}) with the <strong>{roleLabel(reactivateTarget.role)}</strong> role.</>}
+          confirmLabel="Activate Account"
+          danger={false}
+          busy={reactivating}
+          confirmationContent={<label className="mb-5 block text-xs font-medium text-gray-600">Confirm your current password<input type="password" required autoComplete="current-password" value={reactivateActorPassword} onChange={(event) => setReactivateActorPassword(event.target.value)} className="input mt-1" /></label>}
+          confirmDisabled={!reactivateActorPassword}
+          onConfirm={() => void reactivateUser(reactivateTarget, reactivateActorPassword)}
+          onCancel={() => { setReactivateTarget(null); setReactivateActorPassword(""); }}
         />
       )}
     </PageFrame>
@@ -552,7 +606,7 @@ function AccessBadge({ active }: { active: boolean }) {
 }
 
 function AccountAccess({ user }: { user: User }) {
-  if (user.isActive) return <AccessBadge active />;
+  if (user.isActive) return <div><AccessBadge active />{user.mustChangePassword && <p className="mt-1 text-[11px] font-medium leading-4 text-amber-700">Password change required</p>}</div>;
   const deactivator = typeof user.deactivatedBy === "object" ? user.deactivatedBy.name : "Unknown administrator";
   return <div><AccessBadge active={false} />{user.deactivatedAt && <p className="mt-1 text-[11px] leading-4 text-gray-400">{new Date(user.deactivatedAt).toLocaleDateString()} by {deactivator}</p>}</div>;
 }

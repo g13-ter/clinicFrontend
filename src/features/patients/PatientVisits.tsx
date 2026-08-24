@@ -6,6 +6,7 @@ import Modal from "../../components/Modal";
 import { useToast } from "../../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../../components/FieldError";
 import type { ClinicVisit } from "../../utils/types";
+import { BmiPreview } from "../../components/BmiPreview";
 
 const empty = {
   complaint: "",
@@ -27,7 +28,7 @@ const FORM_FIELDS = ["patientId", ...Object.keys(empty)];
 
 type Form = typeof empty;
 
-function PatientVisits({ patientId }: { patientId: string }) {
+function PatientVisits({ patientId, patientAge }: { patientId: string; patientAge?: number }) {
   const canEdit = getCurrentRole() === "nurse";
   const { showToast } = useToast();
 
@@ -192,6 +193,7 @@ function PatientVisits({ patientId }: { patientId: string }) {
                         v.temperature && `${v.temperature}°C`,
                         v.bloodPressure && `BP: ${v.bloodPressure}`,
                         v.pulseRate && `PR: ${v.pulseRate}`,
+                        v.bmi != null && `BMI: ${v.bmi}`,
                       ].filter(Boolean).join(" · ") || "—"}
                     </td>
                     {canEdit && (
@@ -262,12 +264,13 @@ function PatientVisits({ patientId }: { patientId: string }) {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Height (cm)</label>
-              <input type="number" min={1} step="0.1" value={form.heightCm} onChange={(e) => f("heightCm", e.target.value)} className="input" />
+              <input type="number" min={30} max={250} step="0.1" value={form.heightCm} onChange={(e) => f("heightCm", e.target.value)} className="input" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Weight (kg)</label>
-              <input type="number" min={1} step="0.1" value={form.weightKg} onChange={(e) => f("weightKg", e.target.value)} className="input" />
+              <input type="number" min={1} max={500} step="0.1" value={form.weightKg} onChange={(e) => f("weightKg", e.target.value)} className="input" />
             </div>
+            <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={patientAge} className="sm:col-span-2" />
             <div className="mt-1 border-t pt-3 sm:col-span-2">
               <p className="text-xs font-semibold text-sky-700 mb-2">Nursing Assessment — not a physician diagnosis</p>
               <label className="block text-xs text-gray-500 mb-1">Nursing Assessment</label>

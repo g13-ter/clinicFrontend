@@ -2,34 +2,37 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
-import type { AuditLog, User } from "../utils/types";
+import type { AuditLog } from "../utils/types";
 import { AuditIcon, StaffIcon } from "../components/icons";
 
+interface SuperAdminSummary {
+  accounts: {
+    total: number;
+    active: number;
+    inactive: number;
+    administrators: number;
+    inactiveAdministrators: number;
+  };
+  failedPrivilegedActions: number;
+  recentPrivilegedActivity: AuditLog[];
+}
+
 function SuperAdminDashboardPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [summary, setSummary] = useState<SuperAdminSummary | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      api.getAll<User>("/users"),
-      api.get<AuditLog[]>("/audit-logs?limit=20"),
-    ])
-      .then(([usersResponse, logsResponse]) => {
-        setUsers(usersResponse.data);
-        setLogs(logsResponse.data);
-      })
+    api.get<SuperAdminSummary>("/dashboard/superadmin")
+      .then((response) => setSummary(response.data))
       .catch((requestError: unknown) => {
         setError(requestError instanceof Error ? requestError.message : "Failed to load system administration data");
-      });
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const active = users.filter((user) => user.isActive).length;
-  const inactive = users.length - active;
-  const administrators = users.filter((user) => user.role === "admin" || user.role === "superadmin").length;
-  const inactiveAdministrators = users.filter((user) => !user.isActive && (user.role === "admin" || user.role === "superadmin"));
-  const failedAttempts = logs.filter((log) => log.changes?.after?.successful === false);
-  const privilegedLogs = logs.filter((log) => log.resource === "User" || log.resource === "SystemSettings").slice(0, 6);
+  const accounts = summary?.accounts;
+  const privilegedLogs = summary?.recentPrivilegedActivity ?? [];
 
   return (
     <Layout>
@@ -42,22 +45,28 @@ function SuperAdminDashboardPage() {
 
         {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="Total Accounts" value={users.length} detail="All system users" />
-          <SummaryCard label="Active Accounts" value={active} detail="Can currently sign in" />
-          <SummaryCard label="Inactive Accounts" value={inactive} detail="Access has been revoked" />
-          <SummaryCard label="Administrators" value={administrators} detail="Super Admin and Admin accounts" />
-        </section>
+        {loading ? (
+          <section aria-label="Loading account summary" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-32 animate-pulse rounded-xl bg-gray-100" />)}
+          </section>
+        ) : accounts ? (
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard label="Total Accounts" value={accounts.total} detail="All system users" />
+            <SummaryCard label="Active Accounts" value={accounts.active} detail="Can currently sign in" />
+            <SummaryCard label="Inactive Accounts" value={accounts.inactive} detail="Access has been revoked" />
+            <SummaryCard label="Administrators" value={accounts.administrators} detail="Super Admin and Admin accounts" />
+          </section>
+        ) : null}
 
-        {(inactiveAdministrators.length > 0 || failedAttempts.length > 0) && (
+        {summary && (summary.accounts.inactiveAdministrators > 0 || summary.failedPrivilegedActions > 0) && (
           <section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div><h2 className="font-semibold text-amber-950">Requires Attention</h2><p className="mt-1 text-sm text-amber-800">Review account and security events that may require action.</p></div>
               <Link to="/audit-log" className="text-sm font-semibold text-amber-900 hover:underline">Review audit logs</Link>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {inactiveAdministrators.length > 0 && <AttentionItem value={inactiveAdministrators.length} label="Inactive administrator accounts" />}
-              {failedAttempts.length > 0 && <AttentionItem value={failedAttempts.length} label="Failed privileged actions in recent activity" />}
+              {summary.accounts.inactiveAdministrators > 0 && <AttentionItem value={summary.accounts.inactiveAdministrators} label="Inactive administrator accounts" />}
+              {summary.failedPrivilegedActions > 0 && <AttentionItem value={summary.failedPrivilegedActions} label="Failed privileged actions in the last 7 days" />}
             </div>
           </section>
         )}
@@ -80,13 +89,13 @@ function SuperAdminDashboardPage() {
               <Link to="/audit-log" className="text-sm font-medium text-blue-600 hover:underline">View all</Link>
             </div>
             <div className="mt-4 divide-y divide-gray-100">
-              {privilegedLogs.map((log) => (
+              {loading ? <div className="h-20 animate-pulse rounded bg-gray-100" /> : privilegedLogs.map((log) => (
                 <div key={log._id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span className="min-w-0 truncate text-gray-700"><strong className="capitalize">{log.action}</strong> {log.resource}<span className="ml-1 text-xs text-gray-400">by {auditActorName(log)}</span></span>
                   <time className="shrink-0 text-xs text-gray-400">{new Date(log.createdAt).toLocaleString()}</time>
                 </div>
               ))}
-              {privilegedLogs.length === 0 && <p className="py-8 text-center text-sm text-gray-400">No privileged activity recorded.</p>}
+              {!loading && privilegedLogs.length === 0 && <p className="py-8 text-center text-sm text-gray-400">No privileged activity recorded.</p>}
             </div>
           </div>
         </section>

@@ -52,6 +52,13 @@ describe("permissions", () => {
     expect(hasRole("nurse", ROUTE_ACCESS["/patients"])).toBe(true);
   });
 
+  it("keeps clinical-record access aligned with the backend", () => {
+    expect(can("admin", "viewFullPatients")).toBe(false);
+    expect(can("doctor", "viewFullPatients")).toBe(true);
+    expect(can("nurse", "viewFullPatients")).toBe(true);
+    expect(can("staff", "viewFullPatients")).toBe(true);
+  });
+
   it("exposes Analytics navigation only to doctors and nurses", () => {
     const analytics = NAV_ITEMS.find((item) => item.to === "/analytics");
     expect(analytics?.roles).toEqual(["doctor", "nurse"]);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import {
   MedicineIcon,
   ReportsIcon,
@@ -7,7 +7,6 @@ import {
 } from "../components/icons";
 import { api } from "../services/api";
 import { reportFilename, saveBlobDownload } from "../utils/download";
-import type { ReactNode } from "react";
 import { useEffect } from "react";
 import type { InventoryLabel, MedicationInventoryReportRow } from "../utils/types";
 import Modal from "../components/Modal";
@@ -37,10 +36,6 @@ const startOfMonth = (): string => {
   const now = new Date();
   return dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
 };
-
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
 
 function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const [startDate, setStartDate] = useState(startOfMonth());

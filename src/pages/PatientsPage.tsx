@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import type { Patient } from "../utils/types";
 import AdminSectionTabs from "../components/AdminSectionTabs";
-import type { ReactNode } from "react";
 import { patientAffiliation, patientIdentifier, patientTypeLabel, patientTypeOf, type PatientType } from "../utils/patient";
+import PatientRecordModal from "../components/PatientRecordModal";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const emptyForm = {
   patientType: "student" as PatientType,
@@ -38,10 +39,6 @@ const emptyForm = {
   medicalAlertNotes: "",
 };
 
-function PageFrame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
-
 function calculateAge(dateOfBirth: string): string {
   if (!dateOfBirth) return "";
   const [year, month, day] = dateOfBirth.split("-").map(Number);
@@ -60,9 +57,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const { showToast } = useToast();
   const canEdit = can("editPatients");
   const canCheckIn = can("checkInPatients");
-  // Staff receive the basic read-only patient view.
-  const isBasicView = false;
-
+  const canArchive = can("archivePatients");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -78,6 +73,9 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [viewingPatientId, setViewingPatientId] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Patient | null>(null);
+  const [archiving, setArchiving] = useState(false);
   const limit = 10;
   const requestedSearch = searchParams.get("search") ?? "";
   const requestedPatientType = searchParams.get("patientType") ?? "all";
@@ -86,16 +84,6 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     setLoading(true);
     setError("");
     try {
-      if (isBasicView) {
-        const params = new URLSearchParams();
-        if (q) params.set("search", q);
-        if (type !== "all") params.set("patientType", type);
-        const res = await api.get<Patient[]>(`/patients/basic?${params}`);
-        setPatients(res.data);
-        setTotal(res.data.length);
-        return;
-      }
-
       const params = new URLSearchParams({ page: String(p), limit: String(limit) });
       if (q) params.set("search", q);
       if (type !== "all") params.set("patientType", type);
@@ -244,8 +232,24 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
     );
   };
   const openStudentRecord = (patientId: string) => {
+    if (embedded) {
+      setViewingPatientId(patientId);
+      return;
+    }
     const returnTo = `${location.pathname}${location.search}`;
     navigate(`/patients/${patientId}?returnTo=${encodeURIComponent(returnTo)}`);
+  };
+  const archivePatient = async () => {
+    if (!archiveTarget) return;
+    setArchiving(true);
+    try {
+      const response = await api.delete(`/patients/${archiveTarget._id}`);
+      showToast(response.message);
+      setArchiveTarget(null);
+      await fetchPatients(page, search, patientTypeFilter);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Archive failed", "error");
+    } finally { setArchiving(false); }
   };
 
   return (
@@ -253,11 +257,9 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
       {role === "admin" && !embedded && <div className="mb-5"><AdminSectionTabs active="management" /></div>}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-700">
-            {isBasicView ? "Search Patients" : "Patient Records"}
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-700">{role === "admin" ? "Patient Directory" : "Patient Records"}</h2>
           <p className="mt-0.5 text-sm text-gray-500">
-            Find a student, teacher, or staff member, review the record, or start a clinic visit.
+            {role === "admin" ? "Search basic patient information and archive duplicate or inactive entries. Clinical records remain private." : "Find a student, teacher, or staff member, review the record, or start a clinic visit."}
           </p>
         </div>
         {canEdit && (
@@ -328,9 +330,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                       {patientTypeLabel(p)}
                     </span>
                   </div>
-                  {!isBasicView && (
-                    <>
-                      <dl className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 text-sm">
+                  <dl className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 text-sm">
                         <div>
                           <dt className="text-xs text-gray-400">Gender</dt>
                           <dd className="text-gray-700">{p.gender}</dd>
@@ -339,8 +339,8 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                           <dt className="text-xs text-gray-400">Contact</dt>
                           <dd className="break-words text-gray-700">{p.contactNumber}</dd>
                         </div>
-                      </dl>
-                      <div className="mt-4 flex flex-wrap gap-2">
+                  </dl>
+                  <div className="mt-4 flex flex-wrap gap-2">
                         {role !== "admin" && (
                           <button
                             onClick={() => openStudentRecord(p._id)}
@@ -365,9 +365,8 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                             Edit
                           </button>
                         )}
-                      </div>
-                    </>
-                  )}
+                        {canArchive && <button onClick={() => setArchiveTarget(p)} className="rounded border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Archive</button>}
+                  </div>
                 </article>
               ))
             )}
@@ -380,19 +379,15 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                   <th className="text-left px-4 py-3">Type / ID</th>
                   <th className="text-left px-4 py-3">Name</th>
                   <th className="text-left px-4 py-3">School Information</th>
-                  {!isBasicView && (
-                    <>
-                      <th className="text-left px-4 py-3">Gender</th>
-                      <th className="text-left px-4 py-3">Contact</th>
-                      <th className="px-4 py-3"></th>
-                    </>
-                  )}
+                  <th className="text-left px-4 py-3">Gender</th>
+                  <th className="text-left px-4 py-3">Contact</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {patients.length === 0 ? (
                   <tr>
-                    <td colSpan={isBasicView ? 3 : 6} className="text-center py-6 text-gray-400">
+                    <td colSpan={6} className="text-center py-6 text-gray-400">
                       No patients found.
                     </td>
                   </tr>
@@ -402,11 +397,9 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                       <td className="px-4 py-3"><span className="mb-1 block w-fit rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{patientTypeLabel(p)}</span><span className="font-mono">{patientIdentifier(p)}</span></td>
                       <td className="px-4 py-3">{p.firstName} {p.lastName}</td>
                       <td className="px-4 py-3">{patientAffiliation(p) || "—"}</td>
-                      {!isBasicView && (
-                        <>
-                          <td className="px-4 py-3">{p.gender}</td>
-                          <td className="px-4 py-3">{p.contactNumber}</td>
-                          <td className="px-4 py-3">
+                      <td className="px-4 py-3">{p.gender}</td>
+                      <td className="px-4 py-3">{p.contactNumber}</td>
+                      <td className="px-4 py-3">
                             <div className="flex justify-end gap-3 whitespace-nowrap">
                             {role !== "admin" && (
                               <button
@@ -416,9 +409,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                                 View Record
                               </button>
                             )}
-                            {role === "admin" && (
-                              <span className="text-xs font-medium text-slate-400">Administrative view only</span>
-                            )}
+                            {canArchive && <button onClick={() => setArchiveTarget(p)} className="text-xs font-medium text-red-600 hover:underline">Archive</button>}
                             {canCheckIn && (
                               <button
                                 onClick={() => checkInPatient(p._id)}
@@ -436,9 +427,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
                               </button>
                             )}
                             </div>
-                          </td>
-                        </>
-                      )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -446,8 +435,7 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
             </table>
           </div>
 
-          {/* The basic view returns its full result set. */}
-          {!isBasicView && totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex gap-2 mt-4 items-center text-sm">
               <button
                 disabled={page === 1}
@@ -644,6 +632,11 @@ function PatientsPage({ embedded = false }: { embedded?: boolean }) {
             </form>
         </Modal>
       )}
+      <PatientRecordModal
+        patientId={viewingPatientId}
+        onClose={() => setViewingPatientId(null)}
+      />
+      {archiveTarget && <ConfirmDialog title="Archive patient" message={<>Archive <strong>{archiveTarget.firstName} {archiveTarget.lastName}</strong>? The entry will no longer appear in active patient searches.</>} confirmLabel="Archive Patient" busy={archiving} onConfirm={archivePatient} onCancel={() => setArchiveTarget(null)} />}
     </PageFrame>
   );
 }

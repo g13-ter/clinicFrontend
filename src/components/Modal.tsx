@@ -8,11 +8,13 @@ function Modal({
   onClose,
   children,
   closeDisabled = false,
+  size = "default",
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   closeDisabled?: boolean;
+  size?: "default" | "wide";
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -79,7 +81,9 @@ function Modal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)] sm:p-6"
+        className={`relative max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-lg bg-white p-4 shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)] sm:p-6 ${
+          size === "wide" ? "max-w-6xl" : "max-w-lg"
+        }`}
       >
         <h3 id={titleId} className="mb-4 pr-8 text-base font-semibold">{title}</h3>
         {children}

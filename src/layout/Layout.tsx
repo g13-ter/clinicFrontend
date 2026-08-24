@@ -118,15 +118,19 @@ function Layout({ children }: { children: React.ReactNode }) {
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (!role || !item.roles.includes(role)) return false;
     if (role === "admin") {
-      return item.to === "/dashboard" || item.to === "/audit-log";
+      return ["/dashboard", "/audit-log", "/settings", "/profile"].includes(item.to);
     }
     return true;
   });
   const canSearchStudents = can(role, "searchPatients") && role !== "doctor";
   const isClinicalRole = role === "doctor" || role === "nurse";
+  const dashboardView = new URLSearchParams(location.search).get("view");
+  const isPatientQueueVisible =
+    location.pathname === "/patient-queue" ||
+    (location.pathname === "/dashboard" && dashboardView === "visits");
 
   useEffect(() => {
-    if (!isClinicalRole) {
+    if (!isClinicalRole || isPatientQueueVisible) {
       setEmergencyVisits([]);
       return;
     }
@@ -165,7 +169,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [isClinicalRole, showToast]);
+  }, [isClinicalRole, isPatientQueueVisible, showToast]);
 
   useEffect(() => {
     if (emergencyVisits.length === 0) return;
@@ -209,7 +213,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             : visit.appointmentId,
         );
       }
-      navigate(`/clinical-workspace?${params}`);
+      navigate(`/dashboard?${params}`);
     } catch (error: unknown) {
       showToast(
         error instanceof Error ? error.message : "Failed to open the emergency consultation",
@@ -238,11 +242,6 @@ function Layout({ children }: { children: React.ReactNode }) {
   const clinicalTabs = [
     { id: "appointments", label: "Today's Appointments", icon: CalendarIcon },
     { id: "records", label: "Patient Records", icon: PatientsIcon },
-    ...(role === "nurse" ? [{
-      id: "consultation",
-      label: "New Nursing Assessment",
-      icon: VisitsIcon,
-    }] : []),
     { id: "followups", label: "Follow-Ups", icon: CalendarIcon },
   ] as const;
 
@@ -367,7 +366,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             <BrandLogo className="h-10 w-10 drop-shadow-[0_5px_8px_rgba(37,99,235,0.18)]" />
             <span className="leading-tight">
               <span className="block text-sm font-bold text-gray-900 sm:text-base">
-                School Clinic Management
+                Basic Clinic
               </span>
             </span>
           </button>

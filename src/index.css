@@ -154,7 +154,8 @@
   }
 
   .landing-role-preview {
-    animation: landing-role-preview-enter 220ms ease-out;
+    animation: landing-role-preview-enter 200ms ease-out;
+    will-change: opacity;
   }
 
   .hero-dashboard-screen {

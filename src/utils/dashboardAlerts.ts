@@ -14,21 +14,21 @@ export function buildDashboardAlerts(
   const alerts: DashboardAlert[] = [];
   const stockConcerns = stats.lowStockCount + stats.outOfStockCount;
 
-  if ((role === "admin" || role === "nurse") && stockConcerns > 0) {
+  if (role === "nurse" && stockConcerns > 0) {
     alerts.push({
       id: "stock",
       message: `${stockConcerns} medicine ${stockConcerns === 1 ? "item needs" : "items need"} restocking`,
       tone: "warning",
-      link: "/medicines",
+      link: "/dashboard?view=inventory",
     });
   }
 
-  if ((role === "admin" || role === "nurse") && stats.expiredCount > 0) {
+  if (role === "nurse" && stats.expiredCount > 0) {
     alerts.push({
       id: "expired",
       message: `${stats.expiredCount} medicine ${stats.expiredCount === 1 ? "item has" : "items have"} expired`,
       tone: "warning",
-      link: "/medicines",
+      link: "/dashboard?view=inventory",
     });
   }
 
@@ -37,14 +37,14 @@ export function buildDashboardAlerts(
       id: "purchase-requests",
       message: `${stats.pendingPurchaseRequests} purchase ${stats.pendingPurchaseRequests === 1 ? "request needs" : "requests need"} review`,
       tone: "warning",
-      link: "/purchase-requests",
+      link: "/dashboard?section=purchase-requests",
     });
   } else if (role === "nurse" && stats.pendingPurchaseRequests > 0) {
     alerts.push({
       id: "purchase-requests",
       message: `${stats.pendingPurchaseRequests} purchase ${stats.pendingPurchaseRequests === 1 ? "request is" : "requests are"} awaiting admin review`,
       tone: "info",
-      link: "/purchase-requests",
+      link: "/dashboard?view=purchase-requests",
     });
   }
 
@@ -53,7 +53,7 @@ export function buildDashboardAlerts(
       id: "queue",
       message: `${stats.waitingPatients} student ${stats.waitingPatients === 1 ? "is" : "are"} waiting in the clinic`,
       tone: "info",
-      link: "/patient-queue",
+      link: role === "doctor" ? "/dashboard?tab=visits" : "/dashboard?view=visits",
     });
   }
 
@@ -62,7 +62,7 @@ export function buildDashboardAlerts(
       id: "appointments",
       message: `${stats.todaysAppointments} appointment${stats.todaysAppointments === 1 ? "" : "s"} scheduled today`,
       tone: "info",
-      link: "/appointments",
+      link: role === "doctor" ? "/dashboard?tab=appointments" : "/dashboard?view=appointments",
     });
   }
 

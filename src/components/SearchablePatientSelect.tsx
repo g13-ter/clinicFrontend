@@ -24,6 +24,7 @@ function SearchablePatientSelect({
   const listboxId = `${inputId}-listbox`;
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const skipNextValueSync = useRef(false);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -42,6 +43,10 @@ function SearchablePatientSelect({
   }, [normalizedQuery, patients]);
 
   useEffect(() => {
+    if (skipNextValueSync.current) {
+      skipNextValueSync.current = false;
+      return;
+    }
     setQuery(selectedPatient ? patientLabel(selectedPatient) : "");
   }, [selectedPatient]);
 
@@ -104,10 +109,11 @@ function SearchablePatientSelect({
           value={query}
           required
           disabled={disabled}
-          placeholder={disabled ? "Loading students..." : placeholder}
+          placeholder={disabled ? "Loading patients..." : placeholder}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             setQuery(event.target.value);
+            if (value) skipNextValueSync.current = true;
             onChange("");
             setOpen(true);
             setActiveIndex(0);
@@ -121,6 +127,7 @@ function SearchablePatientSelect({
             aria-label="Clear selected patient"
             onClick={() => {
               setQuery("");
+              if (value) skipNextValueSync.current = true;
               onChange("");
               setOpen(true);
               setActiveIndex(0);

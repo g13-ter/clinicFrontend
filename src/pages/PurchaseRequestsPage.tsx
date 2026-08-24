@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import Layout from "../layout/Layout";
+import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -690,8 +690,5 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
   );
 }
 
-function PageFrame({ embedded, children }: { embedded: boolean; children: React.ReactNode }) {
-  return embedded ? <>{children}</> : <Layout>{children}</Layout>;
-}
 
 export default PurchaseRequestsPage;

@@ -8,6 +8,8 @@ interface ConfirmDialogProps {
   danger?: boolean;
   /** Disables both buttons and swaps the confirm label while the action is in flight. */
   busy?: boolean;
+  confirmationContent?: React.ReactNode;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -19,17 +21,20 @@ function ConfirmDialog({
   confirmLabel = "Confirm",
   danger = true,
   busy = false,
+  confirmationContent,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   return (
     <Modal title={title} onClose={onCancel} closeDisabled={busy}>
       <div className="text-sm text-gray-600 mb-5">{message}</div>
+      {confirmationContent}
       <div className="flex justify-end gap-2">
         <button
           type="button"
           onClick={onCancel}
-          disabled={busy}
+          disabled={busy || confirmDisabled}
           className="px-4 py-2 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
         >
           Cancel

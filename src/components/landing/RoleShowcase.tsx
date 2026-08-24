@@ -15,7 +15,7 @@ export default function RoleShowcase({
   const activeWorkspace = roleWorkspaces[activeRole];
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-white via-blue-50/80 to-[#f4f8ff] py-28 text-slate-950">
+    <section className="relative overflow-hidden bg-gradient-to-b from-white via-blue-50/80 to-[#f4f8ff] py-28 text-slate-950 [overflow-anchor:none]">
       {/* BACKGROUND DECORATIONS */}
       <div className="landing-curve landing-curve-role-left" />
       <div className="landing-curve landing-curve-role-right" />
@@ -75,7 +75,7 @@ export default function RoleShowcase({
           </div>
 
           {/* ROLE DESCRIPTION */}
-          <div className="mt-7 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm backdrop-blur-sm">
+          <div className="mt-7 min-h-[21rem] rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm backdrop-blur-sm sm:min-h-[15rem] lg:min-h-[18rem] xl:min-h-[15rem]">
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
               {activeWorkspace.title}
             </p>
@@ -127,7 +127,9 @@ export default function RoleShowcase({
         >
           <div className="absolute -inset-5 rounded-[32px] bg-gradient-to-br from-blue-300/30 via-white/20 to-cyan-200/20 blur-2xl" />
 
-          <RoleDashboardPreview role={activeRole} />
+          <div key={activeRole} className="landing-role-preview">
+            <RoleDashboardPreview role={activeRole} />
+          </div>
         </div>
       </div>
     </section>
