@@ -14,6 +14,7 @@ import type {
 } from "../utils/types";
 import { localDateKey } from "../utils/date";
 import { reportFilename, saveBlobDownload } from "../utils/download";
+import { notifyClinicAnalyticsUpdated } from "../utils/clinicEvents";
 import {
   activeFollowUps,
   buildMedicalHistoryPayload,
@@ -360,6 +361,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
         : form.medicineId
           ? "Nursing assessment and medication order"
           : "Nursing assessment";
+      notifyClinicAnalyticsUpdated();
       showToast(
         relatedWarnings.length > 0
           ? `${recordLabel} saved, but ${relatedWarnings.join(" and ")}.`

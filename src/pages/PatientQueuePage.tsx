@@ -10,6 +10,7 @@ import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
 import type { ClinicVisit, Patient } from "../utils/types";
 import { reportFilename, saveBlobDownload } from "../utils/download";
+import { notifyClinicAnalyticsUpdated } from "../utils/clinicEvents";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 import { BmiPreview } from "../components/BmiPreview";
@@ -279,6 +280,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
         heightCm: vitalsForm.heightCm ? Number(vitalsForm.heightCm) : undefined,
         weightKg: vitalsForm.weightKg ? Number(vitalsForm.weightKg) : undefined,
       });
+      notifyClinicAnalyticsUpdated();
       showToast(res.message);
       setVitalsTarget(null);
       fetchQueue(false);
