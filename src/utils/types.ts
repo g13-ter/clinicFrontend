@@ -3,14 +3,16 @@
 export interface Patient {
   _id: string;
   patientType?: "student" | "teacher" | "staff";
+  educationLevel?: "elementary" | "junior_high" | "senior_high" | "college";
   studentId: string;
   employeeId?: string;
   firstName: string;
   lastName: string;
   age: number;
   gender: string;
-  course: string;
+  course?: string;
   yearLevel: number;
+  programDurationYears?: number;
   department?: string;
   position?: string;
   contactNumber: string;
@@ -35,7 +37,11 @@ export interface Patient {
   clinicalProfileVerifiedBy?: { _id: string; name: string; role: string } | string;
   clinicalProfileVerifiedAt?: string;
   schoolYear?: string;
-  enrollmentStatus?: "active" | "graduated" | "transferred";
+  enrollmentStatus?: "active" | "completion_pending" | "extended" | "graduated" | "transferred";
+  completionReviewDecision?: "graduated" | "retained" | "extended" | "transferred";
+  completionReviewNotes?: string;
+  completionReviewedAt?: string;
+  completionReviewedBy?: string;
   immunizations?: { vaccine: string; dateAdministered?: string; notes?: string }[];
   isActive: boolean;
 }
@@ -71,6 +77,13 @@ export interface ClinicVisit {
   guardianNotifiedAt?: string;
   closedAt?: string;
   isActive: boolean;
+}
+
+export interface LatestPatientVitals {
+  heightCm?: number;
+  heightRecordedAt?: string;
+  weightKg?: number;
+  weightRecordedAt?: string;
 }
 
 export interface Doctor {

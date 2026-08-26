@@ -8,7 +8,7 @@ import { useFormErrors } from "../hooks/useFormErrors";
 import { useToast } from "../hooks/useToast";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
 import { patientsListPath } from "../config/permissions";
-import type { ClinicVisit, Patient } from "../utils/types";
+import type { ClinicVisit, LatestPatientVitals, Patient } from "../utils/types";
 import { reportFilename, saveBlobDownload } from "../utils/download";
 import { notifyClinicAnalyticsUpdated } from "../utils/clinicEvents";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
@@ -87,6 +87,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const requestedEmergencyId = searchParams.get("emergency") ?? "";
   const emergencyFocusToken = searchParams.get("focus") ?? "";
   const handledEmergencyFocus = useRef("");
+  const latestVitalsRequest = useRef(0);
 
   const [queue, setQueue] = useState<ClinicVisit[]>([]);
   const [visitSearch, setVisitSearch] = useState("");
@@ -115,6 +116,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
 
   const [vitalsTarget, setVitalsTarget] = useState<ClinicVisit | null>(null);
   const [vitalsForm, setVitalsForm] = useState(emptyVitalsForm);
+  const [prefilledHeightRecordedAt, setPrefilledHeightRecordedAt] = useState<string | null>(null);
+  const [prefilledWeightRecordedAt, setPrefilledWeightRecordedAt] = useState<string | null>(null);
   const {
     formError: vitalsFormError,
     fieldErrors: vitalsFieldErrors,
@@ -218,7 +221,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   };
 
   const openVitals = useCallback((v: ClinicVisit) => {
+    const requestId = ++latestVitalsRequest.current;
+    const patientId = typeof v.patientId === "object" ? v.patientId._id : v.patientId;
     setVitalsTarget(v);
+    setPrefilledHeightRecordedAt(null);
+    setPrefilledWeightRecordedAt(null);
     setVitalsForm({
       complaint: v.complaint,
       treatment: v.treatment ?? "",
@@ -231,7 +238,31 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       weightKg: v.weightKg != null ? String(v.weightKg) : "",
     });
     resetVitalsErrors();
+
+    if ((v.heightCm != null && v.weightKg != null) || !patientId) return;
+    api.get<LatestPatientVitals | null>(`/visits/patient/${patientId}/latest-vitals`)
+      .then((response) => {
+        const latestVitals = response.data;
+        if (latestVitalsRequest.current !== requestId || !latestVitals) return;
+        setVitalsForm((current) => ({
+          ...current,
+          heightCm: current.heightCm || (latestVitals.heightCm != null ? String(latestVitals.heightCm) : ""),
+          weightKg: current.weightKg || (latestVitals.weightKg != null ? String(latestVitals.weightKg) : ""),
+        }));
+        if (v.heightCm == null) setPrefilledHeightRecordedAt(latestVitals.heightRecordedAt ?? null);
+        if (v.weightKg == null) setPrefilledWeightRecordedAt(latestVitals.weightRecordedAt ?? null);
+      })
+      .catch(() => {
+        // Previous weight is optional; triage remains available if lookup fails.
+      });
   }, [resetVitalsErrors]);
+
+  const closeVitals = () => {
+    latestVitalsRequest.current += 1;
+    setPrefilledHeightRecordedAt(null);
+    setPrefilledWeightRecordedAt(null);
+    setVitalsTarget(null);
+  };
 
   useEffect(() => {
     if (!requestedEmergencyId || queue.length === 0) return;
@@ -257,6 +288,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   }, [emergencyFocusToken, openVitals, queue, requestedEmergencyId, role]);
 
   const vf = (k: keyof typeof emptyVitalsForm, v: string) => {
+    if (k === "heightCm") setPrefilledHeightRecordedAt(null);
+    if (k === "weightKg") setPrefilledWeightRecordedAt(null);
     setVitalsForm((prev) => ({ ...prev, [k]: v }));
     clearVitalsField(k);
   };
@@ -282,7 +315,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       });
       notifyClinicAnalyticsUpdated();
       showToast(res.message);
-      setVitalsTarget(null);
+      closeVitals();
       fetchQueue(false);
     } catch (err: unknown) {
       applyVitalsError(err, "Save failed");
@@ -809,7 +842,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       {vitalsTarget && (
         <Modal
           title={`${hasRecordedVitals(vitalsTarget) ? "Edit" : "Record"} Vitals: ${patientLabel(vitalsTarget.patientId)}`}
-          onClose={() => setVitalsTarget(null)}
+          onClose={closeVitals}
           closeDisabled={savingVitals}
         >
           {vitalsFormError && <p className="text-red-500 text-sm mb-3">{vitalsFormError}</p>}
@@ -903,6 +936,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 onChange={(e) => vf("heightCm", e.target.value)}
                 className={`input ${vitalsFieldErrors.heightCm ? "input-error" : ""}`}
               />
+              {prefilledHeightRecordedAt && (
+                <p className="mt-1 text-xs text-blue-700">
+                  Prefilled from {new Date(prefilledHeightRecordedAt).toLocaleDateString()}. Confirm or update it.
+                </p>
+              )}
               <FieldError message={vitalsFieldErrors.heightCm} />
             </div>
             <div>
@@ -916,6 +954,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 onChange={(e) => vf("weightKg", e.target.value)}
                 className={`input ${vitalsFieldErrors.weightKg ? "input-error" : ""}`}
               />
+              {prefilledWeightRecordedAt && (
+                <p className="mt-1 text-xs text-blue-700">
+                  Prefilled from {new Date(prefilledWeightRecordedAt).toLocaleDateString()}. Confirm or update it.
+                </p>
+              )}
               <FieldError message={vitalsFieldErrors.weightKg} />
             </div>
             <BmiPreview heightCm={vitalsForm.heightCm} weightKg={vitalsForm.weightKg} age={vitalsPatient?.age} gender={vitalsPatient?.gender} dateOfBirth={vitalsPatient?.dateOfBirth} className="sm:col-span-2" />
@@ -932,7 +975,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
             <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setVitalsTarget(null)}
+                onClick={closeVitals}
                 className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
               >
                 Cancel

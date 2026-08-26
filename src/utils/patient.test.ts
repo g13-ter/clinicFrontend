@@ -21,4 +21,14 @@ describe("patient display helpers", () => {
     expect(patientIdentifier(patient)).toBe("E-1");
     expect(patientAffiliation(patient)).toBe("Science · Teacher II");
   });
+
+  it("shows grade level without a college course for basic education", () => {
+    const patient = {
+      ...base,
+      studentId: "JHS-1",
+      educationLevel: "junior_high",
+      yearLevel: 8,
+    } as Patient;
+    expect(patientAffiliation(patient)).toBe("Junior High · Grade 8");
+  });
 });

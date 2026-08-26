@@ -62,8 +62,15 @@ const parseJson = async (res: Response): Promise<unknown> => {
   }
 };
 
-export const readApiResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
-  if (res.status === 401) {
+interface ReadApiResponseOptions {
+  treatUnauthorizedAsSessionExpiry?: boolean;
+}
+
+export const readApiResponse = async <T>(
+  res: Response,
+  { treatUnauthorizedAsSessionExpiry = true }: ReadApiResponseOptions = {},
+): Promise<ApiSuccess<T>> => {
+  if (res.status === 401 && treatUnauthorizedAsSessionExpiry) {
     clearCurrentSession();
     if (!redirectingToLogin && window.location.pathname !== "/login") {
       redirectingToLogin = true;

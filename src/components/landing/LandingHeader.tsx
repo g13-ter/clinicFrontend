@@ -64,16 +64,9 @@ export default function LandingHeader() {
         <div className="ml-auto hidden items-center gap-3 lg:flex">
           <Link
             to="/login"
-            className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
-          >
-            Login
-          </Link>
-
-          <Link
-            to="/login"
             className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
           >
-            Get Started
+            Sign In
           </Link>
         </div>
 
@@ -128,7 +121,7 @@ export default function LandingHeader() {
               onClick={closeMenu}
               className="mt-3 rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white"
             >
-              Login to SchoolCare
+              Sign In
             </Link>
           </div>
         </nav>

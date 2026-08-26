@@ -131,7 +131,6 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
     try {
       const response = await api.post("/patients/school-year/advance", {
         schoolYear: settings.schoolYear,
-        graduatingYearLevel: 4,
       });
       setSuccess(response.message);
       setShowRolloverConfirm(false);
@@ -222,8 +221,8 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-medium text-amber-900">School-year rollover</p>
                 <p className="mt-1 text-xs text-amber-800">
-                  Promotes active students by one year and archives Year 4 students as graduated.
-                  Previous clinic and medical records remain available.
+                  Promotes students below their final level. Final-level students stay active and
+                  are marked For Completion Review for an Admin decision; they are not graduated automatically.
                 </p>
                 <button
                   type="button"
@@ -308,7 +307,9 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
             >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <AdminToolLink to="/dashboard?section=management" title="User Management" description="Manage patients and clinic staff accounts." />
-                <AdminToolLink to="/dashboard?section=purchase-requests" title="Purchase Requests" description="Review and process medicine requests." />
+                {role === "admin" && (
+                  <AdminToolLink to="/dashboard?section=purchase-requests" title="Purchase Requests" description="Review and process medicine requests." />
+                )}
                 <AdminToolLink to="/audit-log" title="Audit Logs" description="Review administrative and security activity." />
                 <AdminToolLink to="/profile" title="Profile & Security" description="Update your name, email, and password." />
               </div>
@@ -331,8 +332,11 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
           title="Run school-year rollover"
           message={
             <>
-              Promote active students into <strong>{settings.schoolYear}</strong> and graduate
-              students currently in Year 4 or above? Clinic and medical history will be preserved.
+              Promote active students into <strong>{settings.schoolYear}</strong>? Completion uses
+              Grade 6 for Elementary, Grade 10 for Junior High, Grade 12 for Senior High, and each
+              college student&apos;s configured program length. Students at those levels will be marked
+              <strong> For Completion Review</strong>; they will not be automatically graduated. Clinic and
+              medical history will be preserved.
             </>
           }
           confirmLabel="Run Rollover"

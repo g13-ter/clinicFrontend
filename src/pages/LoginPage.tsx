@@ -109,7 +109,9 @@ function LoginPage() {
         setCooldownUntil(nextCooldownUntil);
         setCooldownSeconds(getRemainingCooldownSeconds(nextCooldownUntil));
       }
-      const data = await readApiResponse<LoginData>(response);
+      const data = await readApiResponse<LoginData>(response, {
+        treatUnauthorizedAsSessionExpiry: false,
+      });
 
       if (data.data.requiresTermsAcceptance || !data.data.user.termsAccepted) {
         clearCurrentSession();
