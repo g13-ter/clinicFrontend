@@ -10,10 +10,13 @@ import WorkflowSection from "../components/landing/WorkflowSection";
 import ContactSection from "../components/landing/ContactSection";
 
 import type { ClinicRole } from "../data/landingData";
+import type { ClinicProfile } from "../utils/types";
+import { api } from "../services/api";
 
 export default function LandingPage() {
   const [activeRole, setActiveRole] =
     useState<ClinicRole>("admin");
+  const [clinicProfile, setClinicProfile] = useState<ClinicProfile | null>(null);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -24,6 +27,14 @@ export default function LandingPage() {
     return () => {
       document.title = previousTitle;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<ClinicProfile>("/system-settings/clinic-profile")
+      .then((response) => { if (!cancelled) setClinicProfile(response.data); })
+      .catch(() => { if (!cancelled) setClinicProfile(null); });
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -46,7 +57,7 @@ export default function LandingPage() {
 
         <WorkflowSection />
 
-        <ContactSection />
+        <ContactSection clinicProfile={clinicProfile} />
       </main>
     </div>
   );

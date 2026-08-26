@@ -18,7 +18,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/roles-permissions": ["superadmin"],
   "/reports": ["doctor", "nurse"],
   "/audit-log": ["admin", "superadmin"],
-  "/settings": ["admin", "superadmin"],
+  "/settings": ["nurse", "admin", "superadmin"],
   "/profile": ["superadmin", "admin"],
 };
 
@@ -36,7 +36,7 @@ export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] 
   { to: "/roles-permissions", label: "Roles & Permissions", roles: ROUTE_ACCESS["/roles-permissions"] },
   { to: "/reports", label: "Reports", roles: ROUTE_ACCESS["/reports"] },
   { to: "/audit-log", label: "Audit Logs", roles: ROUTE_ACCESS["/audit-log"] },
-  { to: "/settings", label: "System Settings", roles: ROUTE_ACCESS["/settings"] },
+  { to: "/settings", label: "Settings", roles: ROUTE_ACCESS["/settings"] },
   { to: "/profile", label: "Profile", roles: ROUTE_ACCESS["/profile"] },
 ];
 
@@ -70,6 +70,7 @@ export const CAPABILITIES = {
   manageDoctorSchedule: ["admin"] as const satisfies readonly UserRole[],
   manageUsers: ["admin", "superadmin"] as const satisfies readonly UserRole[],
   managePrivilegedUsers: ["superadmin"] as const satisfies readonly UserRole[],
+  manageClinicProfile: ["nurse", "admin", "superadmin"] as const satisfies readonly UserRole[],
 } as const;
 
 export type Capability = keyof typeof CAPABILITIES;

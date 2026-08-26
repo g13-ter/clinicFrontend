@@ -4,6 +4,8 @@ import { api } from "../../services/api";
 import type { DashboardStats } from "../../utils/types";
 import { normalizeDashboardStats, type AnalyticsPatientType } from "./useDashboardData";
 import { CLINIC_ANALYTICS_UPDATED_EVENT } from "../../utils/clinicEvents";
+import { clinicDateKey } from "../../utils/date";
+import { ANALYTICS_FILTER_UPDATED_EVENT, getSavedAnalyticsFilter, type AnalyticsPeriod } from "../../utils/analyticsFilter";
 
 const CHART_COLORS = ["#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#8b5cf6"];
 
@@ -15,21 +17,37 @@ export default function ClinicAnalytics({
   description?: string;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [savedFilter, setSavedFilter] = useState(getSavedAnalyticsFilter);
   const requestedType = searchParams.get("patientType");
   const patientType: AnalyticsPatientType =
     requestedType === "student" || requestedType === "teacher" || requestedType === "staff"
       ? requestedType
       : "all";
+  const period = savedFilter.period;
+  const selectedDate = savedFilter.date ?? clinicDateKey();
+  const customStart = savedFilter.start ?? selectedDate;
+  const customEnd = savedFilter.end ?? selectedDate;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const refreshSavedFilter = () => setSavedFilter(getSavedAnalyticsFilter());
+    window.addEventListener(ANALYTICS_FILTER_UPDATED_EVENT, refreshSavedFilter);
+    return () => window.removeEventListener(ANALYTICS_FILTER_UPDATED_EVENT, refreshSavedFilter);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const loadAnalytics = () => {
       setLoading(true);
       setError("");
-      api.get<Partial<DashboardStats>>(`/dashboard/analytics?patientType=${encodeURIComponent(patientType)}`)
+      const params = new URLSearchParams({ patientType, period, date: selectedDate });
+      if (period === "custom") {
+        params.set("start", customStart);
+        params.set("end", customEnd);
+      }
+      api.get<Partial<DashboardStats>>(`/dashboard/analytics?${params}`)
         .then((response) => {
           if (!cancelled) setStats(normalizeDashboardStats(response.data));
         })
@@ -48,7 +66,13 @@ export default function ClinicAnalytics({
       cancelled = true;
       window.removeEventListener(CLINIC_ANALYTICS_UPDATED_EVENT, loadAnalytics);
     };
-  }, [patientType]);
+  }, [patientType, period, selectedDate, customStart, customEnd]);
+
+  const setFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set(key, value);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <section aria-labelledby="clinic-analytics-title" className="space-y-4">
@@ -59,25 +83,11 @@ export default function ClinicAnalytics({
           </h2>
           <p className="mt-1 text-sm text-slate-500">{description}</p>
         </div>
-        <label className="w-full text-xs font-semibold text-slate-600 sm:ml-auto sm:w-auto sm:min-w-52 sm:text-right">
-          Patient type
-          <select
-            value={patientType}
-            onChange={(event) => {
-              const next = new URLSearchParams(searchParams);
-              if (event.target.value === "all") next.delete("patientType");
-              else next.set("patientType", event.target.value);
-              setSearchParams(next, { replace: true });
-            }}
-            className="input mt-1 w-full bg-white text-left text-sm font-normal sm:min-w-52"
-            aria-label="Filter analytics by patient type"
-          >
-            <option value="all">All patients</option>
-            <option value="student">Students</option>
-            <option value="teacher">Teachers</option>
-            <option value="staff">Staff</option>
-          </select>
-        </label>
+        <div className="w-full sm:ml-auto sm:w-auto">
+          <FilterSelect label="Patient type" value={patientType} onChange={(value) => setFilter("patientType", value)} options={[
+            ["all", "All patients"], ["student", "Students"], ["teacher", "Teachers"], ["staff", "Staff"],
+          ]} />
+        </div>
       </div>
 
       {error && (
@@ -104,7 +114,7 @@ export default function ClinicAnalytics({
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <CommonComplaintsChart items={stats.commonComplaints} />
             <BmiDistributionChart breakdown={stats.bmiBreakdown} recordedCount={stats.bmiRecordedCount} />
-            <MonthlyVisitsChart items={stats.monthlyVisits} />
+            <MonthlyVisitsChart items={stats.monthlyVisits} period={period} />
           </div>
         </div>
       ) : null}
@@ -139,18 +149,37 @@ function CommonComplaintsChart({ items }: { items: DashboardStats["commonComplai
   </article>;
 }
 
-function MonthlyVisitsChart({ items }: { items: DashboardStats["monthlyVisits"] }) {
+function MonthlyVisitsChart({ items, period }: { items: DashboardStats["monthlyVisits"]; period: AnalyticsPeriod }) {
   const max = Math.max(...items.map((item) => item.visits), 1);
-  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h3 className="font-semibold text-gray-900">Monthly Clinic Visits</h3><p className="mt-1 text-xs text-gray-500">Last six months, filtered by patient type</p><div className="mt-5 flex h-48 items-end gap-2 border-b border-l border-gray-200 px-3 pt-4 sm:gap-4">{items.map((item) => <div key={item.key} className="flex h-full min-w-0 flex-1 flex-col justify-end"><div className="flex min-h-0 flex-1 items-end"><div className="group relative w-full rounded-t bg-blue-500 transition-colors hover:bg-blue-600" style={{ height: item.visits > 0 ? `${Math.max((item.visits / max) * 100, 5)}%` : "2px" }}><span className="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-xs text-white group-hover:block">{item.visits}</span></div></div><div className="h-8 pt-2 text-center text-xs text-gray-500">{item.month}</div></div>)}</div></article>;
+  const labelStep = Math.max(1, Math.ceil(items.length / 7));
+  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h3 className="font-semibold text-gray-900">Clinic Visits</h3>
+    <p className="mt-1 text-xs text-gray-500">Visits in the selected {period === "custom" ? "date range" : period}</p>
+    <div className="mt-5 flex h-52 items-end gap-1 overflow-x-auto border-b border-l border-gray-200 px-3 pt-7">
+      {items.map((item, index) => {
+        const showLabel = index % labelStep === 0 || index === items.length - 1;
+        return <div key={item.key} className="flex h-full min-w-3 flex-1 flex-col justify-end" title={`${item.month}: ${item.visits} visit${item.visits === 1 ? "" : "s"}`}>
+          <div className="flex min-h-0 flex-1 items-end">
+            <div
+              className="group relative w-full rounded-t bg-blue-500 transition-colors hover:bg-blue-600"
+              style={{ height: item.visits > 0 ? `${Math.max((item.visits / max) * 100, 5)}%` : "2px" }}
+              aria-label={`${item.month}: ${item.visits} visits`}
+            >
+              <span className="absolute -top-7 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white group-hover:block">{item.visits}</span>
+            </div>
+          </div>
+          <div className="h-10 pt-2 text-center text-[10px] leading-tight text-gray-500">{showLabel ? item.month : ""}</div>
+        </div>;
+      })}
+    </div>
+  </article>;
 }
 
-function BmiDistributionChart({
-  breakdown,
-  recordedCount,
-}: {
-  breakdown: DashboardStats["bmiBreakdown"];
-  recordedCount: number;
-}) {
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: [string, string][] }) {
+  return <label className="text-xs font-semibold text-slate-600">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="input mt-1 w-full min-w-36 bg-white text-sm font-normal">{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
+}
+
+function BmiDistributionChart({ breakdown, recordedCount }: { breakdown: DashboardStats["bmiBreakdown"]; recordedCount: number }) {
   const categories = [
     { key: "underweight", label: "Underweight", value: breakdown.underweight, color: "#0ea5e9" },
     { key: "normal", label: "Normal weight", value: breakdown.normalWeight, color: "#10b981" },
@@ -165,44 +194,14 @@ function BmiDistributionChart({
   });
   const background = recordedCount > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
 
-  return (
-    <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h3 className="font-semibold text-gray-900">BMI Screening Categories</h3>
-      <p className="mt-1 text-xs text-gray-500">
-        BMI ranges across all recorded patient ages.
-      </p>
-      {recordedCount === 0 ? (
-        <EmptyChart label="No visits with both height and weight recorded for this patient type." />
-      ) : (
-        <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
-          <div
-            className="relative h-40 w-40 shrink-0 rounded-full"
-            style={{ background }}
-            role="img"
-            aria-label={`BMI screening ranges for ${recordedCount} recorded visits`}
-          >
-            <div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{recordedCount}</p>
-                <p className="text-[11px] leading-tight text-gray-500">recorded BMIs</p>
-              </div>
-            </div>
-          </div>
-          <div className="grid w-full gap-3 sm:max-w-xs">
-            {categories.map((category) => (
-              <div key={category.key} className="flex items-center gap-3 text-sm">
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
-                <span className="min-w-0 flex-1 text-gray-700">{category.label}</span>
-                <span className="w-10 text-right font-semibold text-gray-900">
-                  {Math.round((category.value / recordedCount) * 100)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </article>
-  );
+  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h3 className="font-semibold text-gray-900">Adult BMI Categories</h3>
+    <p className="mt-1 text-xs text-gray-500">Standard BMI ranges for patients age 18 and older.</p>
+    {recordedCount === 0 ? <EmptyChart label="No adult visits with both height and weight recorded for this patient type." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
+      <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background }} role="img" aria-label={`BMI categories for ${recordedCount} adult visits`}><div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center"><div><p className="text-2xl font-bold text-gray-900">{recordedCount}</p><p className="text-[11px] leading-tight text-gray-500">recorded BMIs</p></div></div></div>
+      <div className="grid w-full gap-3 sm:max-w-xs">{categories.map((category) => <div key={category.key} className="flex items-center gap-3 text-sm"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="min-w-0 flex-1 text-gray-700">{category.label}</span><span className="w-10 text-right font-semibold text-gray-900">{Math.round((category.value / recordedCount) * 100)}%</span></div>)}</div>
+    </div>}
+  </article>;
 }
 
 function EmptyChart({ label }: { label: string }) {

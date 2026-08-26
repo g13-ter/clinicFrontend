@@ -7,6 +7,8 @@ import {
   CalendarIcon,
   DashboardIcon,
   PatientsIcon,
+  ProfileIcon,
+  SettingsIcon,
   StaffIcon,
   VisitsIcon,
 } from "../../icons";
@@ -151,9 +153,11 @@ function PreviewHeader({
 /* =========================================================
    ADMIN SIDEBAR
 
-   Admin only has:
+   Admin navigation:
    - Dashboard
    - Audit Logs
+   - Settings
+   - Profile
 ========================================================= */
 
 function AdminSidebar({
@@ -493,6 +497,14 @@ function previewNavigationIcon(
     item === "Audit Logs"
   ) {
     return <AuditIcon />;
+  }
+
+  if (item === "Settings") {
+    return <SettingsIcon />;
+  }
+
+  if (item === "Profile") {
+    return <ProfileIcon />;
   }
 
   return <DashboardIcon />;

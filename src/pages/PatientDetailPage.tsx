@@ -179,7 +179,7 @@ function PatientDetailPage({
           </section>
         )}
 
-        <PatientVisits patientId={id!} patientAge={patient.age} />
+        <PatientVisits patientId={id!} patientAge={patient.age} patientGender={patient.gender} patientDateOfBirth={patient.dateOfBirth} />
         <PatientMedicalHistory patientId={id!} />
       </div>
 

@@ -53,6 +53,13 @@ const monthlyVisits = [
   },
 ];
 
+const bmiCategories = [
+  { label: "Underweight", value: "13%", tone: "bg-sky-500" },
+  { label: "Normal weight", value: "53%", tone: "bg-emerald-500" },
+  { label: "Overweight", value: "20%", tone: "bg-amber-500" },
+  { label: "Obese", value: "14%", tone: "bg-orange-500" },
+];
+
 export default function RoleAnalyticsPreview() {
   return (
     <div className="mt-5">
@@ -85,10 +92,49 @@ export default function RoleAnalyticsPreview() {
       </div>
 
       {/* GRAPHS */}
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+      <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <ComplaintsChart />
 
+        <BmiAnalyticsChart />
+
         <MonthlyVisitsChart />
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   BMI ANALYTICS
+========================================================= */
+
+function BmiAnalyticsChart() {
+  return (
+    <div className="min-h-[170px] rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+      <p className="text-[9px] font-medium">Adult BMI Categories</p>
+      <p className="mt-1 text-[6px] text-slate-400">Recorded BMI screening results, age 18+</p>
+
+      <div className="mt-3 flex items-center justify-center gap-4 sm:justify-start">
+        <div
+          className="relative h-[112px] w-[112px] shrink-0 rounded-full"
+          style={{ background: "conic-gradient(#0ea5e9 0 13%, #10b981 13% 66%, #f59e0b 66% 86%, #f97316 86% 100%)" }}
+        >
+          <div className="absolute inset-[26px] grid place-items-center rounded-full bg-white text-center">
+            <span>
+              <b className="block text-[15px] leading-none">15</b>
+              <span className="mt-1 block whitespace-nowrap text-[5px] text-slate-400">recorded BMIs</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1 space-y-2">
+          {bmiCategories.map((category) => (
+            <div key={category.label} className="grid grid-cols-[7px_1fr_auto] items-center gap-2 text-[6px] sm:text-[7px]">
+              <span className={`h-1.5 w-1.5 rounded-full ${category.tone}`} />
+              <span className="truncate text-slate-600">{category.label}</span>
+              <span className="text-slate-700">{category.value}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
