@@ -54,7 +54,7 @@ export default function HeroSection() {
               to="/login"
               className="inline-flex items-center justify-center gap-3 rounded-xl bg-blue-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
             >
-              Get Started
+              Sign In to Portal
               <span aria-hidden="true">→</span>
             </Link>
 

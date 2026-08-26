@@ -8,7 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 import type { Patient, ClinicVisit, MedicalHistory } from "../utils/types";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
-import { patientIdentifier, patientTypeLabel, patientTypeOf } from "../utils/patient";
+import { academicLevelLabel, educationLevelLabel, educationLevelOf, patientIdentifier, patientTypeLabel, patientTypeOf } from "../utils/patient";
 
 function PatientDetailPage({
   patientId,
@@ -141,8 +141,10 @@ function PatientDetailPage({
             <Field label="Gender" value={patient.gender} />
             <Field label="Blood Type" value={patient.bloodType || "Not recorded"} />
             {patientTypeOf(patient) === "student" ? <>
-              <Field label="Course" value={patient.course} />
-              <Field label="Year Level" value={String(patient.yearLevel)} />
+              <Field label="Education Level" value={educationLevelLabel(educationLevelOf(patient))} />
+              {educationLevelOf(patient) === "college" && <Field label="Course" value={patient.course || "Not recorded"} />}
+              <Field label={educationLevelOf(patient) === "college" ? "Year Level" : "Grade Level"} value={academicLevelLabel(patient)} />
+              {educationLevelOf(patient) === "college" && <Field label="Program Length" value={`${patient.programDurationYears ?? 4} years`} />}
             </> : <>
               <Field label="Department" value={patient.department || "Not recorded"} />
               <Field label="Position" value={patient.position || "Not recorded"} />

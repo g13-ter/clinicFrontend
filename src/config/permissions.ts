@@ -45,6 +45,7 @@ export const CAPABILITIES = {
   manageAppointments: ["staff", "nurse"] as const satisfies readonly UserRole[],
   editPatients: ["staff", "nurse"] as const satisfies readonly UserRole[],
   archivePatients: ["admin"] as const satisfies readonly UserRole[],
+  reviewStudentCompletion: ["admin"] as const satisfies readonly UserRole[],
   viewFullPatients: ["staff", "doctor", "nurse"] as const satisfies readonly UserRole[],
   // Staff may browse basic student data without viewing full records.
   searchPatients: ["admin", "doctor", "nurse", "staff"] as const satisfies readonly UserRole[],

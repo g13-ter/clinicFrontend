@@ -78,4 +78,23 @@ describe("API client recovery", () => {
       }),
     );
   });
+
+  it("preserves an invalid-login error instead of reporting an expired session", async () => {
+    const response = new Response(JSON.stringify({
+      message: "Invalid email or password",
+    }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+
+    await expect(readApiResponse(response, {
+      treatUnauthorizedAsSessionExpiry: false,
+    })).rejects.toEqual(
+      expect.objectContaining({
+        name: "ApiError",
+        message: "Invalid email or password",
+        status: 401,
+      }),
+    );
+  });
 });

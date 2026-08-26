@@ -311,31 +311,17 @@ function RoleWorkspaceTabs({
           </Link>
         ))}
         {role === "nurse" && (
-          <>
-            <Link
-              to="/dashboard?view=reports"
-              aria-current={activeView === "reports" ? "page" : undefined}
-              className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
-                activeView === "reports"
-                  ? "border-blue-600 bg-blue-50/70 text-blue-700"
-                  : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-              }`}
-            >
-              Reports
-            </Link>
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              aria-current={activeView === "settings" ? "page" : undefined}
-              className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
-                activeView === "settings"
-                  ? "border-blue-600 bg-blue-50/70 text-blue-700"
-                  : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-              }`}
-            >
-              Settings
-            </button>
-          </>
+          <Link
+            to="/dashboard?view=reports"
+            aria-current={activeView === "reports" ? "page" : undefined}
+            className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+              activeView === "reports"
+                ? "border-blue-600 bg-blue-50/70 text-blue-700"
+                : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+            }`}
+          >
+            Reports
+          </Link>
         )}
         <button
           type="button"
@@ -353,6 +339,20 @@ function RoleWorkspaceTabs({
             </span>
           )}
         </button>
+        {role === "nurse" && (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            aria-current={activeView === "settings" ? "page" : undefined}
+            className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+              activeView === "settings"
+                ? "border-blue-600 bg-blue-50/70 text-blue-700"
+                : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+            }`}
+          >
+            Settings
+          </button>
+        )}
       </div>
     </nav>
   );

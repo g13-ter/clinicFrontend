@@ -6,6 +6,7 @@ import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
 import type { MedicalHistory, Patient, User } from "../utils/types";
 import PatientRecordModal from "../components/PatientRecordModal";
+import { patientAffiliation } from "../utils/patient";
 
 type MedicationOrder = Omit<MedicalHistory, "patientId"> & {
   patientId: Patient;
@@ -201,7 +202,7 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
                     <button type="button" onClick={() => setViewingPatientId(order.patientId._id)} className="text-left font-semibold text-blue-700 hover:underline">
                       {order.patientId.firstName} {order.patientId.lastName}
                     </button>
-                    <p className="text-xs text-gray-500">{order.patientId.studentId} · {order.patientId.course} {order.patientId.yearLevel}</p>
+                    <p className="text-xs text-gray-500">{order.patientId.studentId} · {patientAffiliation(order.patientId)}</p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${claimed ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"}`}>
                     {claimed ? "Accepted" : "Waiting"}

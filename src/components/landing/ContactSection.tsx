@@ -88,7 +88,7 @@ export default function ContactSection({ clinicProfile }: { clinicProfile: Clini
                   to="/login"
                   className="inline-flex items-center justify-center gap-3 rounded-xl bg-white px-6 py-3.5 text-sm font-extrabold text-blue-700 shadow-xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
                 >
-                  Staff Login
+                  Sign In
 
                   <span aria-hidden="true">
                     →
@@ -229,9 +229,7 @@ export default function ContactSection({ clinicProfile }: { clinicProfile: Clini
           <FooterLinks
             title="Access"
             links={[
-              ["Staff login", "/login"],
-              ["Clinic dashboard", "/login"],
-              ["System access", "/login"],
+              ["Sign in", "/login"],
             ]}
           />
 

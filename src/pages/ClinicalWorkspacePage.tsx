@@ -8,6 +8,7 @@ import DoctorWorkspaceTabs from "../components/DoctorWorkspaceTabs";
 import type {
   Appointment,
   ClinicVisit,
+  LatestPatientVitals,
   MedicalHistory,
   Medicine,
   Patient,
@@ -43,6 +44,16 @@ const TABS: { id: Tab; label: string }[] = [
 
 const CONSULTATION_DRAFT_PREFIX = "clinic-consultation-draft";
 
+const loadLatestPatientVitals = async (patientId: string): Promise<LatestPatientVitals | null> => {
+  try {
+    return (await api.get<LatestPatientVitals | null>(
+      `/visits/patient/${patientId}/latest-vitals`,
+    )).data;
+  } catch {
+    return null;
+  }
+};
+
 function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const { role, user } = useAuth();
   const { showToast } = useToast();
@@ -68,6 +79,8 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [generatingCertificate, setGeneratingCertificate] = useState(false);
   const [formError, setFormError] = useState("");
+  const [prefilledHeightRecordedAt, setPrefilledHeightRecordedAt] = useState<string | null>(null);
+  const [prefilledWeightRecordedAt, setPrefilledWeightRecordedAt] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState("");
   const draftHydrated = useRef(false);
   const draftKey = `${CONSULTATION_DRAFT_PREFIX}:${user?.id ?? "anonymous"}`;
@@ -157,10 +170,13 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
     if (!visitId) return;
 
     api.get<ClinicVisit>(`/visits/${visitId}`)
-      .then((response) => {
+      .then(async (response) => {
         const visit = response.data;
         const patientId =
           typeof visit.patientId === "object" ? visit.patientId._id : visit.patientId;
+        const latestVitals = !isDoctor && (visit.heightCm == null || visit.weightKg == null)
+          ? await loadLatestPatientVitals(patientId)
+          : null;
         const appointmentId = visit.appointmentId
           ? typeof visit.appointmentId === "object"
             ? visit.appointmentId._id
@@ -177,17 +193,27 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
           bloodPressure: visit.bloodPressure ?? "",
           pulseRate: visit.pulseRate != null ? String(visit.pulseRate) : "",
           respiratoryRate: visit.respiratoryRate != null ? String(visit.respiratoryRate) : "",
-          heightCm: visit.heightCm != null ? String(visit.heightCm) : "",
-          weightKg: visit.weightKg != null ? String(visit.weightKg) : "",
+          heightCm: visit.heightCm != null
+            ? String(visit.heightCm)
+            : latestVitals?.heightCm != null ? String(latestVitals.heightCm) : "",
+          weightKg: visit.weightKg != null
+            ? String(visit.weightKg)
+            : latestVitals?.weightKg != null ? String(latestVitals.weightKg) : "",
           assessment: visit.nursingAssessment ?? "",
           treatment: visit.nursingInterventions ?? visit.treatment ?? "",
           recommendations: visit.nursingRecommendations ?? "",
         }));
+        setPrefilledHeightRecordedAt(
+          visit.heightCm == null ? latestVitals?.heightRecordedAt ?? null : null,
+        );
+        setPrefilledWeightRecordedAt(
+          visit.weightKg == null ? latestVitals?.weightRecordedAt ?? null : null,
+        );
       })
       .catch((error: unknown) => {
         setLoadError(error instanceof Error ? error.message : "Failed to load the clinic visit");
       });
-  }, [searchParams]);
+  }, [isDoctor, searchParams]);
 
   const startConsultation = async (appointment?: Appointment, patient?: Patient) => {
     const appointmentPatient = appointment ? patientDetails(appointment.patientId) : null;
@@ -236,9 +262,21 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       }
     }
 
+    const currentVisitPatientId = currentVisit?.patientId
+      ? typeof currentVisit.patientId === "object"
+        ? currentVisit.patientId._id
+        : currentVisit.patientId
+      : "";
+    const currentPatientId = selectedPatient?._id ?? currentVisitPatientId;
+    const latestVitals = !isDoctor &&
+      (currentVisit?.heightCm == null || currentVisit?.weightKg == null) &&
+      currentPatientId
+      ? await loadLatestPatientVitals(currentPatientId)
+      : null;
+
     setForm(createEmptyConsultation({
       visitId,
-      patientId: selectedPatient?._id ?? "",
+      patientId: currentPatientId,
       appointmentId: appointment?._id ?? "",
       complaint: currentVisit?.complaint ?? appointment?.reason ?? "",
       temperature: currentVisit?.temperature != null ? String(currentVisit.temperature) : "",
@@ -246,16 +284,28 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       pulseRate: currentVisit?.pulseRate != null ? String(currentVisit.pulseRate) : "",
       respiratoryRate:
         currentVisit?.respiratoryRate != null ? String(currentVisit.respiratoryRate) : "",
-      heightCm: currentVisit?.heightCm != null ? String(currentVisit.heightCm) : "",
-      weightKg: currentVisit?.weightKg != null ? String(currentVisit.weightKg) : "",
+      heightCm: currentVisit?.heightCm != null
+        ? String(currentVisit.heightCm)
+        : latestVitals?.heightCm != null ? String(latestVitals.heightCm) : "",
+      weightKg: currentVisit?.weightKg != null
+        ? String(currentVisit.weightKg)
+        : latestVitals?.weightKg != null ? String(latestVitals.weightKg) : "",
       assessment: currentVisit?.nursingAssessment ?? "",
       recommendations: currentVisit?.nursingRecommendations ?? "",
     }));
+    setPrefilledHeightRecordedAt(
+      currentVisit?.heightCm == null ? latestVitals?.heightRecordedAt ?? null : null,
+    );
+    setPrefilledWeightRecordedAt(
+      currentVisit?.weightKg == null ? latestVitals?.weightRecordedAt ?? null : null,
+    );
     setFormError("");
     changeTab("consultation");
   };
 
   const updateForm = (field: keyof typeof form, value: string) => {
+    if (field === "heightCm") setPrefilledHeightRecordedAt(null);
+    if (field === "weightKg") setPrefilledWeightRecordedAt(null);
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -371,6 +421,8 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       );
       sessionStorage.removeItem(draftKey);
       setDraftStatus("");
+      setPrefilledHeightRecordedAt(null);
+      setPrefilledWeightRecordedAt(null);
       setForm(createEmptyConsultation());
       await fetchWorkspace();
       if (nurseMedicationOrder && savedHistory) {
@@ -468,6 +520,8 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
                   generatingCertificate={generatingCertificate}
                   error={formError}
                   draftStatus={draftStatus}
+                  prefilledHeightRecordedAt={prefilledHeightRecordedAt}
+                  prefilledWeightRecordedAt={prefilledWeightRecordedAt}
                   onChange={updateForm}
                   onSubmit={handleConsultation}
                   onProfileSaved={handleProfileSaved}
@@ -649,6 +703,8 @@ function ConsultationForm({
   generatingCertificate,
   error,
   draftStatus,
+  prefilledHeightRecordedAt,
+  prefilledWeightRecordedAt,
   onChange,
   onSubmit,
   onProfileSaved,
@@ -662,6 +718,8 @@ function ConsultationForm({
   generatingCertificate: boolean;
   error: string;
   draftStatus: string;
+  prefilledHeightRecordedAt: string | null;
+  prefilledWeightRecordedAt: string | null;
   onChange: (field: keyof typeof form, value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
   onProfileSaved: (patient: Patient) => void;
@@ -746,9 +804,19 @@ function ConsultationForm({
         </Field>
         <Field label="Height (cm)">
           <input type="number" min={30} max={250} step="0.1" value={form.heightCm} onChange={(event) => onChange("heightCm", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
+          {prefilledHeightRecordedAt && !isDoctor && (
+            <p className="mt-1 text-xs text-blue-700">
+              Prefilled from {new Date(prefilledHeightRecordedAt).toLocaleDateString()}. Confirm or update it.
+            </p>
+          )}
         </Field>
         <Field label="Weight (kg)">
           <input type="number" min={1} max={500} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
+          {prefilledWeightRecordedAt && !isDoctor && (
+            <p className="mt-1 text-xs text-blue-700">
+              Prefilled from {new Date(prefilledWeightRecordedAt).toLocaleDateString()}. Confirm or update it.
+            </p>
+          )}
         </Field>
         <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={selectedPatient?.age} gender={selectedPatient?.gender} dateOfBirth={selectedPatient?.dateOfBirth} className="md:col-span-2 xl:col-span-3" />
 

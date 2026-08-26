@@ -1,5 +1,5 @@
 import type { Patient, ClinicVisit, MedicalHistory } from "../../utils/types";
-import { patientIdentifier, patientTypeLabel, patientTypeOf } from "../../utils/patient";
+import { academicLevelLabel, educationLevelLabel, educationLevelOf, patientIdentifier, patientTypeLabel, patientTypeOf } from "../../utils/patient";
 
 interface Props {
   patient: Patient;
@@ -31,8 +31,10 @@ function PrintablePatientSummary({ patient, visits, history }: Props) {
         <SummaryField label="Age" value={String(patient.age)} />
         <SummaryField label="Gender" value={patient.gender} />
         {patientTypeOf(patient) === "student" ? <>
-          <SummaryField label="Course" value={patient.course} />
-          <SummaryField label="Year Level" value={String(patient.yearLevel)} />
+          <SummaryField label="Education Level" value={educationLevelLabel(educationLevelOf(patient))} />
+          {educationLevelOf(patient) === "college" && <SummaryField label="Course" value={patient.course || "Not recorded"} />}
+          <SummaryField label={educationLevelOf(patient) === "college" ? "Year Level" : "Grade Level"} value={academicLevelLabel(patient)} />
+          {educationLevelOf(patient) === "college" && <SummaryField label="Program Length" value={`${patient.programDurationYears ?? 4} years`} />}
         </> : <>
           <SummaryField label="Department" value={patient.department || "Not recorded"} />
           <SummaryField label="Position" value={patient.position || "Not recorded"} />
