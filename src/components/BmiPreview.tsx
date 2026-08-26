@@ -1,4 +1,4 @@
-import { calculateBmi, classifyAdultBmi, type AdultBmiCategory } from "../utils/bmi";
+import { ageInMonths, calculateBmi, classifyAdultBmi, classifyPediatricBmi, type AdultBmiCategory } from "../utils/bmi";
 
 const CATEGORY_STYLES: Record<AdultBmiCategory, string> = {
   Underweight: "border-sky-200 bg-sky-50 text-sky-900",
@@ -11,11 +11,15 @@ export function BmiPreview({
   heightCm,
   weightKg,
   age,
+  gender,
+  dateOfBirth,
   className = "",
 }: {
   heightCm: string | number | undefined;
   weightKg: string | number | undefined;
   age?: number;
+  gender?: string;
+  dateOfBirth?: string;
   className?: string;
 }) {
   const bmi = calculateBmi(heightCm, weightKg);
@@ -29,11 +33,15 @@ export function BmiPreview({
     );
   }
   if (age < 18) {
+    const months = dateOfBirth ? ageInMonths(dateOfBirth) : age * 12;
+    const pediatric = months === null ? null : classifyPediatricBmi(bmi, months, gender ?? "");
     return (
       <div className={`rounded-lg border border-violet-200 bg-violet-50 p-3 text-violet-900 ${className}`} aria-live="polite">
-        <p className="text-sm font-semibold">BMI: {bmi} · Pediatric BMI-for-age assessment</p>
+        <p className="text-sm font-semibold">BMI-for-age: {bmi}{pediatric ? ` · ${pediatric.category} (${pediatric.percentile}th percentile)` : " · Pediatric result unavailable"}</p>
         <p className="mt-1 text-xs opacity-80">
-          Adult categories do not apply. Determine the category using an age- and sex-specific BMI percentile.
+          {months !== null && months < 24
+            ? "BMI-for-age classification is not validated below age 2; use the appropriate infant growth standard."
+            : pediatric ? "Calculated from CDC BMI-for-age reference data using age and sex." : "A valid date/age and sex are required for pediatric classification."}
         </p>
       </div>
     );

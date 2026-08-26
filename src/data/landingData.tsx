@@ -134,19 +134,24 @@ export const roleWorkspaces: Record<
       "User management and administrative oversight.",
 
     description:
-      "Admins manage clinic accounts, review medicine purchase requests, monitor audit activity, and maintain administrative access without handling clinical care.",
+      "Admins manage clinic accounts, review medicine purchase requests, monitor audit activity, configure clinic settings, and maintain their account profile.",
 
     // Actual sidebar
     navigation: [
       "Dashboard",
       "Audit Logs",
+      "Settings",
+      "Profile",
     ],
 
     // Pages shown in "Pages this role can access"
     pages: [
       "Dashboard",
+      "User Management",
       "Purchase Requests",
       "Audit Logs",
+      "Settings",
+      "Profile",
     ],
 
     // Dashboard tabs
@@ -261,6 +266,7 @@ export const roleWorkspaces: Record<
       "Medication Requests",
       "Reports",
       "Notifications",
+      "Settings",
     ],
 
     features: [
@@ -271,6 +277,7 @@ export const roleWorkspaces: Record<
       "Medication Requests",
       "Reports",
       "Notifications",
+      "Settings",
     ],
 
     metrics: [

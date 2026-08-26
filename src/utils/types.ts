@@ -258,12 +258,30 @@ export interface DashboardStats {
 
 export interface SystemSettings {
   schoolYear: string;
+  clinicName: string;
+  buildingLocation: string;
+  floorRoom: string;
+  operatingDays: string;
   clinicOpenTime: string;
   clinicCloseTime: string;
+  weeklySchedule: ClinicScheduleDay[];
+  phoneNumber: string;
+  emailAddress: string;
   emailNotificationsEnabled: boolean;
   appointmentRemindersEnabled: boolean;
   stockAlertsEnabled: boolean;
 }
+
+export interface ClinicScheduleDay {
+  day: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+  openTime: string;
+  closeTime: string;
+}
+
+export type ClinicProfile = Pick<SystemSettings,
+  "clinicName" | "buildingLocation" | "floorRoom" | "operatingDays" |
+  "clinicOpenTime" | "clinicCloseTime" | "weeklySchedule" | "phoneNumber" | "emailAddress"
+>;
 
 export interface InventoryLabel {
   _id: string;

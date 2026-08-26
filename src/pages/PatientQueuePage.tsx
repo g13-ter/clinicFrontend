@@ -918,7 +918,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
               />
               <FieldError message={vitalsFieldErrors.weightKg} />
             </div>
-            <BmiPreview heightCm={vitalsForm.heightCm} weightKg={vitalsForm.weightKg} age={vitalsPatient?.age} className="sm:col-span-2" />
+            <BmiPreview heightCm={vitalsForm.heightCm} weightKg={vitalsForm.weightKg} age={vitalsPatient?.age} gender={vitalsPatient?.gender} dateOfBirth={vitalsPatient?.dateOfBirth} className="sm:col-span-2" />
             <div className="sm:col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Notes</label>
               <textarea

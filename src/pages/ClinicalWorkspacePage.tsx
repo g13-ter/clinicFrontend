@@ -750,7 +750,7 @@ function ConsultationForm({
         <Field label="Weight (kg)">
           <input type="number" min={1} max={500} step="0.1" value={form.weightKg} onChange={(event) => onChange("weightKg", event.target.value)} disabled={isDoctor} className={`input ${isDoctor ? "cursor-not-allowed bg-gray-100 text-gray-600" : ""}`} />
         </Field>
-        <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={selectedPatient?.age} className="md:col-span-2 xl:col-span-3" />
+        <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={selectedPatient?.age} gender={selectedPatient?.gender} dateOfBirth={selectedPatient?.dateOfBirth} className="md:col-span-2 xl:col-span-3" />
 
         {isDoctor ? (
           <Field label="Diagnosis" className="md:col-span-2 xl:col-span-3">

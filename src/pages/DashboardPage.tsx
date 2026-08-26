@@ -35,6 +35,7 @@ import ClinicAnalytics from "../features/dashboard/ClinicAnalytics";
 import ReportsPage from "./ReportsPage";
 import PatientRecordModal from "../components/PatientRecordModal";
 import InventoryLabelsPage from "./InventoryLabelsPage";
+import SettingsPage from "./SettingsPage";
 
 function DashboardPage() {
   const { role, user } = useAuth();
@@ -62,6 +63,7 @@ function DashboardPage() {
     requestedView === "medications" ||
     requestedView === "purchase-requests" ||
     requestedView === "reports" ||
+    requestedView === "settings" ||
     requestedView === "notifications"
       ? requestedView
       : "visits";
@@ -84,6 +86,10 @@ function DashboardPage() {
     localStorage.setItem(alertStorageKey, JSON.stringify(currentKeys));
     setSeenAlertKeys(currentKeys);
     setSearchParams({ view: "notifications" }, { replace: true });
+  };
+
+  const openSettings = () => {
+    setSearchParams({ view: "settings" }, { replace: true });
   };
 
   if (role === "superadmin") return <SuperAdminDashboardPage />;
@@ -171,6 +177,7 @@ function DashboardPage() {
               role={role}
               unreadCount={unreadCount}
               activeView={workspaceView}
+              onOpenSettings={openSettings}
               onOpenNotifications={openNotifications}
             />
           )}
@@ -180,6 +187,8 @@ function DashboardPage() {
         {!isAdmin && !isDoctor ? (
           workspaceView === "notifications" ? (
             <NotificationsPanel alerts={alerts} />
+          ) : workspaceView === "settings" ? (
+            <SettingsPage embedded />
           ) : workspaceView === "students" ? (
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <PatientsPage embedded />
@@ -266,11 +275,13 @@ function RoleWorkspaceTabs({
   role,
   unreadCount,
   activeView,
+  onOpenSettings,
   onOpenNotifications,
 }: {
   role: string | null;
   unreadCount: number;
-  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "inventory-labels" | "medications" | "purchase-requests" | "reports" | "notifications";
+  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "inventory-labels" | "medications" | "purchase-requests" | "reports" | "settings" | "notifications";
+  onOpenSettings: () => void;
   onOpenNotifications: () => void;
 }) {
   const tabs = [
@@ -300,17 +311,31 @@ function RoleWorkspaceTabs({
           </Link>
         ))}
         {role === "nurse" && (
-          <Link
-            to="/dashboard?view=reports"
-            aria-current={activeView === "reports" ? "page" : undefined}
-            className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
-              activeView === "reports"
-                ? "border-blue-600 bg-blue-50/70 text-blue-700"
-                : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-            }`}
-          >
-            Reports
-          </Link>
+          <>
+            <Link
+              to="/dashboard?view=reports"
+              aria-current={activeView === "reports" ? "page" : undefined}
+              className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+                activeView === "reports"
+                  ? "border-blue-600 bg-blue-50/70 text-blue-700"
+                  : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+              }`}
+            >
+              Reports
+            </Link>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              aria-current={activeView === "settings" ? "page" : undefined}
+              className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+                activeView === "settings"
+                  ? "border-blue-600 bg-blue-50/70 text-blue-700"
+                  : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+              }`}
+            >
+              Settings
+            </button>
+          </>
         )}
         <button
           type="button"

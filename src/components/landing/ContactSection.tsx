@@ -9,8 +9,45 @@ import {
   BrandMark,
   FooterLinks,
 } from "./shared";
+import type { ClinicProfile } from "../../utils/types";
 
-export default function ContactSection() {
+const formatTime = (value: string): string => {
+  const [hour, minute] = value.split(":").map(Number);
+  return new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" })
+    .format(new Date(2000, 0, 1, hour, minute));
+};
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
+const formatWeeklySchedule = (clinicProfile: ClinicProfile): string[] => {
+  if (!clinicProfile.weeklySchedule?.length) {
+    return [`${clinicProfile.operatingDays}, ${formatTime(clinicProfile.clinicOpenTime)}–${formatTime(clinicProfile.clinicCloseTime)}`];
+  }
+  const entries = [...clinicProfile.weeklySchedule].sort((a, b) => WEEKDAYS.indexOf(a.day) - WEEKDAYS.indexOf(b.day));
+  const groups: Array<{ first: string; last: string; openTime: string; closeTime: string }> = [];
+  entries.forEach((entry) => {
+    const current = groups.at(-1);
+    const isNextDay = current && WEEKDAYS.indexOf(entry.day) === WEEKDAYS.indexOf(current.last as (typeof WEEKDAYS)[number]) + 1;
+    if (current && isNextDay && current.openTime === entry.openTime && current.closeTime === entry.closeTime) {
+      current.last = entry.day;
+    } else {
+      groups.push({ first: entry.day, last: entry.day, openTime: entry.openTime, closeTime: entry.closeTime });
+    }
+  });
+  return groups.map((group) => {
+    const days = group.first === group.last ? group.first : `${group.first}–${group.last}`;
+    return `${days}, ${formatTime(group.openTime)}–${formatTime(group.closeTime)}`;
+  });
+};
+
+export default function ContactSection({ clinicProfile }: { clinicProfile: ClinicProfile | null }) {
+  const address = clinicProfile
+    ? [clinicProfile.buildingLocation, clinicProfile.floorRoom].filter(Boolean).join(", ")
+    : "Clinic information is temporarily unavailable";
+  const scheduleLines = clinicProfile
+    ? formatWeeklySchedule(clinicProfile)
+    : ["Please contact the school office for clinic hours"];
+  const schedule = scheduleLines.join("; ");
   return (
     <section
       id="contact"
@@ -206,17 +243,13 @@ export default function ContactSection() {
             className="scroll-mt-24"
           >
             <h3 className="text-sm font-extrabold text-slate-950">
-              School Health Clinic
+              {clinicProfile?.clinicName ?? "School Clinic"}
             </h3>
 
             <address className="mt-4 space-y-2 text-sm not-italic leading-6 text-slate-500">
-              <p>
-                Main Building, Ground Floor, Room 101
-              </p>
+              <p>{address}</p>
 
-              <p>
-                Monday–Friday, 8:00 AM–5:00 PM
-              </p>
+              {scheduleLines.map((line) => <p key={line}>{line}</p>)}
 
               <p>
                 <span className="font-semibold text-slate-700">
@@ -224,10 +257,10 @@ export default function ContactSection() {
                 </span>{" "}
 
                 <a
-                  href="tel:+639123456789"
+                  href={clinicProfile ? `tel:${clinicProfile.phoneNumber.replace(/[^+\d]/g, "")}` : undefined}
                   className="font-medium text-blue-600 transition hover:text-blue-700"
                 >
-                  0912 345 6789
+                  {clinicProfile?.phoneNumber ?? "Unavailable"}
                 </a>
               </p>
 
@@ -237,10 +270,10 @@ export default function ContactSection() {
                 </span>{" "}
 
                 <a
-                  href="mailto:clinic@yourschool.edu.ph"
+                  href={clinicProfile ? `mailto:${clinicProfile.emailAddress}` : undefined}
                   className="break-all font-medium text-blue-600 transition hover:text-blue-700"
                 >
-                  clinic@yourschool.edu.ph
+                  {clinicProfile?.emailAddress ?? "Unavailable"}
                 </a>
               </p>
             </address>
@@ -253,7 +286,7 @@ export default function ContactSection() {
 
               <ol className="mt-2 list-decimal space-y-1.5 pl-5 leading-6">
                 <li>
-                  Contact the clinic or visit Room 101 during clinic hours.
+                  Call {clinicProfile?.phoneNumber ?? "the clinic"}, email {clinicProfile?.emailAddress ?? "the clinic"}, or visit {address} during {schedule}.
                 </li>
 
                 <li>
@@ -278,8 +311,8 @@ export default function ContactSection() {
               <strong>
                 Emergency:
               </strong>{" "}
-              Proceed directly to the clinic or call the school emergency
-              number. Do not use appointment messaging for urgent cases.
+              Proceed directly to {address} or call {clinicProfile?.phoneNumber ?? "the school emergency number"}.
+              Do not use appointment messaging for urgent cases.
             </p>
           </div>
         </div>

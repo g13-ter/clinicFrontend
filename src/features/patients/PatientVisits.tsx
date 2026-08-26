@@ -29,7 +29,7 @@ const FORM_FIELDS = ["patientId", ...Object.keys(empty)];
 
 type Form = typeof empty;
 
-function PatientVisits({ patientId, patientAge }: { patientId: string; patientAge?: number }) {
+function PatientVisits({ patientId, patientAge, patientGender, patientDateOfBirth }: { patientId: string; patientAge?: number; patientGender?: string; patientDateOfBirth?: string }) {
   const canEdit = getCurrentRole() === "nurse";
   const { showToast } = useToast();
 
@@ -272,7 +272,7 @@ function PatientVisits({ patientId, patientAge }: { patientId: string; patientAg
               <label className="block text-xs text-gray-500 mb-1">Weight (kg)</label>
               <input type="number" min={1} max={500} step="0.1" value={form.weightKg} onChange={(e) => f("weightKg", e.target.value)} className="input" />
             </div>
-            <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={patientAge} className="sm:col-span-2" />
+            <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={patientAge} gender={patientGender} dateOfBirth={patientDateOfBirth} className="sm:col-span-2" />
             <div className="mt-1 border-t pt-3 sm:col-span-2">
               <p className="text-xs font-semibold text-sky-700 mb-2">Nursing Assessment — not a physician diagnosis</p>
               <label className="block text-xs text-gray-500 mb-1">Nursing Assessment</label>

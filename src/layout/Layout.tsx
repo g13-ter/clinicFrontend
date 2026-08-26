@@ -20,9 +20,11 @@ import {
   MenuIcon,
   MedicineIcon,
   PatientsIcon,
+  ProfileIcon,
   ReportsIcon,
   SearchIcon,
   StaffIcon,
+  SettingsIcon,
   VisitsIcon,
 } from "../components/icons";
 
@@ -38,8 +40,8 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/roles-permissions": AuditIcon,
   "/reports": ReportsIcon,
   "/audit-log": AuditIcon,
-  "/settings": StaffIcon,
-  "/profile": StaffIcon,
+  "/settings": SettingsIcon,
+  "/profile": ProfileIcon,
 };
 
 const EMERGENCY_POLL_INTERVAL_MS = 10_000;

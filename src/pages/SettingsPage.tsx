@@ -1,55 +1,54 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
-import type { SystemSettings } from "../utils/types";
+import type { ClinicScheduleDay, SystemSettings } from "../utils/types";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { useAuth } from "../hooks/useAuth";
+import { getSavedAnalyticsFilter, saveAnalyticsFilter, type AnalyticsFilterPreference, type AnalyticsPeriod } from "../utils/analyticsFilter";
 
 const defaultSettings: SystemSettings = {
   schoolYear: "",
+  clinicName: "",
+  buildingLocation: "",
+  floorRoom: "",
+  operatingDays: "",
   clinicOpenTime: "08:00",
   clinicCloseTime: "17:00",
+  weeklySchedule: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map((day) => ({
+    day: day as ClinicScheduleDay["day"], openTime: "08:00", closeTime: "17:00",
+  })),
+  phoneNumber: "",
+  emailAddress: "",
   emailNotificationsEnabled: true,
   appointmentRemindersEnabled: true,
   stockAlertsEnabled: true,
 };
 
-function SettingsPage() {
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
+function SettingsPage({ embedded = false }: { embedded?: boolean }) {
+  const { role } = useAuth();
+  const isNurse = role === "nurse";
   const [settings, setSettings] = useState<SystemSettings>(defaultSettings);
+  const [analyticsFilter, setAnalyticsFilter] = useState(getSavedAnalyticsFilter);
+  const [nurseTab, setNurseTab] = useState<"analytics" | "clinic">("analytics");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [advancing, setAdvancing] = useState(false);
   const [showRolloverConfirm, setShowRolloverConfirm] = useState(false);
-  const [deliveryError, setDeliveryError] = useState("");
-  const [deliveries, setDeliveries] = useState<Array<{
-    _id: string;
-    kind: string;
-    recipient: string;
-    status: string;
-    deliveryStatus?: string;
-    attempts: number;
-    sentAt?: string;
-    lastError?: string;
-  }>>([]);
 
   useEffect(() => {
     api
-      .get<SystemSettings>("/system-settings")
-      .then((response) => setSettings(response.data))
+      .get<SystemSettings>(isNurse ? "/system-settings/clinic-profile" : "/system-settings")
+      .then((response) => setSettings((current) => ({ ...current, ...response.data })))
       .catch((requestError: unknown) => {
         setError(requestError instanceof Error ? requestError.message : "Failed to load settings");
       })
       .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    api.get<typeof deliveries>("/notifications/delivery-history?limit=10")
-      .then((response) => setDeliveries(response.data))
-      .catch((requestError: unknown) => {
-        setDeliveryError(requestError instanceof Error ? requestError.message : "Failed to load delivery history");
-      });
-  }, []);
+  }, [isNurse]);
 
   useEffect(() => {
     if (loading || !window.location.hash) return;
@@ -62,15 +61,63 @@ function SettingsPage() {
     setSuccess("");
   };
 
+  const updateAnalyticsFilter = (next: AnalyticsFilterPreference) => {
+    setAnalyticsFilter(next);
+    saveAnalyticsFilter(next);
+    setSuccess("");
+  };
+
+  const toggleOperatingDay = (day: string) => {
+    const typedDay = day as ClinicScheduleDay["day"];
+    const exists = settings.weeklySchedule.some((entry) => entry.day === typedDay);
+    const next = exists
+      ? settings.weeklySchedule.filter((entry) => entry.day !== typedDay)
+      : [...settings.weeklySchedule, { day: typedDay, openTime: "08:00", closeTime: "17:00" }];
+    updateWeeklySchedule(next);
+  };
+
+  const updateWeeklySchedule = (schedule: ClinicScheduleDay[]) => {
+    const sorted = [...schedule].sort((a, b) => WEEKDAYS.indexOf(a.day) - WEEKDAYS.indexOf(b.day));
+    const first = sorted[0];
+    setSettings((current) => ({
+      ...current,
+      weeklySchedule: sorted,
+      operatingDays: formatOperatingDays(sorted.map((entry) => entry.day)),
+      clinicOpenTime: first?.openTime ?? current.clinicOpenTime,
+      clinicCloseTime: first?.closeTime ?? current.clinicCloseTime,
+    }));
+    setSuccess("");
+  };
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setError("");
     setSuccess("");
     try {
-      const response = await api.put<SystemSettings>("/system-settings", settings);
-      setSettings(response.data);
-      setSuccess("System settings saved.");
+      if (isNurse && nurseTab === "analytics") {
+        saveAnalyticsFilter(analyticsFilter);
+        setSuccess("Analytics filter saved. It will be used when you open Clinic Analytics.");
+        return;
+      }
+      if (isNurse && !settings.operatingDays.trim()) throw new Error("Select at least one clinic operating day.");
+      const clinicProfile = {
+        clinicName: settings.clinicName,
+        buildingLocation: settings.buildingLocation,
+        floorRoom: settings.floorRoom,
+        operatingDays: settings.operatingDays,
+        clinicOpenTime: settings.clinicOpenTime,
+        clinicCloseTime: settings.clinicCloseTime,
+        weeklySchedule: settings.weeklySchedule,
+        phoneNumber: settings.phoneNumber,
+        emailAddress: settings.emailAddress,
+      };
+      const response = await api.put<SystemSettings>(
+        isNurse ? "/system-settings/clinic-profile" : "/system-settings",
+        isNurse ? clinicProfile : settings,
+      );
+      setSettings((current) => ({ ...current, ...response.data }));
+      setSuccess(isNurse ? "Clinic information saved." : "System settings saved.");
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : "Failed to save settings");
     } finally {
@@ -95,19 +142,68 @@ function SettingsPage() {
     }
   };
 
-  return (
-    <Layout>
+  const content = (
+    <>
       <div className="mx-auto max-w-4xl space-y-5">
         <div>
-          <p className="text-sm text-gray-500">Administration</p>
-          <h2 className="mt-1 text-2xl font-bold text-gray-900">System Settings</h2>
+          <p className="text-sm text-gray-500">{isNurse ? "Nurse workspace" : "Administration"}</p>
+          <h2 className="mt-1 text-2xl font-bold text-gray-900">{isNurse ? "Nurse Settings" : "System Settings"}</h2>
         </div>
+
+        {isNurse && (
+          <div className="flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Nurse settings">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={nurseTab === "analytics"}
+              onClick={() => { setNurseTab("analytics"); setError(""); setSuccess(""); }}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition ${nurseTab === "analytics" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              Analytics Filters
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={nurseTab === "clinic"}
+              onClick={() => { setNurseTab("clinic"); setError(""); setSuccess(""); }}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition ${nurseTab === "clinic" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              Clinic Information
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="h-80 animate-pulse rounded-xl bg-white shadow-sm" />
         ) : (
           <form onSubmit={save} className="space-y-4">
-            <SettingsSection
+            {isNurse && nurseTab === "analytics" && <SettingsSection
+              id="analytics-filter"
+              title="Analytics Filters"
+              description="Choose the default reporting period and date used when Clinic Analytics opens."
+            >
+              <div className={`grid grid-cols-1 gap-4 ${analyticsFilter.period === "custom" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                <label className="text-sm font-medium text-gray-700">
+                  Period
+                <select
+                  value={analyticsFilter.period}
+                  onChange={(event) => {
+                    updateAnalyticsFilter({ ...analyticsFilter, period: event.target.value as AnalyticsPeriod });
+                  }}
+                  className="input mt-2"
+                >
+                  <option value="year">Year</option>
+                  <option value="month">Month</option>
+                  <option value="week">Week</option>
+                  <option value="day">Day</option>
+                  <option value="custom">Custom date range</option>
+                </select>
+                </label>
+                <AnalyticsPeriodInput filter={analyticsFilter} onChange={updateAnalyticsFilter} />
+              </div>
+            </SettingsSection>}
+
+            {!isNurse && <SettingsSection
               id="school-year"
               title="School Year"
               description="Set the active academic year used by clinic operations."
@@ -138,81 +234,85 @@ function SettingsPage() {
                   {advancing ? "Processing..." : "Run School-Year Rollover"}
                 </button>
               </div>
-            </SettingsSection>
+            </SettingsSection>}
 
-            <SettingsSection
+            {isNurse && nurseTab === "clinic" && <SettingsSection
               id="operating-hours"
-              title="Operating Hours"
-              description="Define when the clinic normally accepts patient visits."
+              title="Clinic Schedule & Contact"
+              description="This information is the single source used by the public landing page and Contact section."
             >
-              <div className="grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Opening time
-                  <input
-                    type="time"
-                    value={settings.clinicOpenTime}
-                    onChange={(event) => update("clinicOpenTime", event.target.value)}
-                    required
-                    className="input mt-2"
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Closing time
-                  <input
-                    type="time"
-                    value={settings.clinicCloseTime}
-                    onChange={(event) => update("clinicCloseTime", event.target.value)}
-                    required
-                    className="input mt-2"
-                  />
-                </label>
+              <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="text-sm font-medium text-gray-700">Clinic name<input value={settings.clinicName} onChange={(event) => update("clinicName", event.target.value)} required className="input mt-2" /></label>
+                <label className="text-sm font-medium text-gray-700">Building / location<input value={settings.buildingLocation} onChange={(event) => update("buildingLocation", event.target.value)} required className="input mt-2" /></label>
+                <label className="text-sm font-medium text-gray-700">Floor / room<input value={settings.floorRoom} onChange={(event) => update("floorRoom", event.target.value)} required className="input mt-2" /></label>
               </div>
-            </SettingsSection>
+              <fieldset>
+                <legend className="text-sm font-medium text-gray-700">Operating days</legend>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {WEEKDAYS.map((day) => {
+                    const selected = settings.weeklySchedule.some((entry) => entry.day === day);
+                    return <button
+                      key={day}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleOperatingDay(day)}
+                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${selected ? "border-blue-600 bg-blue-600 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50"}`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>;
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">Displayed schedule: {settings.operatingDays || "No operating days selected"}</p>
+              </fieldset>
+              <div className="mt-5 space-y-2">
+                <div className="hidden grid-cols-[1fr_1fr_1fr] gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-gray-500 sm:grid">
+                  <span>Day</span><span>Opening time</span><span>Closing time</span>
+                </div>
+                {settings.weeklySchedule.map((entry) => (
+                  <div key={entry.day} className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:grid-cols-[1fr_1fr_1fr] sm:items-center">
+                    <span className="text-sm font-semibold text-gray-800">{entry.day}</span>
+                    <label className="text-xs font-medium text-gray-500 sm:text-transparent">
+                      Opening time
+                      <input
+                        type="time"
+                        value={entry.openTime}
+                        onChange={(event) => updateWeeklySchedule(settings.weeklySchedule.map((item) => item.day === entry.day ? { ...item, openTime: event.target.value } : item))}
+                        required
+                        className="input mt-1 text-sm text-gray-800"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-gray-500 sm:text-transparent">
+                      Closing time
+                      <input
+                        type="time"
+                        min={entry.openTime}
+                        value={entry.closeTime}
+                        onChange={(event) => updateWeeklySchedule(settings.weeklySchedule.map((item) => item.day === entry.day ? { ...item, closeTime: event.target.value } : item))}
+                        required
+                        className="input mt-1 text-sm text-gray-800"
+                      />
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="text-sm font-medium text-gray-700">Phone number<input type="tel" value={settings.phoneNumber} onChange={(event) => update("phoneNumber", event.target.value)} required className="input mt-2" /></label>
+                <label className="text-sm font-medium text-gray-700">Email address<input type="email" value={settings.emailAddress} onChange={(event) => update("emailAddress", event.target.value)} required className="input mt-2" /></label>
+              </div>
+            </SettingsSection>}
 
-            <SettingsSection
-              id="notifications"
-              title="Notifications"
-              description="Choose which operational alerts the system should send."
+            {!isNurse && <SettingsSection
+              id="administration-tools"
+              title="Administration Tools"
+              description="Quick access to account management, approvals, security activity, and your administrator profile."
             >
-              <div className="space-y-3">
-                <SettingToggle
-                  label="Email notifications"
-                  checked={settings.emailNotificationsEnabled}
-                  onChange={(value) => update("emailNotificationsEnabled", value)}
-                />
-                <SettingToggle
-                  label="Appointment reminders"
-                  checked={settings.appointmentRemindersEnabled}
-                  onChange={(value) => update("appointmentRemindersEnabled", value)}
-                />
-                <SettingToggle
-                  label="Medicine stock alerts"
-                  checked={settings.stockAlertsEnabled}
-                  onChange={(value) => update("stockAlertsEnabled", value)}
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <AdminToolLink to="/dashboard?section=management" title="User Management" description="Manage patients and clinic staff accounts." />
+                <AdminToolLink to="/dashboard?section=purchase-requests" title="Purchase Requests" description="Review and process medicine requests." />
+                <AdminToolLink to="/audit-log" title="Audit Logs" description="Review administrative and security activity." />
+                <AdminToolLink to="/profile" title="Profile & Security" description="Update your name, email, and password." />
               </div>
-              <div className="mt-5 overflow-x-auto">
-                <p className="mb-2 text-xs font-semibold uppercase text-gray-500">Recent Email Delivery</p>
-                <table className="w-full min-w-[620px] text-xs">
-                  <thead className="border-b text-left text-gray-500">
-                    <tr><th className="py-2">Type</th><th>Recipient</th><th>Status</th><th>Attempts</th><th>Details</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {deliveries.map((delivery) => (
-                      <tr key={delivery._id}>
-                        <td className="py-2">{delivery.kind.replaceAll("_", " ")}</td>
-                        <td>{delivery.recipient}</td>
-                        <td>{delivery.deliveryStatus || delivery.status}</td>
-                        <td>{delivery.attempts}</td>
-                        <td className="max-w-xs truncate">{delivery.lastError || (delivery.sentAt ? new Date(delivery.sentAt).toLocaleString() : "Queued")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {deliveries.length === 0 && <p className="py-3 text-xs text-gray-400">No notification deliveries yet.</p>}
-                {deliveryError && <p className="py-3 text-xs text-red-600">{deliveryError}</p>}
-              </div>
-            </SettingsSection>
+            </SettingsSection>}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
             {success && <p className="text-sm text-emerald-600">{success}</p>}
@@ -221,7 +321,7 @@ function SettingsPage() {
               disabled={saving}
               className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Save Settings"}
+              {saving ? "Saving..." : isNurse && nurseTab === "analytics" ? "Save Analytics Filter" : isNurse ? "Save Clinic Information" : "Save Settings"}
             </button>
           </form>
         )}
@@ -241,8 +341,9 @@ function SettingsPage() {
           onCancel={() => setShowRolloverConfirm(false)}
         />
       )}
-    </Layout>
+    </>
   );
+  return embedded ? content : <Layout>{content}</Layout>;
 }
 
 function SettingsSection({
@@ -265,25 +366,87 @@ function SettingsSection({
   );
 }
 
-function SettingToggle({
-  label,
-  checked,
+function formatOperatingDays(days: readonly string[]): string {
+  if (days.length === 0) return "";
+  if (days.length === 1) return days[0];
+  const indexes = days.map((day) => WEEKDAYS.indexOf(day as (typeof WEEKDAYS)[number]));
+  const consecutive = indexes.every((index, position) => position === 0 || index === indexes[position - 1] + 1);
+  return consecutive ? `${days[0]}–${days.at(-1)}` : days.join(", ");
+}
+
+function AnalyticsPeriodInput({
+  filter,
   onChange,
 }: {
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
+  filter: AnalyticsFilterPreference;
+  onChange: (filter: AnalyticsFilterPreference) => void;
 }) {
+  const setDate = (date: string) => onChange({ ...filter, date });
+  if (filter.period === "custom") {
+    return <>
+      <label className="text-sm font-medium text-gray-700">
+        From
+        <input type="date" value={filter.start} max={filter.end} onChange={(event) => onChange({ ...filter, start: event.target.value })} required className="input mt-2" />
+      </label>
+      <label className="text-sm font-medium text-gray-700">
+        To
+        <input type="date" value={filter.end} min={filter.start} onChange={(event) => onChange({ ...filter, end: event.target.value })} required className="input mt-2" />
+      </label>
+    </>;
+  }
+  if (filter.period === "year") {
+    return <label className="text-sm font-medium text-gray-700">
+      Year
+      <input type="number" min="2000" max="2100" value={filter.date.slice(0, 4)} onChange={(event) => setDate(`${event.target.value}-01-01`)} required className="input mt-2" />
+    </label>;
+  }
+  if (filter.period === "month") {
+    return <label className="text-sm font-medium text-gray-700">
+      Month
+      <input type="month" value={filter.date.slice(0, 7)} onChange={(event) => setDate(`${event.target.value}-01`)} required className="input mt-2" />
+    </label>;
+  }
+  if (filter.period === "week") {
+    return <label className="text-sm font-medium text-gray-700">
+      Week
+      <input type="week" value={dateToIsoWeek(filter.date)} onChange={(event) => setDate(isoWeekToDate(event.target.value))} required className="input mt-2" />
+    </label>;
+  }
+  return <label className="text-sm font-medium text-gray-700">
+    Day
+    <input type="date" value={filter.date} onChange={(event) => setDate(event.target.value)} required className="input mt-2" />
+  </label>;
+}
+
+function dateToIsoWeek(dateKey: string): string {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const year = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil((((date.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+function isoWeekToDate(value: string): string {
+  const match = /^(\d{4})-W(\d{2})$/.exec(value);
+  if (!match) return value;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const januaryFourth = new Date(Date.UTC(year, 0, 4));
+  const monday = new Date(januaryFourth);
+  monday.setUTCDate(januaryFourth.getUTCDate() - ((januaryFourth.getUTCDay() || 7) - 1) + ((week - 1) * 7));
+  return monday.toISOString().slice(0, 10);
+}
+
+function AdminToolLink({ to, title, description }: { to: string; title: string; description: string }) {
   return (
-    <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700">
-      {label}
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 accent-blue-600"
-      />
-    </label>
+    <Link to={to} className="group rounded-xl border border-gray-200 p-4 transition hover:border-blue-300 hover:bg-blue-50/50">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">{title}</h4>
+        <span aria-hidden="true" className="text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600">→</span>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+    </Link>
   );
 }
 
