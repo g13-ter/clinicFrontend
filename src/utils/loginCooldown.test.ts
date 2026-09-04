@@ -4,11 +4,12 @@ import {
   getRemainingCooldownSeconds,
   loadLoginCooldown,
   saveLoginCooldown,
+  subscribeToLoginCooldown,
 } from "./loginCooldown";
 
 describe("login cooldown", () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -29,7 +30,7 @@ describe("login cooldown", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_011_000);
 
     expect(loadLoginCooldown()).toBe(0);
-    expect(sessionStorage.length).toBe(0);
+    expect(localStorage.length).toBe(0);
   });
 
   it("can clear a stored cooldown", () => {
@@ -37,5 +38,18 @@ describe("login cooldown", () => {
     clearLoginCooldown();
 
     expect(loadLoginCooldown()).toBe(0);
+  });
+
+  it("notifies another tab when the stored cooldown changes", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const onChange = vi.fn();
+    const unsubscribe = subscribeToLoginCooldown(onChange);
+    const cooldownUntil = saveLoginCooldown(120);
+    const key = localStorage.key(0);
+
+    window.dispatchEvent(new StorageEvent("storage", { key }));
+
+    expect(onChange).toHaveBeenCalledWith(cooldownUntil);
+    unsubscribe();
   });
 });

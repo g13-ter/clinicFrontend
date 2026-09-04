@@ -17,6 +17,7 @@ import {
   getRemainingCooldownSeconds,
   loadLoginCooldown,
   saveLoginCooldown,
+  subscribeToLoginCooldown,
 } from "../utils/loginCooldown";
 
 interface LoginData {
@@ -72,6 +73,13 @@ function LoginPage() {
       cancelled = true;
     };
   }, [navigate]);
+
+  useEffect(() => {
+    return subscribeToLoginCooldown((nextCooldownUntil) => {
+      setCooldownUntil(nextCooldownUntil);
+      setCooldownSeconds(getRemainingCooldownSeconds(nextCooldownUntil));
+    });
+  }, []);
 
   useEffect(() => {
     if (cooldownUntil <= 0) return;

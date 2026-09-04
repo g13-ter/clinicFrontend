@@ -9,11 +9,11 @@ export function getRemainingCooldownSeconds(
 
 export function loadLoginCooldown(): number {
   try {
-    const cooldownUntil = Number(sessionStorage.getItem(LOGIN_COOLDOWN_KEY));
+    const cooldownUntil = Number(localStorage.getItem(LOGIN_COOLDOWN_KEY));
     if (Number.isFinite(cooldownUntil) && cooldownUntil > Date.now()) {
       return cooldownUntil;
     }
-    sessionStorage.removeItem(LOGIN_COOLDOWN_KEY);
+    localStorage.removeItem(LOGIN_COOLDOWN_KEY);
   } catch {
     // Storage can be unavailable in privacy-restricted browser contexts.
   }
@@ -23,7 +23,7 @@ export function loadLoginCooldown(): number {
 export function saveLoginCooldown(seconds: number): number {
   const cooldownUntil = Date.now() + Math.max(1, seconds) * 1000;
   try {
-    sessionStorage.setItem(LOGIN_COOLDOWN_KEY, String(cooldownUntil));
+    localStorage.setItem(LOGIN_COOLDOWN_KEY, String(cooldownUntil));
   } catch {
     // The in-memory countdown still works if storage is unavailable.
   }
@@ -32,8 +32,20 @@ export function saveLoginCooldown(seconds: number): number {
 
 export function clearLoginCooldown(): void {
   try {
-    sessionStorage.removeItem(LOGIN_COOLDOWN_KEY);
+    localStorage.removeItem(LOGIN_COOLDOWN_KEY);
   } catch {
     // Nothing else needs clearing when storage is unavailable.
   }
+}
+
+export function subscribeToLoginCooldown(
+  onChange: (cooldownUntil: number) => void,
+): () => void {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== LOGIN_COOLDOWN_KEY) return;
+    onChange(loadLoginCooldown());
+  };
+
+  window.addEventListener("storage", handleStorage);
+  return () => window.removeEventListener("storage", handleStorage);
 }
