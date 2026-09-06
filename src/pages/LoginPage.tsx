@@ -31,6 +31,10 @@ interface PendingTermsSession {
   expiresAt: string;
 }
 
+interface LoginCooldownData {
+  retryAfterSeconds: number;
+}
+
 const destinationFor = (user: { mustChangePassword: boolean }) =>
   user.mustChangePassword ? "/change-password" : "/dashboard";
 
@@ -79,6 +83,34 @@ function LoginPage() {
       setCooldownUntil(nextCooldownUntil);
       setCooldownSeconds(getRemainingCooldownSeconds(nextCooldownUntil));
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/auth/login-cooldown", { credentials: "include" })
+      .then((response) => readApiResponse<LoginCooldownData>(response, {
+        treatUnauthorizedAsSessionExpiry: false,
+      }))
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (data.retryAfterSeconds > 0) {
+          const nextCooldownUntil = saveLoginCooldown(data.retryAfterSeconds);
+          setCooldownUntil(nextCooldownUntil);
+          setCooldownSeconds(getRemainingCooldownSeconds(nextCooldownUntil));
+        } else {
+          clearLoginCooldown();
+          setCooldownUntil(0);
+          setCooldownSeconds(0);
+        }
+      })
+      .catch(() => {
+        // Keep any locally cached timer if the status check is unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
