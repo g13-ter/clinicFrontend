@@ -212,16 +212,17 @@ Login is cookie-based, not token-in-localStorage:
 ```json
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://clinicbackend-1-slng.onrender.com/api/:path*" },
+    { "source": "/api/:path*", "destination": "/api/proxy?path=:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
 ```
 
 Must live at the **project root** (not under `src/`) — Vercel only reads it
-from there. The first rule proxies API calls to the Render backend; the
-second serves `index.html` for any other path so client-side routing
-survives a hard refresh or a direct link.
+from there. The first rule sends API calls through `api/proxy.ts`, which
+authenticates the client address it forwards to Render. The second serves
+`index.html` for any other path so client-side routing survives a hard refresh
+or a direct link.
 
 ---
 
@@ -240,11 +241,10 @@ models/hooks.
 
 ## Deployment notes (Vercel)
 
-- Set project root's `vercel.json` as shown above, pointing at your actual
-  Render backend URL.
-- No environment variables are required for the current build — the app
-  talks to the backend exclusively through the relative `/api` path and
-  the Vercel rewrite, so there's nothing else to configure per-environment.
+- Keep `vercel.json` and `api/proxy.ts` at the project root.
+- Set `BACKEND_API_URL` in Vercel to the Render URL including `/api`.
+- Generate a long `LOGIN_PROXY_SECRET`, configure it in Vercel, and configure
+  the exact same value on Render. Never prefix this secret with `VITE_`.
 - On the **backend** side (Render), make sure `CLIENT_ORIGIN` includes this
   app's exact deployed origin (production domain, and any preview URLs
   you're actively testing), or requests will be rejected with a CORS
