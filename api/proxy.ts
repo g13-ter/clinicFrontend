@@ -53,6 +53,10 @@ export default {
     headers.delete("x-real-ip");
     headers.delete("x-schoolcare-client-ip");
     headers.delete("x-schoolcare-proxy-secret");
+    // Avoid forwarding a browser compression negotiation through Node fetch.
+    // The runtime may transparently decompress the upstream body while
+    // retaining Content-Encoding, which browsers reject as a decoding error.
+    headers.set("accept-encoding", "identity");
     headers.set("x-schoolcare-client-ip", clientIp);
     headers.set("x-schoolcare-proxy-secret", proxySecret);
 
@@ -67,6 +71,7 @@ export default {
       });
       const responseHeaders = new Headers(upstream.headers);
       for (const header of HOP_BY_HOP_HEADERS) responseHeaders.delete(header);
+      responseHeaders.delete("content-encoding");
       return new Response(upstream.body, {
         status: upstream.status,
         headers: responseHeaders,
