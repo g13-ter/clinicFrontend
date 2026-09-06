@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { isIP } from "node:net";
 
 const HOP_BY_HOP_HEADERS = [
