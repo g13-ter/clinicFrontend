@@ -19,8 +19,16 @@ type AccountStatus = "all" | "active" | "inactive";
 
 const ALL_ROLES: User["role"][] = ["superadmin", "admin", "doctor", "nurse", "staff"];
 const CLINIC_ROLES: User["role"][] = ["doctor", "nurse", "staff"];
-const FORM_FIELDS = ["name", "email", "password", "role", "actorPassword"];
-const emptyForm: { name: string; email: string; password: string; role: User["role"] } = { name: "", email: "", password: "", role: "staff" };
+const isClinicRole = (role: User["role"]): boolean => role === "doctor" || role === "nurse" || role === "staff";
+const FORM_FIELDS = ["name", "email", "password", "role", "actorPassword", "isAvailable", "scheduleNotes"];
+const emptyForm: {
+  name: string;
+  email: string;
+  password: string;
+  role: User["role"];
+  isAvailable: boolean;
+  scheduleNotes: string;
+} = { name: "", email: "", password: "", role: "staff", isAvailable: true, scheduleNotes: "" };
 
 function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const { user: currentUser, role } = useAuth();
@@ -148,7 +156,14 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
 
   const openEdit = (user: User) => {
     setEditTarget(user);
-    setForm({ name: user.name, email: user.email, password: "", role: user.role });
+    setForm({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role,
+      isAvailable: user.isAvailable !== false,
+      scheduleNotes: user.scheduleNotes ?? "",
+    });
     resetFormErrors();
     setStepUpPassword("");
     setShowModal(true);
@@ -163,12 +178,16 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
     event.preventDefault();
     setSaving(true);
     resetFormErrors();
-    const payload: Record<string, string> = {
+    const payload: Record<string, unknown> = {
       name: form.name,
       email: form.email,
       role: form.role,
     };
     if (form.password) payload.password = form.password;
+    if (editTarget && isClinicRole(form.role)) {
+      payload.isAvailable = form.isAvailable;
+      payload.scheduleNotes = form.scheduleNotes.trim();
+    }
     const requiresStepUp = requiresAdministrativeStepUp(role);
     if (requiresStepUp) payload.actorPassword = stepUpPassword;
 
@@ -495,6 +514,30 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                 {(isSuperAdmin ? ALL_ROLES : CLINIC_ROLES).map((itemRole) => <option key={itemRole} value={itemRole}>{roleLabel(itemRole)}</option>)}
               </select>
             </UserField>
+            {editTarget && isClinicRole(form.role) && (
+              <>
+                <UserField label="Availability">
+                  <select
+                    value={form.isAvailable ? "available" : "unavailable"}
+                    onChange={(event) => setForm((current) => ({ ...current, isAvailable: event.target.value === "available" }))}
+                    className="input"
+                  >
+                    <option value="available">Available</option>
+                    <option value="unavailable">Unavailable</option>
+                  </select>
+                </UserField>
+                <UserField label="Schedule notes">
+                  <textarea
+                    value={form.scheduleNotes}
+                    onChange={(event) => setForm((current) => ({ ...current, scheduleNotes: event.target.value }))}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Optional reason or schedule details"
+                    className="input"
+                  />
+                </UserField>
+              </>
+            )}
             {requiresAdministrativeStepUp(role) && (
               <UserField label="Confirm your current password" error={fieldErrors.actorPassword}>
                 <input type="password" value={stepUpPassword} onChange={(event) => { setStepUpPassword(event.target.value); clearField("actorPassword"); }} required autoComplete="current-password" className={`input ${fieldErrors.actorPassword ? "input-error" : ""}`} />
