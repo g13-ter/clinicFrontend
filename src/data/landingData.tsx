@@ -189,7 +189,7 @@ export const roleWorkspaces: Record<
       "Consultation and physician care.",
 
     description:
-      "Doctors review clinic analytics, manage appointments and patient visits, access patient records, handle follow-ups, and generate clinical reports.",
+      "Doctors manage appointments and patient care, with clinic trends available in a dedicated Analytics tab.",
 
     // Doctor has no sidebar in landing preview
     navigation: [],
@@ -201,6 +201,7 @@ export const roleWorkspaces: Record<
       "Patient Records",
       "Follow-Ups",
       "Reports",
+      "Analytics",
       "Notifications",
     ],
 
@@ -210,31 +211,11 @@ export const roleWorkspaces: Record<
       "Patient Records",
       "Follow-Ups",
       "Reports",
+      "Analytics",
       "Notifications",
     ],
 
-    metrics: [
-      [
-        "0",
-        "Today's Appointments",
-        "Scheduled today",
-      ],
-      [
-        "3",
-        "Patients Waiting",
-        "All patient types in the clinic queue",
-      ],
-      [
-        "1",
-        "Consultations Today",
-        "Started or completed",
-      ],
-      [
-        "0",
-        "Emergency Cases",
-        "Recorded today",
-      ],
-    ],
+    metrics: [],
 
     icon: <VisitsIcon />,
   },

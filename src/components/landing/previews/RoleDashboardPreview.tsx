@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BrandLogo } from "../../BrandLogo";
 
@@ -206,6 +206,7 @@ function RoleDashboardBody({
 }) {
   const workspace =
     roleWorkspaces[role];
+  const [doctorPreviewTab, setDoctorPreviewTab] = useState<"Appointments" | "Analytics">("Appointments");
 
   /*
     Active dashboard tab based on screenshots.
@@ -238,50 +239,51 @@ function RoleDashboardBody({
       {/* =================================================
           ANALYTICS
 
-          Doctor = yes
+          Doctor = on the Analytics tab
           Nurse  = yes
           Admin  = no
           Staff  = no
       ================================================= */}
-      {(role === "doctor" ||
-        role === "nurse") && (
+      {role === "nurse" && (
         <RoleAnalyticsPreview />
       )}
 
       {/* =================================================
           METRIC CARDS
       ================================================= */}
-      <div
-        className={`mt-3 grid gap-2 ${
-          role === "admin"
-            ? "grid-cols-1 md:grid-cols-2"
-            : "grid-cols-2 xl:grid-cols-4"
-        }`}
-      >
-        {workspace.metrics.map(
-          (
-            [
-              value,
-              label,
-              caption,
-            ],
-            index,
-          ) => (
-            <RoleMetricCard
-              key={label}
-              value={value}
-              label={label}
-              caption={caption}
-              icon={
-                metricIcons[index]
-              }
-              tone={
-                metricTones[index]
-              }
-            />
-          ),
-        )}
-      </div>
+      {workspace.metrics.length > 0 && (
+        <div
+          className={`mt-3 grid gap-2 ${
+            role === "admin"
+              ? "grid-cols-1 md:grid-cols-2"
+              : "grid-cols-2 xl:grid-cols-4"
+          }`}
+        >
+          {workspace.metrics.map(
+            (
+              [
+                value,
+                label,
+                caption,
+              ],
+              index,
+            ) => (
+              <RoleMetricCard
+                key={label}
+                value={value}
+                label={label}
+                caption={caption}
+                icon={
+                  metricIcons[index]
+                }
+                tone={
+                  metricTones[index]
+                }
+              />
+            ),
+          )}
+        </div>
+      )}
 
       {/* =================================================
           ROLE TABS
@@ -292,16 +294,32 @@ function RoleDashboardBody({
             feature,
             index,
           ) => (
-            <span
-              key={feature}
-              className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 sm:px-4 ${
-                index === activeTab
-                  ? "border-b-2 border-blue-600 bg-blue-50/50 text-blue-600"
-                  : ""
-              }`}
-            >
-              {feature}
-            </span>
+            role === "doctor" && (feature === "Appointments" || feature === "Analytics") ? (
+              <button
+                key={feature}
+                type="button"
+                onClick={() => setDoctorPreviewTab(feature)}
+                aria-pressed={doctorPreviewTab === feature}
+                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 sm:px-4 ${
+                  doctorPreviewTab === feature
+                    ? "border-b-2 border-blue-600 bg-blue-50/50 text-blue-600"
+                    : ""
+                }`}
+              >
+                {feature}
+              </button>
+            ) : (
+              <span
+                key={feature}
+                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 sm:px-4 ${
+                  role !== "doctor" && index === activeTab
+                    ? "border-b-2 border-blue-600 bg-blue-50/50 text-blue-600"
+                    : ""
+                }`}
+              >
+                {feature}
+              </span>
+            )
           ),
         )}
       </div>
@@ -314,7 +332,11 @@ function RoleDashboardBody({
         <RoleAdminContent />
       )}
 
-      {role === "doctor" && (
+      {role === "doctor" && doctorPreviewTab === "Analytics" && (
+        <RoleAnalyticsPreview />
+      )}
+
+      {role === "doctor" && doctorPreviewTab === "Appointments" && (
         <RoleDoctorContent />
       )}
 
@@ -431,9 +453,7 @@ function getMetricIcons(
     ];
   }
 
-  /*
-    DOCTOR + NURSE
-  */
+  /* NURSE */
   return [
     <CalendarIcon key="appointments" />,
 
@@ -470,9 +490,7 @@ function getMetricTones(
     ];
   }
 
-  /*
-    DOCTOR + NURSE
-  */
+  /* NURSE */
   return [
     "blue",
     "orange",

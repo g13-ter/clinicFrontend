@@ -139,7 +139,7 @@ function DashboardPage() {
             </section>
           )}
 
-          {!isAdmin && <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {!isAdmin && !isDoctor && <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {isClinicalRole ? (
               <>
                 <StatCard label="Today's Appointments" value={stats.todaysAppointments} caption="Scheduled today" icon={<CalendarIcon />} tone="blue" />
