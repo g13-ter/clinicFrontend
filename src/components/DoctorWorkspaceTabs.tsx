@@ -7,6 +7,7 @@ export type DoctorWorkspaceTab =
   | "consultation"
   | "followups"
   | "reports"
+  | "analytics"
   | "notifications";
 
 const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
@@ -15,6 +16,7 @@ const tabs: { id: DoctorWorkspaceTab; label: string; to: string }[] = [
   { id: "records", label: "Patient Records", to: "/dashboard?tab=records" },
   { id: "followups", label: "Follow-Ups", to: "/dashboard?tab=followups" },
   { id: "reports", label: "Reports", to: "/dashboard?tab=reports" },
+  { id: "analytics", label: "Analytics", to: "/dashboard?tab=analytics" },
 ];
 
 function DoctorWorkspaceTabs({

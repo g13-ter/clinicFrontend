@@ -74,6 +74,7 @@ function DashboardPage() {
     requestedDoctorTab === "consultation" ||
     requestedDoctorTab === "followups" ||
     requestedDoctorTab === "reports" ||
+    requestedDoctorTab === "analytics" ||
     requestedDoctorTab === "notifications"
       ? requestedDoctorTab
       : "appointments";
@@ -129,7 +130,7 @@ function DashboardPage() {
             </h2>
           </div>
 
-          {isClinicalRole && <ClinicAnalytics />}
+          {role === "nurse" && <ClinicAnalytics />}
 
           {isAdmin && (
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -213,7 +214,9 @@ function DashboardPage() {
             </section>
           )
         ) : isDoctor ? (
-          doctorTab === "notifications" ? (
+          doctorTab === "analytics" ? (
+            <ClinicAnalytics />
+          ) : doctorTab === "notifications" ? (
             <InAppNotificationsPanel
               notifications={doctorNotifications.items}
               unreadCount={doctorNotifications.unreadCount}
