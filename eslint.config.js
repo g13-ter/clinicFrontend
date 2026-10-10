@@ -18,5 +18,9 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Fetching remote data on mount is an intentional effect in this client.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

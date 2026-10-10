@@ -1,4 +1,5 @@
-// Base API utility - attaches auth token and handles responses centrally.
+// Base API utility - uses the server-managed HttpOnly session cookie.
+import { clearCurrentSession } from "../utils/auth";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -24,70 +25,190 @@ export interface ApiSuccess<T = unknown> {
   };
 }
 
-// In dev, Vite's server.proxy (vite.config.ts) forwards "/api" to the local
-// backend, so the default of "/api" works with no env var needed.
-//
-// In production, the frontend and backend are deployed as separate services
-// on different domains, so there is no proxy — the browser needs the full
-// backend URL. Set VITE_API_URL to that backend's base URL (including
-// "/api") in the frontend host's environment variables, e.g.:
-//   VITE_API_URL=https://clinic-backend.up.railway.app/api
-// If VITE_API_URL is not set, this falls back to the relative "/api" path
-// (only correct if both services somehow share an origin/proxy).
-const BASE = import.meta.env.VITE_API_URL || "/api";
+const BASE = "/api";
+let redirectingToLogin = false;
 
 const getHeaders = (isJson = true): HeadersInit => {
-  const token = localStorage.getItem("token");
   const headers: Record<string, string> = {};
 
   if (isJson) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   return headers;
 };
 
-const handleResponse = async <T>(res: Response): Promise<ApiSuccess<T>> => {
-  if (res.status === 401) {
-    localStorage.removeItem("token");
-    window.location.href = "/login";
+interface ErrorPayload {
+  message?: string;
+  errors?: { field: string; message: string }[];
+}
+
+const parseJson = async (res: Response): Promise<unknown> => {
+  const text = await res.text();
+  if (!text) {
+    if (res.ok) {
+      throw new ApiError("The server returned an empty response", res.status);
+    }
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new ApiError(
+      res.ok
+        ? "The server returned an invalid response"
+        : `The API is temporarily unavailable (${res.status})`,
+      res.status,
+    );
+  }
+};
+
+interface ReadApiResponseOptions {
+  treatUnauthorizedAsSessionExpiry?: boolean;
+}
+
+export const readApiResponse = async <T>(
+  res: Response,
+  { treatUnauthorizedAsSessionExpiry = true }: ReadApiResponseOptions = {},
+): Promise<ApiSuccess<T>> => {
+  if (res.status === 401 && treatUnauthorizedAsSessionExpiry) {
+    clearCurrentSession();
+    if (!redirectingToLogin && window.location.pathname !== "/login") {
+      redirectingToLogin = true;
+      window.location.replace("/login?reason=session-expired");
+    }
     throw new ApiError("Session expired", 401);
   }
 
-  const data = await res.json();
+  const data = await parseJson(res);
 
   if (!res.ok) {
-    throw new ApiError(data.message || "Something went wrong", res.status, data.errors);
+    const errorPayload =
+      typeof data === "object" && data !== null ? data as ErrorPayload : {};
+    throw new ApiError(
+      errorPayload.message || `Request failed (${res.status})`,
+      res.status,
+      errorPayload.errors,
+    );
   }
 
   return data as ApiSuccess<T>;
 };
 
+const wait = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+const connectionError = (error: unknown): ApiError =>
+  error instanceof ApiError
+    ? error
+    : new ApiError(
+        "Cannot connect to the clinic service. Check your connection and try again.",
+        503,
+      );
+
+const getWithRetry = async <T>(path: string): Promise<ApiSuccess<T>> => {
+  const retryDelays = [300, 900];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    try {
+      const response = await fetch(`${BASE}${path}`, {
+        headers: getHeaders(),
+        credentials: "include",
+      });
+      const proxyUnavailable =
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504 ||
+        (import.meta.env.DEV && response.status === 500);
+
+      if (proxyUnavailable && attempt < retryDelays.length) {
+        await wait(retryDelays[attempt] ?? 0);
+        continue;
+      }
+
+      return await readApiResponse<T>(response);
+    } catch (error: unknown) {
+      lastError = error;
+      if (error instanceof ApiError) throw error;
+      if (attempt === retryDelays.length) throw connectionError(error);
+      await wait(retryDelays[attempt] ?? 0);
+    }
+  }
+
+  throw connectionError(lastError);
+};
+
+const getAllPages = async <T>(path: string): Promise<ApiSuccess<T[]>> => {
+  const collected: T[] = [];
+  let page = 1;
+  let lastResponse: ApiSuccess<T[]>;
+
+  while (true) {
+    const [pathname, query = ""] = path.split("?", 2);
+    const params = new URLSearchParams(query);
+    params.set("page", String(page));
+    params.set("limit", "100");
+    const response = await getWithRetry<T[]>(`${pathname}?${params.toString()}`);
+    collected.push(...response.data);
+
+    const totalPages = response.pagination?.totalPages ?? 1;
+    if (page >= totalPages) {
+      lastResponse = response;
+      break;
+    }
+    page += 1;
+  }
+
+  return {
+    ...lastResponse,
+    data: collected,
+    ...(lastResponse?.pagination
+      ? { pagination: { ...lastResponse.pagination, page: 1, limit: collected.length } }
+      : {}),
+  };
+};
+
+const send = async <T>(
+  path: string,
+  method: "POST" | "PUT" | "DELETE",
+  body?: unknown,
+): Promise<ApiSuccess<T>> => {
+  try {
+    const response = await fetch(`${BASE}${path}`, {
+      method,
+      headers: getHeaders(),
+      credentials: "include",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return await readApiResponse<T>(response);
+  } catch (error: unknown) {
+    throw connectionError(error);
+  }
+};
+
 export const api = {
-  get: <T = any>(path: string) =>
-    fetch(`${BASE}${path}`, { headers: getHeaders() }).then((res) => handleResponse<T>(res)),
+  get: <T = unknown>(path: string) => getWithRetry<T>(path),
 
-  post: <T = any>(path: string, body: unknown) =>
-    fetch(`${BASE}${path}`, {
-      method: "POST",
-      headers: getHeaders(),
-      body: JSON.stringify(body),
-    }).then((res) => handleResponse<T>(res)),
+  getAll: <T = unknown>(path: string) => getAllPages<T>(path),
 
-  put: <T = any>(path: string, body: unknown) =>
-    fetch(`${BASE}${path}`, {
-      method: "PUT",
-      headers: getHeaders(),
-      body: JSON.stringify(body),
-    }).then((res) => handleResponse<T>(res)),
+  post: <T = unknown>(path: string, body: unknown) => send<T>(path, "POST", body),
 
-  delete: <T = any>(path: string) =>
-    fetch(`${BASE}${path}`, {
-      method: "DELETE",
-      headers: getHeaders(),
-    }).then((res) => handleResponse<T>(res)),
+  put: <T = unknown>(path: string, body: unknown) => send<T>(path, "PUT", body),
 
-  download: (path: string) =>
-    fetch(`${BASE}${path}`, {
+  delete: <T = unknown>(path: string, body?: unknown) => send<T>(path, "DELETE", body),
+
+  download: async (path: string) => {
+    const response = await fetch(`${BASE}${path}`, {
       headers: getHeaders(false),
-    }),
+      credentials: "include",
+    });
+    if (response.status === 401) {
+      clearCurrentSession();
+      if (!redirectingToLogin && window.location.pathname !== "/login") {
+        redirectingToLogin = true;
+        window.location.replace("/login?reason=session-expired");
+      }
+    }
+    return response;
+  },
 };
