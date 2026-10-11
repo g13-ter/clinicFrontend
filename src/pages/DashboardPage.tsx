@@ -485,11 +485,14 @@ function InAppNotificationsPanel({
 }
 
 function dashboardNotificationLink(link: string): string {
+  if (link.startsWith("/dashboard?")) {
+    const params = new URLSearchParams(link.slice(link.indexOf("?") + 1));
+    if (params.get("tab") === "appointments") return "/appointments";
+  }
   if (link.startsWith("/clinical-workspace?")) {
     return `/dashboard?${link.slice(link.indexOf("?") + 1)}`;
   }
   if (link === "/patient-queue") return "/dashboard?tab=visits";
-  if (link === "/appointments") return "/dashboard?tab=appointments";
   return link;
 }
 

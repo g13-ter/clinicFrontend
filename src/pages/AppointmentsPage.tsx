@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import { FieldError, UnmatchedFieldErrors } from "../components/FieldError";
@@ -92,6 +92,8 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   const { role, can } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialDate = searchParams.get("date") ?? "";
   const canManage = can("manageAppointments");
   const canAssignDoctor = can("selectDoctorForAppointment");
   const isDoctor = role === "doctor";
@@ -102,8 +104,8 @@ function AppointmentsPage({ embedded = false }: { embedded?: boolean }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-  const [submittedDate, setSubmittedDate] = useState("");
+  const [dateFilter, setDateFilter] = useState(initialDate);
+  const [submittedDate, setSubmittedDate] = useState(initialDate);
   const [loading, setLoading] = useState(true);
   const [optionsLoading, setOptionsLoading] = useState(canManage);
   const [error, setError] = useState("");
