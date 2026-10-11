@@ -17,6 +17,7 @@ import {
 } from "../utils/dashboardAlerts";
 import DoctorWorkspaceTabs from "../components/DoctorWorkspaceTabs";
 import AdminSectionTabs, { type AdminSection } from "../components/AdminSectionTabs";
+import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { useDashboardData } from "../features/dashboard/useDashboardData";
 import PatientQueuePage from "./PatientQueuePage";
@@ -537,8 +538,16 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
   const [startingId, setStartingId] = useState("");
   const [confirmingId, setConfirmingId] = useState("");
   const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
+  const [declinedIds, setDeclinedIds] = useState<string[]>([]);
+  const [declineTarget, setDeclineTarget] = useState<Appointment | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declineError, setDeclineError] = useState("");
+  const [declining, setDeclining] = useState(false);
   const activeAppointments = appointments.filter(
-    (appointment) => appointment.status !== "cancelled" && appointment.status !== "completed",
+    (appointment) =>
+      appointment.status !== "cancelled" &&
+      appointment.status !== "completed" &&
+      !declinedIds.includes(appointment._id),
   );
 
   const startConsultation = async (appointment: Appointment, student: Patient | null) => {
@@ -600,7 +609,33 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
     }
   };
 
+  const declineAppointment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!declineTarget) return;
+    if (declineReason.trim().length < 3) {
+      setDeclineError("Please provide a reason with at least 3 characters.");
+      return;
+    }
+
+    setDeclining(true);
+    try {
+      const response = await api.put(`/appointments/${declineTarget._id}/decline`, {
+        reason: declineReason.trim(),
+      });
+      setDeclinedIds((current) => [...current, declineTarget._id]);
+      setDeclineTarget(null);
+      setDeclineReason("");
+      setDeclineError("");
+      showToast(response.message);
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Unable to decline appointment", "error");
+    } finally {
+      setDeclining(false);
+    }
+  };
+
   return (
+    <>
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 px-5 py-4">
         <h3 className="font-semibold text-gray-900">Today&apos;s Appointments</h3>
@@ -612,7 +647,7 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
         <p className="py-10 text-center text-sm text-gray-500">No appointments scheduled for today.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-5 py-3">Time</th>
@@ -660,16 +695,30 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
                     </td>
                     <td className="px-5 py-4">
                       {effectiveStatus === "pending" ? (
-                        <button
-                          type="button"
-                          onClick={() => confirmAppointment(appointment)}
-                          disabled={confirmingId === appointment._id}
-                          className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-50"
-                        >
-                          {confirmingId === appointment._id
-                            ? "Confirming..."
-                            : "Confirm Appointment"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => confirmAppointment(appointment)}
+                            disabled={confirmingId === appointment._id || declining}
+                            className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {confirmingId === appointment._id
+                              ? "Confirming..."
+                              : "Confirm Appointment"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeclineTarget(appointment);
+                              setDeclineReason("");
+                              setDeclineError("");
+                            }}
+                            disabled={Boolean(confirmingId) || declining}
+                            className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            Decline
+                          </button>
+                        </div>
                       ) : awaitingNurse ? (
                         <span className="text-xs font-medium text-amber-700">
                           {!appointment.visitId
@@ -695,7 +744,65 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
         </div>
       )}
     </section>
+    {declineTarget && (
+      <Modal
+        title="Decline appointment"
+        onClose={() => setDeclineTarget(null)}
+        closeDisabled={declining}
+      >
+        <form onSubmit={declineAppointment} className="space-y-4">
+          <p className="text-sm text-slate-600">
+            This appointment for <strong>{patientNameForAppointment(declineTarget)}</strong> will return to the nurse for reassignment.
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-800" htmlFor="dashboard-decline-reason">
+              Reason for declining
+            </label>
+            <textarea
+              id="dashboard-decline-reason"
+              rows={3}
+              minLength={3}
+              maxLength={500}
+              required
+              value={declineReason}
+              onChange={(event) => {
+                setDeclineReason(event.target.value);
+                setDeclineError("");
+              }}
+              placeholder="Example: Not available at the scheduled time"
+              className={`input w-full ${declineError ? "input-error" : ""}`}
+            />
+            {declineError && <p className="mt-1 text-xs text-rose-600">{declineError}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDeclineTarget(null)}
+              disabled={declining}
+              className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+            >
+              Keep Appointment
+            </button>
+            <button
+              type="submit"
+              disabled={declining || declineReason.trim().length < 3}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {declining ? "Returning..." : "Decline and Return"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    )}
+    </>
   );
+}
+
+function patientNameForAppointment(appointment: Appointment): string {
+  const patient = appointment.patientId;
+  return patient && typeof patient === "object"
+    ? `${patient.firstName} ${patient.lastName}`
+    : "this patient";
 }
 
 function RecentCases({
