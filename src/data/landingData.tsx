@@ -78,6 +78,45 @@ export const modules = [
   },
 ] as const;
 
+export const features = [
+  {
+    title: "Connected care journey",
+    description: "Keep patient intake, consultations, and follow-ups connected.",
+    icon: <VisitsIcon />,
+    tone: "violet",
+  },
+  {
+    title: "Role-based workspaces",
+    description: "Give each clinic role access to the tools it needs.",
+    icon: <StaffIcon />,
+    tone: "blue",
+  },
+  {
+    title: "Clear appointment flow",
+    description: "Track appointments from scheduling through check-in.",
+    icon: <CalendarIcon />,
+    tone: "cyan",
+  },
+  {
+    title: "Safer inventory oversight",
+    description: "Monitor stock, batches, expiry dates, and requests.",
+    icon: <MedicineIcon />,
+    tone: "rose",
+  },
+  {
+    title: "Clinic-wide insights",
+    description: "Use analytics and reports to understand clinic trends.",
+    icon: <ReportsIcon />,
+    tone: "amber",
+  },
+  {
+    title: "Traceable activity",
+    description: "Review important system changes in audit records.",
+    icon: <AuditIcon />,
+    tone: "emerald",
+  },
+] as const;
+
 /* =========================================================
    HOW SCHOOLCARE WORKS
 ========================================================= */
