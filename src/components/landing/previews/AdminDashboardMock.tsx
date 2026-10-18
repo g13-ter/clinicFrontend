@@ -13,9 +13,7 @@ import {
 
 /* =========================================================
    ADMIN DASHBOARD MOCK
-   Used by:
-   - Hero section
-   - About section laptop preview
+   Used by the hero section.
 ========================================================= */
 
 export default function AdminDashboardMock() {

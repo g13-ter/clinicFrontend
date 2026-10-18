@@ -5,6 +5,7 @@
     /* Keep the page width identical when tab content gains or loses a scrollbar. */
     scrollbar-gutter: stable;
     overflow-y: scroll;
+    scroll-behavior: smooth;
   }
   body {
     @apply min-w-0 bg-gray-50 text-gray-900 antialiased;

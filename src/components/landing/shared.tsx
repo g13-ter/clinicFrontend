@@ -20,14 +20,21 @@ export function BrandMark() {
 export function NavLink({
   href,
   children,
+  active = false,
 }: {
   href: string;
   children: ReactNode;
+  active?: boolean;
 }) {
   return (
     <a
       href={href}
-      className="relative py-6 text-sm font-semibold text-slate-600 transition after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:origin-center after:scale-x-0 after:bg-blue-600 after:transition hover:text-blue-700 hover:after:scale-x-100"
+      aria-current={active ? "location" : undefined}
+      className={`relative py-6 text-sm font-semibold transition after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:origin-center after:bg-blue-600 after:transition hover:text-blue-700 hover:after:scale-x-100 ${
+        active
+          ? "text-blue-700 after:scale-x-100"
+          : "text-slate-600 after:scale-x-0"
+      }`}
     >
       {children}
     </a>

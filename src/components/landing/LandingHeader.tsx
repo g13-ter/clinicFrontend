@@ -1,15 +1,65 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { CloseIcon, MenuIcon } from "../icons";
 import { BrandMark, NavLink } from "./shared";
 
+const sections = [
+  { id: "home", label: "Home" },
+  { id: "features", label: "Features" },
+  { id: "about", label: "About" },
+  { id: "modules", label: "Modules" },
+  { id: "contact", label: "Contact" },
+] as const;
+
 export default function LandingHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("home");
 
   const closeMenu = () => {
     setMenuOpen(false);
   };
+
+  useEffect(() => {
+    let frame = 0;
+
+    const updateActiveSection = () => {
+      frame = 0;
+      let nextSection: (typeof sections)[number]["id"] = sections[0].id;
+      const activationLine = 96;
+
+      for (const section of sections) {
+        const element = document.getElementById(section.id);
+        if (element && element.getBoundingClientRect().top <= activationLine) {
+          nextSection = section.id;
+        }
+      }
+
+      const atPageBottom =
+        window.innerHeight + window.scrollY >=
+        document.documentElement.scrollHeight - 2;
+      if (atPageBottom) nextSection = "contact";
+
+      setActiveSection((current) =>
+        current === nextSection ? current : nextSection,
+      );
+    };
+
+    const scheduleUpdate = () => {
+      if (frame !== 0) return;
+      frame = window.requestAnimationFrame(updateActiveSection);
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
@@ -39,25 +89,15 @@ export default function LandingHeader() {
           aria-label="Primary navigation"
           className="mx-auto hidden items-center gap-9 lg:flex"
         >
-          <NavLink href="#home">
-            Home
-          </NavLink>
-
-          <NavLink href="#features">
-            Features
-          </NavLink>
-
-          <NavLink href="#modules">
-            Modules
-          </NavLink>
-
-          <NavLink href="#about">
-            About
-          </NavLink>
-
-          <NavLink href="#contact">
-            Contact
-          </NavLink>
+          {sections.map((section) => (
+            <NavLink
+              key={section.id}
+              href={`#${section.id}`}
+              active={activeSection === section.id}
+            >
+              {section.label}
+            </NavLink>
+          ))}
         </nav>
 
         {/* DESKTOP ACTIONS */}
@@ -99,20 +139,19 @@ export default function LandingHeader() {
           className="border-t border-slate-100 bg-white px-5 py-5 shadow-xl lg:hidden"
         >
           <div className="mx-auto grid max-w-[1440px] gap-1">
-            {[
-              "home",
-              "features",
-              "modules",
-              "about",
-              "contact",
-            ].map((item) => (
+            {sections.map((section) => (
               <a
-                key={item}
-                href={`#${item}`}
+                key={section.id}
+                href={`#${section.id}`}
                 onClick={closeMenu}
-                className="rounded-lg px-3 py-3 text-sm font-semibold capitalize text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
+                aria-current={activeSection === section.id ? "location" : undefined}
+                className={`rounded-lg px-3 py-3 text-sm font-semibold capitalize transition hover:bg-blue-50 hover:text-blue-700 ${
+                  activeSection === section.id
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-700"
+                }`}
               >
-                {item}
+                {section.label}
               </a>
             ))}
 
