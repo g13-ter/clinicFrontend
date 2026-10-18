@@ -118,7 +118,6 @@ export default function ClinicAnalytics({
               adultRecordedCount={stats.bmiRecordedCount}
               pediatricBreakdown={stats.pediatricBmiBreakdown}
               pediatricRecordedCount={stats.pediatricBmiRecordedCount}
-              unclassifiedCount={stats.bmiUnclassifiedCount}
             />
             <MonthlyVisitsChart items={stats.monthlyVisits} period={period} />
           </div>
@@ -190,13 +189,11 @@ function BmiAnalyticsChart({
   adultRecordedCount,
   pediatricBreakdown,
   pediatricRecordedCount,
-  unclassifiedCount,
 }: {
   adultBreakdown: DashboardStats["bmiBreakdown"];
   adultRecordedCount: number;
   pediatricBreakdown: DashboardStats["pediatricBmiBreakdown"];
   pediatricRecordedCount: number;
-  unclassifiedCount: number;
 }) {
   const [view, setView] = useState<"adult" | "pediatric">("adult");
 
@@ -211,10 +208,10 @@ function BmiAnalyticsChart({
         Child, ages 2 to 19
       </button>
     </div>
-    <div className="mt-4 min-h-[300px]" role="tabpanel">
+    <div className="mt-4 min-h-[370px] sm:min-h-[240px]" role="tabpanel">
       {view === "adult"
         ? <BmiDistributionChart breakdown={adultBreakdown} recordedCount={adultRecordedCount} />
-        : <PediatricBmiDistributionChart breakdown={pediatricBreakdown} recordedCount={pediatricRecordedCount} unclassifiedCount={unclassifiedCount} />}
+        : <PediatricBmiDistributionChart breakdown={pediatricBreakdown} recordedCount={pediatricRecordedCount} />}
     </div>
   </article>;
 }
@@ -243,14 +240,9 @@ function BmiDistributionChart({ breakdown, recordedCount }: { breakdown: Dashboa
   </>;
 }
 
-function PediatricBmiDistributionChart({
-  breakdown,
-  recordedCount,
-  unclassifiedCount,
-}: {
+function PediatricBmiDistributionChart({ breakdown, recordedCount }: {
   breakdown: DashboardStats["pediatricBmiBreakdown"];
   recordedCount: number;
-  unclassifiedCount: number;
 }) {
   const categories = [
     { key: "underweight", label: "Underweight", value: breakdown.underweight, color: "#0ea5e9" },
@@ -272,10 +264,6 @@ function PediatricBmiDistributionChart({
       <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background }} role="img" aria-label={`BMI-for-age categories for ${recordedCount} pediatric visits`}><div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center"><div><p className="text-2xl font-bold text-gray-900">{recordedCount}</p><p className="text-[11px] leading-tight text-gray-500">classified readings</p></div></div></div>
       <div className="grid w-full gap-3 sm:max-w-xs">{categories.map((category) => <div key={category.key} className="flex items-center gap-3 text-sm"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="min-w-0 flex-1 text-gray-700">{category.label}</span><span className="w-10 text-right font-semibold text-gray-900">{Math.round((category.value / recordedCount) * 100)}%</span></div>)}</div>
     </div>}
-    <p className="mt-4 text-[11px] leading-5 text-gray-500">
-      Under-2 readings and records without usable age or sex are not classified.
-      {unclassifiedCount > 0 && ` ${unclassifiedCount} BMI ${unclassifiedCount === 1 ? "reading was" : "readings were"} excluded from the charts.`}
-    </p>
   </>;
 }
 
