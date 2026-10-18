@@ -200,18 +200,18 @@ function BmiAnalyticsChart({
 }) {
   const [view, setView] = useState<"adult" | "pediatric">("adult");
 
-  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+  return <article className="min-h-[540px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
     <h3 className="font-semibold text-gray-900">BMI Analytics</h3>
     <p className="mt-1 text-xs text-gray-500">Adult and child BMI results are classified separately.</p>
     <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="BMI age group">
-      <button type="button" role="tab" aria-selected={view === "adult"} onClick={() => setView("adult")} className={`rounded-md px-3 py-2 text-sm font-medium transition ${view === "adult" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
+      <button type="button" role="tab" aria-selected={view === "adult"} onClick={() => setView("adult")} className={`rounded-md px-3 py-2 text-sm font-medium ${view === "adult" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
         Adult (20+)
       </button>
-      <button type="button" role="tab" aria-selected={view === "pediatric"} onClick={() => setView("pediatric")} className={`rounded-md px-3 py-2 text-sm font-medium transition ${view === "pediatric" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
+      <button type="button" role="tab" aria-selected={view === "pediatric"} onClick={() => setView("pediatric")} className={`rounded-md px-3 py-2 text-sm font-medium ${view === "pediatric" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
         Child, ages 2 to 19
       </button>
     </div>
-    <div className="mt-4" role="tabpanel">
+    <div className="mt-4 min-h-[360px]" role="tabpanel">
       {view === "adult"
         ? <BmiDistributionChart breakdown={adultBreakdown} recordedCount={adultRecordedCount} />
         : <PediatricBmiDistributionChart breakdown={pediatricBreakdown} recordedCount={pediatricRecordedCount} unclassifiedCount={unclassifiedCount} />}
