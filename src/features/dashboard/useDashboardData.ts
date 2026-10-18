@@ -43,6 +43,15 @@ export function normalizeDashboardStats(data: LegacyDashboardStats): DashboardSt
       obese: 0,
       ...data.bmiBreakdown,
     },
+    pediatricBmiRecordedCount: data.pediatricBmiRecordedCount ?? 0,
+    pediatricBmiBreakdown: {
+      underweight: 0,
+      healthyWeight: 0,
+      overweight: 0,
+      obesity: 0,
+      ...data.pediatricBmiBreakdown,
+    },
+    bmiUnclassifiedCount: data.bmiUnclassifiedCount ?? 0,
     recentCases: data.recentCases ?? [],
     recentActivity: data.recentActivity ?? [],
   };

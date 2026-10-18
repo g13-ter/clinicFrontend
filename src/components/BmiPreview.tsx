@@ -32,7 +32,7 @@ export function BmiPreview({
       </div>
     );
   }
-  if (age < 18) {
+  if (age < 20) {
     const months = dateOfBirth ? ageInMonths(dateOfBirth) : age * 12;
     const pediatric = months === null ? null : classifyPediatricBmi(bmi, months, gender ?? "");
     return (
@@ -52,7 +52,7 @@ export function BmiPreview({
     <div className={`rounded-lg border p-3 ${CATEGORY_STYLES[category]} ${className}`} aria-live="polite">
       <p className="text-sm font-semibold">BMI: {bmi} · {category}</p>
       <p className="mt-1 text-xs opacity-80">
-        Adult BMI uses height and weight only; age is not part of the formula.
+        Adult BMI categories apply from age 20; age is not part of the formula.
       </p>
     </div>
   );

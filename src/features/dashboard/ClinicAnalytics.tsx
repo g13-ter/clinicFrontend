@@ -111,9 +111,14 @@ export default function ClinicAnalytics({
               )}
             </div>
           )}
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <CommonComplaintsChart items={stats.commonComplaints} />
             <BmiDistributionChart breakdown={stats.bmiBreakdown} recordedCount={stats.bmiRecordedCount} />
+            <PediatricBmiDistributionChart
+              breakdown={stats.pediatricBmiBreakdown}
+              recordedCount={stats.pediatricBmiRecordedCount}
+              unclassifiedCount={stats.bmiUnclassifiedCount}
+            />
             <MonthlyVisitsChart items={stats.monthlyVisits} period={period} />
           </div>
         </div>
@@ -184,7 +189,7 @@ function BmiDistributionChart({ breakdown, recordedCount }: { breakdown: Dashboa
     { key: "underweight", label: "Underweight", value: breakdown.underweight, color: "#0ea5e9" },
     { key: "normal", label: "Normal weight", value: breakdown.normalWeight, color: "#10b981" },
     { key: "overweight", label: "Overweight", value: breakdown.overweight, color: "#f59e0b" },
-    { key: "obese", label: "Obese", value: breakdown.obese, color: "#f97316" },
+    { key: "obese", label: "Obesity", value: breakdown.obese, color: "#f97316" },
   ];
   let current = 0;
   const segments = categories.map((category) => {
@@ -195,12 +200,49 @@ function BmiDistributionChart({ breakdown, recordedCount }: { breakdown: Dashboa
   const background = recordedCount > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
 
   return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-    <h3 className="font-semibold text-gray-900">Adult BMI Categories</h3>
-    <p className="mt-1 text-xs text-gray-500">Standard BMI ranges for patients age 18 and older.</p>
-    {recordedCount === 0 ? <EmptyChart label="No adult visits with both height and weight recorded for this patient type." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
+    <h3 className="font-semibold text-gray-900">Adult BMI (20+)</h3>
+    <p className="mt-1 text-xs text-gray-500">Standard adult BMI ranges; a screening measure.</p>
+    {recordedCount === 0 ? <EmptyChart label="No classifiable adult BMI readings for this patient type and date range." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
       <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background }} role="img" aria-label={`BMI categories for ${recordedCount} adult visits`}><div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center"><div><p className="text-2xl font-bold text-gray-900">{recordedCount}</p><p className="text-[11px] leading-tight text-gray-500">recorded BMIs</p></div></div></div>
       <div className="grid w-full gap-3 sm:max-w-xs">{categories.map((category) => <div key={category.key} className="flex items-center gap-3 text-sm"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="min-w-0 flex-1 text-gray-700">{category.label}</span><span className="w-10 text-right font-semibold text-gray-900">{Math.round((category.value / recordedCount) * 100)}%</span></div>)}</div>
     </div>}
+  </article>;
+}
+
+function PediatricBmiDistributionChart({
+  breakdown,
+  recordedCount,
+  unclassifiedCount,
+}: {
+  breakdown: DashboardStats["pediatricBmiBreakdown"];
+  recordedCount: number;
+  unclassifiedCount: number;
+}) {
+  const categories = [
+    { key: "underweight", label: "Underweight", value: breakdown.underweight, color: "#0ea5e9" },
+    { key: "healthyWeight", label: "Healthy weight", value: breakdown.healthyWeight, color: "#10b981" },
+    { key: "overweight", label: "Overweight", value: breakdown.overweight, color: "#f59e0b" },
+    { key: "obesity", label: "Obesity", value: breakdown.obesity, color: "#f97316" },
+  ];
+  let current = 0;
+  const segments = categories.map((category) => {
+    const start = current;
+    current += recordedCount > 0 ? (category.value / recordedCount) * 100 : 0;
+    return `${category.color} ${start}% ${current}%`;
+  });
+  const background = recordedCount > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
+
+  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h3 className="font-semibold text-gray-900">Pediatric BMI-for-age (2–19)</h3>
+    <p className="mt-1 text-xs text-gray-500">Age- and sex-specific percentiles account for growth.</p>
+    {recordedCount === 0 ? <EmptyChart label="No classifiable BMI-for-age readings for ages 2–19 in this patient type and date range." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
+      <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background }} role="img" aria-label={`BMI-for-age categories for ${recordedCount} pediatric visits`}><div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center"><div><p className="text-2xl font-bold text-gray-900">{recordedCount}</p><p className="text-[11px] leading-tight text-gray-500">classified readings</p></div></div></div>
+      <div className="grid w-full gap-3 sm:max-w-xs">{categories.map((category) => <div key={category.key} className="flex items-center gap-3 text-sm"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="min-w-0 flex-1 text-gray-700">{category.label}</span><span className="w-10 text-right font-semibold text-gray-900">{Math.round((category.value / recordedCount) * 100)}%</span></div>)}</div>
+    </div>}
+    <p className="mt-4 text-[11px] leading-5 text-gray-500">
+      Under-2 readings and records without usable age or sex are not classified.
+      {unclassifiedCount > 0 && ` ${unclassifiedCount} BMI ${unclassifiedCount === 1 ? "reading was" : "readings were"} excluded from the charts.`}
+    </p>
   </article>;
 }
 
@@ -209,5 +251,5 @@ function EmptyChart({ label }: { label: string }) {
 }
 
 function AnalyticsSkeleton({ showVisitCounts }: { showVisitCounts: boolean }) {
-  return <div className="animate-pulse space-y-4">{showVisitCounts && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-xl bg-slate-100" />)}</div>}<div className="grid gap-4 xl:grid-cols-3"><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /></div></div>;
+  return <div className="animate-pulse space-y-4">{showVisitCounts && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-xl bg-slate-100" />)}</div>}<div className="grid gap-4 xl:grid-cols-2"><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /></div></div>;
 }

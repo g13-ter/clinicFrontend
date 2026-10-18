@@ -251,6 +251,9 @@ export interface DashboardStats {
   analyticsVisitBreakdown: { student: number; teacher: number; staff: number };
   bmiRecordedCount: number;
   bmiBreakdown: { underweight: number; normalWeight: number; overweight: number; obese: number };
+  pediatricBmiRecordedCount: number;
+  pediatricBmiBreakdown: { underweight: number; healthyWeight: number; overweight: number; obesity: number };
+  bmiUnclassifiedCount: number;
   recentCases: {
     id: string;
     date: string;
