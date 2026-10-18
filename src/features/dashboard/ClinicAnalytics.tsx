@@ -200,7 +200,7 @@ function BmiAnalyticsChart({
 }) {
   const [view, setView] = useState<"adult" | "pediatric">("adult");
 
-  return <article className="min-h-[540px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
     <h3 className="font-semibold text-gray-900">BMI Analytics</h3>
     <p className="mt-1 text-xs text-gray-500">Adult and child BMI results are classified separately.</p>
     <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="BMI age group">
@@ -211,7 +211,7 @@ function BmiAnalyticsChart({
         Child, ages 2 to 19
       </button>
     </div>
-    <div className="mt-4 min-h-[360px]" role="tabpanel">
+    <div className="mt-4 min-h-[300px]" role="tabpanel">
       {view === "adult"
         ? <BmiDistributionChart breakdown={adultBreakdown} recordedCount={adultRecordedCount} />
         : <PediatricBmiDistributionChart breakdown={pediatricBreakdown} recordedCount={pediatricRecordedCount} unclassifiedCount={unclassifiedCount} />}
