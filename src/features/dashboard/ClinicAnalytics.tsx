@@ -111,12 +111,13 @@ export default function ClinicAnalytics({
               )}
             </div>
           )}
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <CommonComplaintsChart items={stats.commonComplaints} />
-            <BmiDistributionChart breakdown={stats.bmiBreakdown} recordedCount={stats.bmiRecordedCount} />
-            <PediatricBmiDistributionChart
-              breakdown={stats.pediatricBmiBreakdown}
-              recordedCount={stats.pediatricBmiRecordedCount}
+            <BmiAnalyticsChart
+              adultBreakdown={stats.bmiBreakdown}
+              adultRecordedCount={stats.bmiRecordedCount}
+              pediatricBreakdown={stats.pediatricBmiBreakdown}
+              pediatricRecordedCount={stats.pediatricBmiRecordedCount}
               unclassifiedCount={stats.bmiUnclassifiedCount}
             />
             <MonthlyVisitsChart items={stats.monthlyVisits} period={period} />
@@ -184,6 +185,40 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
   return <label className="text-xs font-semibold text-slate-600">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="input mt-1 w-full min-w-36 bg-white text-sm font-normal">{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
 }
 
+function BmiAnalyticsChart({
+  adultBreakdown,
+  adultRecordedCount,
+  pediatricBreakdown,
+  pediatricRecordedCount,
+  unclassifiedCount,
+}: {
+  adultBreakdown: DashboardStats["bmiBreakdown"];
+  adultRecordedCount: number;
+  pediatricBreakdown: DashboardStats["pediatricBmiBreakdown"];
+  pediatricRecordedCount: number;
+  unclassifiedCount: number;
+}) {
+  const [view, setView] = useState<"adult" | "pediatric">("adult");
+
+  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h3 className="font-semibold text-gray-900">BMI Analytics</h3>
+    <p className="mt-1 text-xs text-gray-500">Adult and child BMI results are classified separately.</p>
+    <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="BMI age group">
+      <button type="button" role="tab" aria-selected={view === "adult"} onClick={() => setView("adult")} className={`rounded-md px-3 py-2 text-sm font-medium transition ${view === "adult" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
+        Adult (20+)
+      </button>
+      <button type="button" role="tab" aria-selected={view === "pediatric"} onClick={() => setView("pediatric")} className={`rounded-md px-3 py-2 text-sm font-medium transition ${view === "pediatric" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
+        Child, ages 2 to 19
+      </button>
+    </div>
+    <div className="mt-4" role="tabpanel">
+      {view === "adult"
+        ? <BmiDistributionChart breakdown={adultBreakdown} recordedCount={adultRecordedCount} />
+        : <PediatricBmiDistributionChart breakdown={pediatricBreakdown} recordedCount={pediatricRecordedCount} unclassifiedCount={unclassifiedCount} />}
+    </div>
+  </article>;
+}
+
 function BmiDistributionChart({ breakdown, recordedCount }: { breakdown: DashboardStats["bmiBreakdown"]; recordedCount: number }) {
   const categories = [
     { key: "underweight", label: "Underweight", value: breakdown.underweight, color: "#0ea5e9" },
@@ -199,14 +234,13 @@ function BmiDistributionChart({ breakdown, recordedCount }: { breakdown: Dashboa
   });
   const background = recordedCount > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
 
-  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-    <h3 className="font-semibold text-gray-900">Adult BMI (20+)</h3>
-    <p className="mt-1 text-xs text-gray-500">Standard adult BMI ranges; a screening measure.</p>
+  return <>
+    <p className="text-xs text-gray-500">Standard adult BMI ranges; a screening measure.</p>
     {recordedCount === 0 ? <EmptyChart label="No classifiable adult BMI readings for this patient type and date range." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
       <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background }} role="img" aria-label={`BMI categories for ${recordedCount} adult visits`}><div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center"><div><p className="text-2xl font-bold text-gray-900">{recordedCount}</p><p className="text-[11px] leading-tight text-gray-500">recorded BMIs</p></div></div></div>
       <div className="grid w-full gap-3 sm:max-w-xs">{categories.map((category) => <div key={category.key} className="flex items-center gap-3 text-sm"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="min-w-0 flex-1 text-gray-700">{category.label}</span><span className="w-10 text-right font-semibold text-gray-900">{Math.round((category.value / recordedCount) * 100)}%</span></div>)}</div>
     </div>}
-  </article>;
+  </>;
 }
 
 function PediatricBmiDistributionChart({
@@ -232,10 +266,9 @@ function PediatricBmiDistributionChart({
   });
   const background = recordedCount > 0 ? `conic-gradient(${segments.join(", ")})` : "#e5e7eb";
 
-  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-    <h3 className="font-semibold text-gray-900">Pediatric BMI-for-age (2–19)</h3>
-    <p className="mt-1 text-xs text-gray-500">Age- and sex-specific percentiles account for growth.</p>
-    {recordedCount === 0 ? <EmptyChart label="No classifiable BMI-for-age readings for ages 2–19 in this patient type and date range." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
+  return <>
+    <p className="text-xs text-gray-500">BMI-for-age uses age- and sex-specific percentiles to account for growth.</p>
+    {recordedCount === 0 ? <EmptyChart label="No classifiable BMI-for-age readings for ages 2 to 19 in this patient type and date range." /> : <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
       <div className="relative h-40 w-40 shrink-0 rounded-full" style={{ background }} role="img" aria-label={`BMI-for-age categories for ${recordedCount} pediatric visits`}><div className="absolute inset-10 flex items-center justify-center rounded-full bg-white text-center"><div><p className="text-2xl font-bold text-gray-900">{recordedCount}</p><p className="text-[11px] leading-tight text-gray-500">classified readings</p></div></div></div>
       <div className="grid w-full gap-3 sm:max-w-xs">{categories.map((category) => <div key={category.key} className="flex items-center gap-3 text-sm"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="min-w-0 flex-1 text-gray-700">{category.label}</span><span className="w-10 text-right font-semibold text-gray-900">{Math.round((category.value / recordedCount) * 100)}%</span></div>)}</div>
     </div>}
@@ -243,7 +276,7 @@ function PediatricBmiDistributionChart({
       Under-2 readings and records without usable age or sex are not classified.
       {unclassifiedCount > 0 && ` ${unclassifiedCount} BMI ${unclassifiedCount === 1 ? "reading was" : "readings were"} excluded from the charts.`}
     </p>
-  </article>;
+  </>;
 }
 
 function EmptyChart({ label }: { label: string }) {
@@ -251,5 +284,5 @@ function EmptyChart({ label }: { label: string }) {
 }
 
 function AnalyticsSkeleton({ showVisitCounts }: { showVisitCounts: boolean }) {
-  return <div className="animate-pulse space-y-4">{showVisitCounts && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-xl bg-slate-100" />)}</div>}<div className="grid gap-4 xl:grid-cols-2"><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /></div></div>;
+  return <div className="animate-pulse space-y-4">{showVisitCounts && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-xl bg-slate-100" />)}</div>}<div className="grid gap-4 xl:grid-cols-3"><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /><div className="h-72 rounded-xl bg-slate-100" /></div></div>;
 }
