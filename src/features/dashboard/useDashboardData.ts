@@ -28,6 +28,8 @@ export function normalizeDashboardStats(data: LegacyDashboardStats): DashboardSt
     lowStockCount: data.lowStockCount ?? 0,
     outOfStockCount: data.outOfStockCount ?? 0,
     expiredCount: data.expiredCount ?? 0,
+    expiredBatches: data.expiredBatches ?? [],
+    expiringBatches: data.expiringBatches ?? [],
     pendingPurchaseRequests: data.pendingPurchaseRequests ?? 0,
     activeUsers: data.activeUsers ?? [],
     commonComplaints: data.commonComplaints ?? [],
@@ -71,20 +73,35 @@ export function useDashboardData(role: UserRole | null, userId?: string) {
       return;
     }
     let cancelled = false;
+    let hasLoadedStats = false;
 
-    api
-      .get<LegacyDashboardStats>("/dashboard/stats")
-      .then((response) => {
-        if (!cancelled) setStats(normalizeDashboardStats(response.data));
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled) {
-          setError(requestError instanceof Error ? requestError.message : "Failed to load dashboard");
-        }
-      });
+    const loadStats = () => {
+      api
+        .get<LegacyDashboardStats>("/dashboard/stats")
+        .then((response) => {
+          if (!cancelled) {
+            hasLoadedStats = true;
+            setStats(normalizeDashboardStats(response.data));
+            setError("");
+          }
+        })
+        .catch((requestError: unknown) => {
+          if (!cancelled && !hasLoadedStats) {
+            setError(requestError instanceof Error ? requestError.message : "Failed to load dashboard");
+          }
+        });
+    };
+    loadStats();
+    const refreshTimer = window.setInterval(loadStats, 15 * 60 * 1000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") loadStats();
+    };
+    document.addEventListener("visibilitychange", refreshOnFocus);
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, [role]);
 

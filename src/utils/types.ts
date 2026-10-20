@@ -236,6 +236,21 @@ export interface DashboardStats {
   lowStockCount: number;
   outOfStockCount: number;
   expiredCount: number;
+  expiredBatches: {
+    medicineName: string;
+    batchNumber: string;
+    quantityRemaining: number;
+    unit: string;
+    expiryDate: string;
+  }[];
+  expiringBatches: {
+    medicineName: string;
+    batchNumber: string;
+    quantityRemaining: number;
+    unit: string;
+    expiryDate: string;
+    daysUntilExpiry: number;
+  }[];
   pendingPurchaseRequests: number;
   activeUsers: {
     id: string;
