@@ -68,7 +68,7 @@ export function RoleAdminContent() {
           </div>
 
           <div className="flex items-center gap-1 text-[6px] font-medium">
-            <span className="rounded-full bg-slate-900 px-2 py-1 text-white">
+            <span className="rounded-full bg-blue-600 px-2 py-1 text-white">
               All
             </span>
 
@@ -136,7 +136,7 @@ export function RoleAdminContent() {
           </span>
 
           <span>
-            <span className="rounded-full bg-slate-950 px-2 py-1 font-medium text-white">
+            <span className="rounded-full bg-teal-100 px-2 py-1 font-medium text-teal-700">
               Available
             </span>
           </span>
@@ -369,7 +369,7 @@ function AdminManagementCard({
         {value}
       </p>
 
-      <p className="mt-4 rounded-md bg-slate-950 px-2 py-2 text-center text-[7px] font-medium text-white">
+      <p className="mt-4 rounded-md bg-blue-600 px-2 py-2 text-center text-[7px] font-medium text-white">
         {action}
       </p>
     </div>

@@ -396,7 +396,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
                   onClick={() => selectManagementView(id)}
                   className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
                     managementView === id
-                      ? "border-slate-900 bg-slate-900 text-white"
+                      ? "border-blue-600 bg-blue-600 text-white"
                       : "border-gray-200 text-gray-600 hover:bg-gray-50"
                   }`}
                 >
@@ -632,7 +632,7 @@ function roleLabel(role: User["role"]): string {
 
 function AvailabilityBadge({ available }: { available: boolean }) {
   return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${available ? "bg-slate-950 text-white" : "bg-gray-100 text-gray-500"}`}>
+    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${available ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"}`}>
       {available ? "Available" : "Unavailable"}
     </span>
   );

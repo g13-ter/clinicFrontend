@@ -3,7 +3,7 @@ import { SectionEyebrow } from "./shared";
 
 export default function WorkflowSection() {
   return (
-    <section className="bg-[#f4f8ff] py-20">
+    <section className="bg-[#f4f8ff] py-20 md:py-24">
       <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12">
         {/* SECTION HEADER */}
         <div className="text-center">
@@ -22,7 +22,7 @@ export default function WorkflowSection() {
         </div>
 
         {/* WORKFLOW STEPS */}
-        <div className="relative mt-14 grid gap-10 md:grid-cols-4 md:gap-6">
+        <div className="relative mt-14 grid gap-10 md:mt-16 md:grid-cols-4 md:gap-6">
           {/* CONNECTING LINE */}
           <div className="absolute left-[12.5%] right-[12.5%] top-10 hidden h-px bg-gradient-to-r from-blue-300 via-violet-300 to-amber-300 md:block" />
 

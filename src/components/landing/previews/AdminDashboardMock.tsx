@@ -175,7 +175,7 @@ export default function AdminDashboardMock() {
               </div>
 
               <div className="hidden items-center gap-1 text-[5px] font-medium sm:flex">
-                <span className="rounded-full bg-slate-900 px-2 py-1 text-white">
+                <span className="rounded-full bg-blue-600 px-2 py-1 text-white">
                   All
                 </span>
 
@@ -332,7 +332,7 @@ function ManagementCard({
         {value}
       </p>
 
-      <div className="mt-3 truncate rounded-md bg-slate-950 px-2 py-1.5 text-center text-[5px] font-medium text-white sm:text-[6px]">
+      <div className="mt-3 truncate rounded-md bg-blue-600 px-2 py-1.5 text-center text-[5px] font-medium text-white sm:text-[6px]">
         {action}
       </div>
     </div>
