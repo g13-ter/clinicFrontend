@@ -179,8 +179,8 @@ export const roleWorkspaces: Record<
     navigation: [
       "Dashboard",
       "Audit Logs",
+      "Documentation",
       "Settings",
-      "Profile",
     ],
 
     // Pages shown in "Pages this role can access"
@@ -189,8 +189,8 @@ export const roleWorkspaces: Record<
       "User Management",
       "Purchase Requests",
       "Audit Logs",
+      "Documentation",
       "Settings",
-      "Profile",
     ],
 
     // Dashboard tabs

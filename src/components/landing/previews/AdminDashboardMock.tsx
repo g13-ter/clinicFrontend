@@ -5,8 +5,8 @@ import { BrandLogo } from "../../BrandLogo";
 import {
   AuditIcon,
   DashboardIcon,
+  DocumentationIcon,
   PatientsIcon,
-  ProfileIcon,
   SettingsIcon,
   StaffIcon,
 } from "../../icons";
@@ -71,16 +71,17 @@ export default function AdminDashboardMock() {
           </div>
 
           <div className="mt-1 flex items-center gap-2 rounded-md px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]">
+            <DocumentationIcon className="h-3.5 w-3.5" />
+
+            Documentation
+          </div>
+
+          <div className="mt-1 flex items-center gap-2 rounded-md px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]">
             <SettingsIcon className="h-3.5 w-3.5" />
 
             Settings
           </div>
 
-          <div className="mt-1 flex items-center gap-2 rounded-md px-2 py-2 text-[8px] font-medium text-slate-600 sm:text-[9px]">
-            <ProfileIcon className="h-3.5 w-3.5" />
-
-            Profile
-          </div>
         </aside>
 
         {/* CONTENT */}
