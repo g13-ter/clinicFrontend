@@ -4,8 +4,12 @@ import { api } from "../services/api";
 import Layout from "../layout/Layout";
 import { useAuth } from "../hooks/useAuth";
 import {
+  CartIcon,
   CalendarIcon,
+  DocumentationIcon,
+  MedicineIcon,
   PatientsIcon,
+  ReportsIcon,
   StaffIcon,
   VisitsIcon,
 } from "../components/icons";
@@ -15,7 +19,6 @@ import {
   dashboardAlertKey,
   type DashboardAlert,
 } from "../utils/dashboardAlerts";
-import DoctorWorkspaceTabs from "../components/DoctorWorkspaceTabs";
 import AdminSectionTabs, { type AdminSection } from "../components/AdminSectionTabs";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
@@ -31,18 +34,21 @@ import type { DoctorWorkspaceTab } from "../components/DoctorWorkspaceTabs";
 import SuperAdminDashboardPage from "./SuperAdminDashboardPage";
 import MedicationOrdersPage from "./MedicationOrdersPage";
 import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
+import type { InAppNotificationsState } from "../features/notifications/useInAppNotifications";
 import { patientIdentifier, patientTypeLabel } from "../utils/patient";
 import ClinicAnalytics from "../features/dashboard/ClinicAnalytics";
 import ReportsPage from "./ReportsPage";
 import PatientRecordModal from "../components/PatientRecordModal";
 import InventoryLabelsPage from "./InventoryLabelsPage";
 import SettingsPage from "./SettingsPage";
+import NurseDocumentationPage from "./NurseDocumentationPage";
+import StaffDocumentationPage from "./StaffDocumentationPage";
 
 function DashboardPage() {
   const { role, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const { stats, todayAppointments, error } = useDashboardData(role, user?.id);
-  const doctorNotifications = useInAppNotifications(role === "doctor");
+  const roleNotifications = useInAppNotifications(role === "doctor" || role === "nurse");
   const alertStorageKey = `clinic-seen-alerts:${role ?? "unknown"}`;
   const [seenAlertKeys, setSeenAlertKeys] = useState<string[]>(() =>
     readSeenAlertKeys(alertStorageKey),
@@ -53,9 +59,10 @@ function DashboardPage() {
   const derivedUnreadCount = alerts.filter(
     (alert) => !seenAlertKeys.includes(dashboardAlertKey(alert)),
   ).length;
-  const unreadCount = role === "doctor" ? doctorNotifications.unreadCount : derivedUnreadCount;
+  const unreadCount = role === "doctor" || role === "nurse" ? roleNotifications.unreadCount : derivedUnreadCount;
   const requestedView = searchParams.get("view");
   const workspaceView =
+    requestedView === "overview" ||
     requestedView === "students" ||
     requestedView === "records" ||
     requestedView === "appointments" ||
@@ -64,10 +71,11 @@ function DashboardPage() {
     requestedView === "medications" ||
     requestedView === "purchase-requests" ||
     requestedView === "reports" ||
+    requestedView === "documentation" ||
     requestedView === "settings" ||
     requestedView === "notifications"
       ? requestedView
-      : "visits";
+      : role === "nurse" || role === "staff" ? "overview" : "visits";
   const requestedDoctorTab = searchParams.get("tab");
   const doctorTab: DoctorWorkspaceTab =
     requestedDoctorTab === "visits" ||
@@ -120,18 +128,48 @@ function DashboardPage() {
   const isAdmin = role === "admin";
   const isDoctor = role === "doctor";
   const isStaff = role === "staff";
+  const isNurse = role === "nurse";
+
+  if (isNurse) {
+    return (
+      <Layout>
+        <div className="mx-auto w-full max-w-[1600px]">
+          <NurseDashboardContent
+            view={workspaceView}
+            stats={stats}
+            appointments={todayAppointments}
+            alerts={alerts}
+            notifications={roleNotifications}
+          />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isStaff) {
+    return (
+      <Layout>
+        <div className="mx-auto w-full max-w-[1600px]">
+          <StaffDashboardContent
+            view={workspaceView}
+            stats={stats}
+            appointments={todayAppointments}
+            alerts={alerts}
+          />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
       <div className="mx-auto w-full max-w-[1600px] space-y-5">
         <div className="space-y-4 pb-1 lg:pb-4">
-          <div>
+          {!(isDoctor && doctorTab === "appointments") && <div>
             <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
               {dashboardTitle}
             </h2>
-          </div>
-
-          {role === "nurse" && <ClinicAnalytics />}
+          </div>}
 
           {isAdmin && (
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -140,7 +178,7 @@ function DashboardPage() {
             </section>
           )}
 
-          {!isAdmin && !isDoctor && <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {!isAdmin && !isDoctor && !isNurse && <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {isClinicalRole ? (
               <>
                 <StatCard label="Today's Appointments" value={stats.todaysAppointments} caption="Scheduled today" icon={<CalendarIcon />} tone="blue" />
@@ -167,14 +205,7 @@ function DashboardPage() {
 
           {isAdmin && <AdminSectionTabs active={adminSection} />}
 
-          {isDoctor && (
-            <DoctorWorkspaceTabs
-              active={doctorTab}
-              unreadCount={unreadCount}
-            />
-          )}
-
-          {!isAdmin && !isDoctor && (
+          {!isAdmin && !isDoctor && !isNurse && (
             <RoleWorkspaceTabs
               role={role}
               unreadCount={unreadCount}
@@ -189,6 +220,8 @@ function DashboardPage() {
         {!isAdmin && !isDoctor ? (
           workspaceView === "notifications" ? (
             <NotificationsPanel alerts={alerts} />
+          ) : workspaceView === "documentation" ? (
+            role === "nurse" ? <NurseDocumentationPage embedded /> : <StaffDocumentationPage embedded />
           ) : workspaceView === "settings" ? (
             <SettingsPage embedded />
           ) : workspaceView === "students" ? (
@@ -219,23 +252,21 @@ function DashboardPage() {
             <ClinicAnalytics />
           ) : doctorTab === "notifications" ? (
             <InAppNotificationsPanel
-              notifications={doctorNotifications.items}
-              unreadCount={doctorNotifications.unreadCount}
-              error={doctorNotifications.error}
-              loading={doctorNotifications.loading}
-              onRead={doctorNotifications.markRead}
-              onMarkAllRead={doctorNotifications.markAllRead}
-              onRetry={doctorNotifications.refresh}
+              notifications={roleNotifications.items}
+              unreadCount={roleNotifications.unreadCount}
+              error={roleNotifications.error}
+              loading={roleNotifications.loading}
+              onRead={roleNotifications.markRead}
+              onMarkAllRead={roleNotifications.markAllRead}
+              onRetry={roleNotifications.refresh}
             />
           ) : doctorTab === "appointments" ? (
-            <>
-              <TodayAppointments appointments={todayAppointments} />
-              <RecentCases
-                cases={stats.recentCases}
-                title="Recent Consultations"
-                onViewPatient={setViewingPatientId}
-              />
-            </>
+            <DoctorDashboardOverview
+              stats={stats}
+              appointments={todayAppointments}
+              alerts={alerts}
+              onViewPatient={setViewingPatientId}
+            />
           ) : doctorTab === "visits" ? (
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <PatientQueuePage embedded />
@@ -275,6 +306,413 @@ function readSeenAlertKeys(storageKey: string): string[] {
   }
 }
 
+function NurseDashboardContent({
+  view,
+  stats,
+  appointments,
+  alerts,
+  notifications,
+}: {
+  view: string;
+  stats: DashboardStats;
+  appointments: Appointment[];
+  alerts: DashboardAlert[];
+  notifications: InAppNotificationsState;
+}) {
+  if (view === "overview") {
+    return <NurseDashboardOverview stats={stats} appointments={appointments} alerts={alerts} />;
+  }
+  if (view === "notifications") {
+    return (
+      <div className="space-y-4">
+        <NotificationsPanel alerts={alerts} />
+        <InAppNotificationsPanel
+          notifications={notifications.items}
+          unreadCount={notifications.unreadCount}
+          error={notifications.error}
+          loading={notifications.loading}
+          onRead={notifications.markRead}
+          onMarkAllRead={notifications.markAllRead}
+          onRetry={notifications.refresh}
+        />
+      </div>
+    );
+  }
+  if (view === "documentation") return <NurseDocumentationPage embedded />;
+  if (view === "settings") return <SettingsPage embedded />;
+  if (view === "students") return <PatientsPage embedded />;
+  if (view === "records") return <ClinicalWorkspacePage embedded />;
+  if (view === "inventory") return <MedicinesPage embedded />;
+  if (view === "inventory-labels") return <InventoryLabelsPage embedded />;
+  if (view === "medications") return <MedicationOrdersPage embedded />;
+  if (view === "purchase-requests") return <PurchaseRequestsPage embedded />;
+  if (view === "reports") return <ReportsPage embedded />;
+  if (view === "appointments") return <AppointmentsPage embedded />;
+  return <PatientQueuePage embedded />;
+}
+
+function NurseDashboardOverview({
+  stats,
+  appointments,
+  alerts,
+}: {
+  stats: DashboardStats;
+  appointments: Appointment[];
+  alerts: DashboardAlert[];
+}) {
+  const activeAppointments = appointments
+    .filter((appointment) => appointment.status !== "cancelled" && appointment.status !== "completed")
+    .slice(0, 4);
+  const inventoryAlerts = stats.lowStockCount + stats.outOfStockCount + stats.expiredCount;
+  const today = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-700">Nurse workspace</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Good day, Nurse</h1>
+          <p className="mt-1 text-sm text-slate-500">Your clinic overview for {today}.</p>
+        </div>
+        <Link to="/patient-queue" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+          <VisitsIcon className="h-4 w-4" />
+          Register a visit
+        </Link>
+      </header>
+
+      <section aria-label="Today's clinic summary" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Appointments today" value={stats.todaysAppointments} caption="Scheduled for today" icon={<CalendarIcon />} tone="blue" />
+        <StatCard label="Patients waiting" value={stats.waitingPatients} caption="Across the clinic queue" icon={<PatientsIcon />} tone="orange" />
+        <StatCard label="Consultations today" value={stats.consultationsToday} caption="Started or completed" icon={<VisitsIcon />} tone="green" />
+        <StatCard label="Inventory alerts" value={inventoryAlerts} caption={`${stats.lowStockCount} low stock · ${stats.outOfStockCount} out · ${stats.expiredCount} expired`} icon={<MedicineIcon />} tone={inventoryAlerts > 0 ? "red" : "purple"} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
+        <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 className="font-semibold text-slate-900">Today&apos;s appointments</h2>
+              <p className="mt-1 text-xs text-slate-500">Upcoming bookings and their current status.</p>
+            </div>
+            <Link to="/appointments" className="shrink-0 text-sm font-semibold text-blue-700 hover:underline">View all</Link>
+          </div>
+          {activeAppointments.length === 0 ? (
+            <div className="px-5 py-9 text-center">
+              <p className="text-sm font-medium text-slate-700">No appointments scheduled today.</p>
+              <p className="mt-1 text-xs text-slate-500">Walk-in patients will appear in the visit queue.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {activeAppointments.map((appointment) => {
+                const patient = appointment.patientId && typeof appointment.patientId === "object"
+                  ? appointment.patientId
+                  : null;
+                const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Patient record unavailable";
+                const appointmentTime = new Date(appointment.appointmentDate).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                });
+                return (
+                  <li key={appointment._id} className="flex items-center gap-3 px-5 py-3">
+                    <span className="w-16 shrink-0 text-sm font-semibold tabular-nums text-slate-700">{appointmentTime}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-slate-900">{patientName}</span>
+                      <span className="block truncate text-xs text-slate-500">{appointment.reason}</span>
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">
+                      {appointment.status.replaceAll("_", " ")}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-900">Needs attention</h2>
+              <p className="mt-1 text-xs text-slate-500">Items that may need follow-up.</p>
+            </div>
+            <Link to="/dashboard?view=notifications" className="text-sm font-semibold text-blue-700 hover:underline">All alerts</Link>
+          </div>
+          {alerts.length === 0 ? (
+            <div className="mt-4 rounded-lg bg-emerald-50 px-3 py-4 text-sm text-emerald-800">No current alerts need your attention.</div>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {alerts.slice(0, 4).map((alert) => (
+                <li key={dashboardAlertKey(alert)}>
+                  <Link to={alert.link} className={`flex gap-2 rounded-lg px-3 py-2.5 text-sm hover:underline ${alert.tone === "warning" ? "bg-amber-50 text-amber-900" : "bg-blue-50 text-blue-900"}`}>
+                    <span aria-hidden="true" className="font-bold">{alert.tone === "warning" ? "!" : "i"}</span>
+                    <span>{alert.message}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.7fr)]">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <PatientQueuePage embedded />
+        </div>
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold text-slate-900">Quick access</h2>
+          <p className="mt-1 text-xs text-slate-500">Go straight to a common clinic task.</p>
+          <div className="mt-4 grid gap-2">
+            <WorkspaceQuickLink to="/appointments" label="Manage appointments" detail="Review requests and scheduled visits" icon={<CalendarIcon />} />
+            <WorkspaceQuickLink to="/dashboard?view=medications" label="Medication requests" detail="Review orders and safety details" icon={<MedicineIcon />} />
+            <WorkspaceQuickLink to="/medicines" label="Check inventory" detail="Review stock and expiry alerts" icon={<CartIcon />} />
+            <WorkspaceQuickLink to="/documentation" label="Open documentation" detail="Search role-specific step-by-step guides" icon={<DocumentationIcon />} />
+            <WorkspaceQuickLink to="/reports" label="View reports" detail="Review clinic activity and summaries" icon={<ReportsIcon />} />
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function StaffDashboardContent({
+  view,
+  stats,
+  appointments,
+  alerts,
+}: {
+  view: string;
+  stats: DashboardStats;
+  appointments: Appointment[];
+  alerts: DashboardAlert[];
+}) {
+  if (view === "notifications") return <NotificationsPanel alerts={alerts} />;
+  if (view === "students") {
+    return <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"><PatientsPage embedded /></section>;
+  }
+  if (view === "appointments") return <AppointmentsPage embedded />;
+  if (view === "documentation") return <StaffDocumentationPage embedded />;
+  if (view !== "overview") {
+    return <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"><PatientQueuePage embedded /></section>;
+  }
+
+  return <StaffDashboardOverview stats={stats} appointments={appointments} alerts={alerts} />;
+}
+
+function StaffDashboardOverview({
+  stats,
+  appointments,
+  alerts,
+}: {
+  stats: DashboardStats;
+  appointments: Appointment[];
+  alerts: DashboardAlert[];
+}) {
+  const today = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-700">Staff workspace</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Welcome to your clinic desk</h1>
+          <p className="mt-1 text-sm text-slate-500">Your clinic desk at a glance for {today}.</p>
+        </div>
+        <Link to="/patient-queue" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+          <VisitsIcon className="h-4 w-4" />
+          Check in a patient
+        </Link>
+      </header>
+
+      <section aria-label="Clinic workload" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Appointments today" value={stats.todaysAppointments} caption="Scheduled for today" icon={<CalendarIcon />} tone="blue" />
+        <StatCard label="Patients waiting" value={stats.waitingPatients} caption="Currently in the clinic queue" icon={<VisitsIcon />} tone="orange" />
+        <StatCard label="Visits today" value={stats.todayVisits} caption="Clinic visits recorded" icon={<StaffIcon />} tone="green" />
+        <StatCard label="Patient records" value={stats.totalPatients} caption="Students, teachers, and staff" icon={<PatientsIcon />} tone="purple" />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
+        <StaffAppointmentPreview appointments={appointments} />
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-900">Next actions</h2>
+              <p className="mt-1 text-xs text-slate-500">Keep check-ins and appointment details moving.</p>
+            </div>
+            <Link to="/dashboard?view=notifications" className="shrink-0 text-sm font-semibold text-blue-700 hover:underline">Alerts</Link>
+          </div>
+          {alerts.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {alerts.slice(0, 2).map((alert) => (
+                <li key={dashboardAlertKey(alert)}>
+                  <Link to={alert.link} className="flex gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-900 hover:underline">
+                    <span aria-hidden="true" className="font-bold">i</span>
+                    <span>{alert.message}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-4 grid gap-2">
+            <WorkspaceQuickLink to="/patient-queue" label="Open patient visits" detail="Check in arrivals and follow the queue" icon={<VisitsIcon />} />
+            <WorkspaceQuickLink to="/appointments" label="Manage appointments" detail="Review and update scheduled visits" icon={<CalendarIcon />} />
+            <WorkspaceQuickLink to="/patients" label="Find a patient" detail="Search the basic patient directory" icon={<PatientsIcon />} />
+            <WorkspaceQuickLink to="/documentation" label="Open documentation" detail="View staff workflow guides" icon={<DocumentationIcon />} />
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function StaffAppointmentPreview({ appointments }: { appointments: Appointment[] }) {
+  const activeAppointments = appointments
+    .filter((appointment) => appointment.status !== "cancelled" && appointment.status !== "completed")
+    .slice(0, 5);
+
+  return (
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div>
+          <h2 className="font-semibold text-slate-900">Today&apos;s appointments</h2>
+          <p className="mt-1 text-xs text-slate-500">Upcoming bookings and their current status.</p>
+        </div>
+        <Link to="/appointments" className="shrink-0 text-sm font-semibold text-blue-700 hover:underline">View all</Link>
+      </div>
+      {activeAppointments.length === 0 ? (
+        <div className="px-5 py-9 text-center">
+          <p className="text-sm font-medium text-slate-700">No appointments scheduled today.</p>
+          <p className="mt-1 text-xs text-slate-500">Walk-in patients will appear in the visit queue.</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {activeAppointments.map((appointment) => {
+            const patient = appointment.patientId && typeof appointment.patientId === "object"
+              ? appointment.patientId
+              : null;
+            const name = patient ? `${patient.firstName} ${patient.lastName}` : "Patient record unavailable";
+            const time = new Date(appointment.appointmentDate).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+            return (
+              <li key={appointment._id} className="flex items-center gap-3 px-5 py-3">
+                <span className="w-16 shrink-0 text-sm font-semibold tabular-nums text-slate-700">{time}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-slate-900">{name}</span>
+                  <span className="block truncate text-xs text-slate-500">{appointment.reason}</span>
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">{appointment.status.replaceAll("_", " ")}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </article>
+  );
+}
+
+function DoctorDashboardOverview({
+  stats,
+  appointments,
+  alerts,
+  onViewPatient,
+}: {
+  stats: DashboardStats;
+  appointments: Appointment[];
+  alerts: DashboardAlert[];
+  onViewPatient: (patientId: string) => void;
+}) {
+  const today = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-700">Doctor workspace</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Doctor dashboard</h1>
+          <p className="mt-1 text-sm text-slate-500">Your care overview for {today}.</p>
+        </div>
+        <Link to="/patient-queue" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+          <VisitsIcon className="h-4 w-4" />
+          Open patient queue
+        </Link>
+      </header>
+
+      <section aria-label="Today's clinical summary" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Appointments today" value={stats.todaysAppointments} caption="Assigned to you" icon={<CalendarIcon />} tone="blue" />
+        <StatCard label="Patients waiting" value={stats.waitingPatients} caption="Ready for clinical attention" icon={<PatientsIcon />} tone="orange" />
+        <StatCard label="Consultations today" value={stats.consultationsToday} caption="Started or completed" icon={<VisitsIcon />} tone="green" />
+        <StatCard label="Emergency cases" value={stats.emergencyCasesToday} caption="Recorded today" icon={<VisitsIcon />} tone="red" />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
+        <TodayAppointments appointments={appointments} />
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-900">Needs attention</h2>
+              <p className="mt-1 text-xs text-slate-500">Queue updates and appointment activity.</p>
+            </div>
+            <Link to="/dashboard?tab=notifications" className="shrink-0 text-sm font-semibold text-blue-700 hover:underline">Notifications</Link>
+          </div>
+          {alerts.length === 0 ? (
+            <div className="mt-4 rounded-lg bg-emerald-50 px-3 py-4 text-sm text-emerald-800">No current items need your attention.</div>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {alerts.slice(0, 4).map((alert) => (
+                <li key={dashboardAlertKey(alert)}>
+                  <Link to={alert.link} className="flex gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-900 hover:underline">
+                    <span aria-hidden="true" className="font-bold">i</span>
+                    <span>{alert.message}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4">
+            <WorkspaceQuickLink to="/clinical-workspace" label="Clinical care" detail="Open records, visits, and follow-ups" icon={<PatientsIcon />} />
+            <WorkspaceQuickLink to="/analytics" label="Clinic analytics" detail="Review clinic trends and outcomes" icon={<ReportsIcon />} />
+          </div>
+        </article>
+      </section>
+
+      <RecentCases cases={stats.recentCases} title="Recent Consultations" onViewPatient={onViewPatient} />
+    </div>
+  );
+}
+
+function WorkspaceQuickLink({
+  to,
+  label,
+  detail,
+  icon,
+}: {
+  to: string;
+  label: string;
+  detail: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link to={to} className="group flex items-center gap-3 rounded-lg border border-slate-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50/60">
+      <span className="rounded-lg bg-blue-50 p-2 text-blue-700 group-hover:bg-white">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-slate-800">{label}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">{detail}</span>
+      </span>
+      <span aria-hidden="true" className="text-slate-400 group-hover:text-blue-700">›</span>
+    </Link>
+  );
+}
+
 function RoleWorkspaceTabs({
   role,
   unreadCount,
@@ -284,7 +722,7 @@ function RoleWorkspaceTabs({
 }: {
   role: string | null;
   unreadCount: number;
-  activeView: "students" | "records" | "visits" | "appointments" | "inventory" | "inventory-labels" | "medications" | "purchase-requests" | "reports" | "settings" | "notifications";
+  activeView: "overview" | "students" | "records" | "visits" | "appointments" | "inventory" | "inventory-labels" | "medications" | "purchase-requests" | "reports" | "documentation" | "settings" | "notifications";
   onOpenSettings: () => void;
   onOpenNotifications: () => void;
 }) {
@@ -327,6 +765,17 @@ function RoleWorkspaceTabs({
             Reports
           </Link>
         )}
+        <Link
+          to="/dashboard?view=documentation"
+          aria-current={activeView === "documentation" ? "page" : undefined}
+          className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+            activeView === "documentation"
+              ? "border-blue-600 bg-blue-50/70 text-blue-700"
+              : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+          }`}
+        >
+          Documentation
+        </Link>
         <button
           type="button"
           onClick={onOpenNotifications}
@@ -634,6 +1083,79 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
     }
   };
 
+  const appointmentRows = activeAppointments.map((appointment) => {
+    const effectiveStatus = confirmedIds.includes(appointment._id) ? "confirmed" : appointment.status;
+    const student = appointment.patientId && typeof appointment.patientId === "object"
+      ? appointment.patientId as Patient
+      : null;
+    const linkedVisit = appointment.visitId && typeof appointment.visitId === "object"
+      ? appointment.visitId
+      : null;
+
+    return {
+      appointment,
+      effectiveStatus,
+      student,
+      awaitingNurse: effectiveStatus !== "pending" &&
+        (!appointment.visitId || (linkedVisit && !linkedVisit.readyForDoctor)),
+      time: new Date(appointment.appointmentDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      patientName: student ? `${student.firstName} ${student.lastName}` : "Unknown patient",
+      patientId: student ? `${patientIdentifier(student)} · ${patientTypeLabel(student)}` : "—",
+      statusClass: effectiveStatus === "confirmed"
+        ? "bg-emerald-100 text-emerald-700"
+        : effectiveStatus === "checked_in"
+          ? "bg-violet-100 text-violet-700"
+          : "bg-amber-100 text-amber-700",
+    };
+  });
+
+  const renderAppointmentActions = (row: (typeof appointmentRows)[number]) => {
+    const { appointment, effectiveStatus, awaitingNurse, student } = row;
+    if (effectiveStatus === "pending") {
+      return (
+        <div className="flex flex-col gap-2 min-[420px]:flex-row">
+          <button
+            type="button"
+            onClick={() => confirmAppointment(appointment)}
+            disabled={confirmingId === appointment._id || declining}
+            className="min-h-11 rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-50"
+          >
+            {confirmingId === appointment._id ? "Confirming..." : "Confirm Appointment"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDeclineTarget(appointment);
+              setDeclineReason("");
+              setDeclineError("");
+            }}
+            disabled={Boolean(confirmingId) || declining}
+            className="min-h-11 rounded-lg border border-rose-200 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+          >
+            Decline
+          </button>
+        </div>
+      );
+    }
+    if (awaitingNurse) {
+      return (
+        <span className="text-xs font-medium text-amber-700">
+          {!appointment.visitId ? "Awaiting nurse check-in" : "Awaiting nurse triage"}
+        </span>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => startConsultation(appointment, student)}
+        disabled={startingId === appointment._id}
+        className="min-h-11 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50"
+      >
+        {startingId === appointment._id ? "Starting..." : "Start Consultation"}
+      </button>
+    );
+  };
+
   return (
     <>
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -646,8 +1168,29 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
       {activeAppointments.length === 0 ? (
         <p className="py-10 text-center text-sm text-gray-500">No appointments scheduled for today.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+        <>
+        <div className="space-y-3 p-4 2xl:hidden">
+          {appointmentRows.map((row) => (
+            <article key={row.appointment._id} className="space-y-3 rounded-lg border border-slate-200 p-3 sm:p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{row.patientName}</p>
+                  <p className="mt-0.5 font-mono text-xs text-slate-500">{row.patientId}</p>
+                </div>
+                <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-700">{row.time}</span>
+              </div>
+              <p className="text-sm text-slate-700">{row.appointment.reason}</p>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${row.statusClass}`}>
+                  {row.effectiveStatus.replaceAll("_", " ")}
+                </span>
+                {renderAppointmentActions(row)}
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto 2xl:block">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-5 py-3">Time</th>
@@ -742,6 +1285,7 @@ function TodayAppointments({ appointments }: { appointments: Appointment[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
     {declineTarget && (
@@ -826,7 +1370,7 @@ function RecentCases({
         <p className="py-10 text-center text-sm text-gray-500">No clinic cases recorded yet.</p>
       ) : (
         <>
-          <div className="divide-y md:hidden">
+          <div className="divide-y 2xl:hidden">
             {cases.map((caseItem) => (
               <article key={caseItem.id} className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -853,7 +1397,7 @@ function RecentCases({
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-x-auto 2xl:block">
             <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                 <tr>

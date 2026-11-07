@@ -106,7 +106,7 @@ export function useDashboardData(role: UserRole | null, userId?: string) {
   }, [role]);
 
   useEffect(() => {
-    if (role !== "doctor" && role !== "nurse") {
+    if (role !== "doctor" && role !== "nurse" && role !== "staff") {
       setTodayAppointments([]);
       return;
     }

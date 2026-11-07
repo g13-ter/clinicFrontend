@@ -228,10 +228,18 @@ export const roleWorkspaces: Record<
       "Consultation and physician care.",
 
     description:
-      "Doctors manage appointments and patient care, with clinic trends available in a dedicated Analytics tab.",
+      "Doctors manage appointments and patient care, with clinic trends available in a dedicated Analytics section.",
 
-    // Doctor has no sidebar in landing preview
-    navigation: [],
+    navigation: [
+      "Dashboard",
+      "Clinical Care",
+      "Patient Visits",
+      "Patients",
+      "Appointments",
+      "Reports",
+      "Analytics",
+      "Documentation",
+    ],
 
     pages: [
       "Dashboard",
@@ -254,7 +262,28 @@ export const roleWorkspaces: Record<
       "Notifications",
     ],
 
-    metrics: [],
+    metrics: [
+      [
+        "3",
+        "Appointments Today",
+        "Assigned to you",
+      ],
+      [
+        "2",
+        "Patients Waiting",
+        "Ready for clinical attention",
+      ],
+      [
+        "2",
+        "Consultations Today",
+        "Started or completed",
+      ],
+      [
+        "0",
+        "Emergency Cases",
+        "Recorded today",
+      ],
+    ],
 
     icon: <VisitsIcon />,
   },
@@ -274,8 +303,20 @@ export const roleWorkspaces: Record<
     description:
       "Nurses review clinic analytics, manage patient records and visits, record triage and vitals, manage appointments and inventory, handle medication requests, and generate reports.",
 
-    // Nurse has no sidebar in landing preview
-    navigation: [],
+    navigation: [
+      "Dashboard",
+      "Patients",
+      "Patient Visits",
+      "Appointments",
+      "Inventory",
+      "Manage Labels",
+      "Medication Requests",
+      "Purchase Requests",
+      "Reports",
+      "Analytics",
+      "Documentation",
+      "Settings",
+    ],
 
     pages: [
       "Dashboard",
@@ -318,8 +359,8 @@ export const roleWorkspaces: Record<
       ],
       [
         "0",
-        "Emergency Cases",
-        "Recorded today",
+        "Inventory Alerts",
+        "Low stock, out of stock, and expired",
       ],
     ],
 
@@ -341,8 +382,13 @@ export const roleWorkspaces: Record<
     description:
       "Staff maintain basic patient information, schedule appointments, check in patients, and monitor visit progress without access to Analytics or Reports.",
 
-    // Staff has no sidebar in landing preview
-    navigation: [],
+    navigation: [
+      "Dashboard",
+      "Patient Visits",
+      "Patients",
+      "Appointments",
+      "Documentation",
+    ],
 
     pages: [
       "Dashboard",
@@ -361,24 +407,24 @@ export const roleWorkspaces: Record<
 
     metrics: [
       [
-        "18",
-        "Total Patients",
-        "18 students · 0 teachers · 0 staff",
+        "3",
+        "Appointments Today",
+        "Scheduled today",
+      ],
+      [
+        "2",
+        "Patients Waiting",
+        "Currently in the clinic queue",
       ],
       [
         "4",
         "Visits Today",
-        "Recorded today",
+        "Clinic visits recorded",
       ],
       [
-        "3",
-        "Patients Waiting",
-        "All patient types in the clinic queue",
-      ],
-      [
-        "64",
-        "Pending Appointments",
-        "Awaiting confirmation",
+        "18",
+        "Patient Records",
+        "Students, teachers, and staff",
       ],
     ],
 

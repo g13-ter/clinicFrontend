@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Layout from "../layout/Layout";
 import { api } from "../services/api";
 import type { ClinicScheduleDay, SystemSettings } from "../utils/types";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useAuth } from "../hooks/useAuth";
 import { getSavedAnalyticsFilter, saveAnalyticsFilter, type AnalyticsFilterPreference, type AnalyticsPeriod } from "../utils/analyticsFilter";
+import ProfilePage from "./ProfilePage";
 
 const defaultSettings: SystemSettings = {
   schoolYear: "",
@@ -30,6 +31,9 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 function SettingsPage({ embedded = false }: { embedded?: boolean }) {
   const { role } = useAuth();
   const isNurse = role === "nurse";
+  const isSuperAdmin = role === "superadmin";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const adminTab = searchParams.get("tab") === "profile" ? "profile" : "system";
   const [settings, setSettings] = useState<SystemSettings>(defaultSettings);
   const [analyticsFilter, setAnalyticsFilter] = useState(getSavedAnalyticsFilter);
   const [nurseTab, setNurseTab] = useState<"analytics" | "clinic">("analytics");
@@ -58,6 +62,15 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
 
   const update = <K extends keyof SystemSettings>(key: K, value: SystemSettings[K]) => {
     setSettings((current) => ({ ...current, [key]: value }));
+    setSuccess("");
+  };
+
+  const selectAdminTab = (tab: "system" | "profile") => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === "profile") next.set("tab", "profile");
+    else next.delete("tab");
+    setSearchParams(next, { replace: true });
+    setError("");
     setSuccess("");
   };
 
@@ -145,9 +158,38 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
     <>
       <div className="mx-auto max-w-4xl space-y-5">
         <div>
-          <p className="text-sm text-gray-500">{isNurse ? "Nurse workspace" : "Administration"}</p>
-          <h2 className="mt-1 text-2xl font-bold text-gray-900">{isNurse ? "Nurse Settings" : "System Settings"}</h2>
+          <p className="text-sm text-gray-500">
+            {isNurse ? "Nurse workspace" : adminTab === "profile" ? "Personal account" : "Administration"}
+          </p>
+          <h2 className="mt-1 text-2xl font-bold text-gray-900">{isNurse ? "Nurse Settings" : "Settings"}</h2>
         </div>
+
+        {!isNurse && (
+          <div className="flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Settings sections">
+            <button
+              id="settings-system-tab"
+              type="button"
+              role="tab"
+              aria-controls="settings-system-panel"
+              aria-selected={adminTab === "system"}
+              onClick={() => selectAdminTab("system")}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition ${adminTab === "system" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              System Settings
+            </button>
+            <button
+              id="settings-profile-tab"
+              type="button"
+              role="tab"
+              aria-controls="settings-profile-panel"
+              aria-selected={adminTab === "profile"}
+              onClick={() => selectAdminTab("profile")}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition ${adminTab === "profile" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              My Profile &amp; Security
+            </button>
+          </div>
+        )}
 
         {isNurse && (
           <div className="flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Nurse settings">
@@ -172,10 +214,20 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        {loading ? (
-          <div className="h-80 animate-pulse rounded-xl bg-white shadow-sm" />
+        {!isNurse && adminTab === "profile" ? (
+          <div id="settings-profile-panel" role="tabpanel" aria-labelledby="settings-profile-tab">
+            <ProfilePage embedded />
+          </div>
         ) : (
-          <form onSubmit={save} className="space-y-4">
+          <div
+            id={!isNurse ? "settings-system-panel" : undefined}
+            role={!isNurse ? "tabpanel" : undefined}
+            aria-labelledby={!isNurse ? "settings-system-tab" : undefined}
+          >
+            {loading ? (
+              <div className="h-80 animate-pulse rounded-xl bg-white shadow-sm" />
+            ) : (
+              <form onSubmit={save} className="space-y-4">
             {isNurse && nurseTab === "analytics" && <SettingsSection
               id="analytics-filter"
               title="Analytics Filters"
@@ -232,6 +284,33 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
                 >
                   {advancing ? "Processing..." : "Run School-Year Rollover"}
                 </button>
+              </div>
+            </SettingsSection>}
+
+            {!isNurse && <SettingsSection
+              id="notification-settings"
+              title="System-wide Notifications"
+              description="Control scheduled appointment reminder emails and low-stock alerts. Changes are recorded in the audit log."
+            >
+              <div className="space-y-3">
+                <SettingsToggle
+                  title="Email notifications"
+                  description="Master switch for scheduled appointment reminder emails. Turning this off pauses new reminders; other transactional email workflows are unaffected."
+                  checked={settings.emailNotificationsEnabled}
+                  onChange={(checked) => update("emailNotificationsEnabled", checked)}
+                />
+                <SettingsToggle
+                  title="Appointment reminders"
+                  description="Queue email reminders for upcoming appointments. Email notifications must also be enabled."
+                  checked={settings.appointmentRemindersEnabled}
+                  onChange={(checked) => update("appointmentRemindersEnabled", checked)}
+                />
+                <SettingsToggle
+                  title="Low-stock email alerts"
+                  description="Notify active Admin accounts when a medicine changes to Low Stock, Out of Stock, or Expired. Turning this off prevents new alert emails; alerts already queued may still be delivered."
+                  checked={settings.stockAlertsEnabled}
+                  onChange={(checked) => update("stockAlertsEnabled", checked)}
+                />
               </div>
             </SettingsSection>}
 
@@ -302,16 +381,19 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
 
             {!isNurse && <SettingsSection
               id="administration-tools"
-              title="Administration Tools"
-              description="Quick access to account management, approvals, security activity, and your administrator profile."
+              title={isSuperAdmin ? "Super Admin Tools" : "Administration Tools"}
+              description={isSuperAdmin
+                ? "Quick access to privileged account management, role guidance, and security activity."
+                : "Quick access to account management, approvals, and security activity."}
             >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <AdminToolLink to="/dashboard?section=management" title="User Management" description="Manage patients and clinic staff accounts." />
+                <AdminToolLink to={isSuperAdmin ? "/users" : "/dashboard?section=management"} title="User Management" description="Manage clinic and administrative accounts." />
                 {role === "admin" && (
                   <AdminToolLink to="/dashboard?section=purchase-requests" title="Purchase Requests" description="Review and process medicine requests." />
                 )}
                 <AdminToolLink to="/audit-log" title="Audit Logs" description="Review administrative and security activity." />
-                <AdminToolLink to="/profile" title="Profile & Security" description="Update your name, email, and password." />
+                {isSuperAdmin && <AdminToolLink to="/roles-permissions" title="Roles & Permissions" description="Review the capabilities enforced for each role." />}
+                <AdminToolLink to="/documentation" title="Documentation" description="Search step-by-step guides for your role." />
               </div>
             </SettingsSection>}
 
@@ -324,7 +406,9 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
             >
               {saving ? "Saving..." : isNurse && nurseTab === "analytics" ? "Save Analytics Filter" : isNurse ? "Save Clinic Information" : "Save Settings"}
             </button>
-          </form>
+              </form>
+            )}
+          </div>
         )}
       </div>
       {showRolloverConfirm && (
@@ -367,6 +451,33 @@ function SettingsSection({
       <p className="mt-1 text-sm text-gray-500">{description}</p>
       <div className="mt-5">{children}</div>
     </section>
+  );
+}
+
+function SettingsToggle({
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-gray-200 p-4 hover:bg-gray-50">
+      <span>
+        <span className="block text-sm font-medium text-gray-900">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-gray-500">{description}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+      />
+    </label>
   );
 }
 

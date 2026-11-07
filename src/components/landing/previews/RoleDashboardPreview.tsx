@@ -1,13 +1,18 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { BrandLogo } from "../../BrandLogo";
 
 import {
   AuditIcon,
+  BellIcon,
   CalendarIcon,
+  CartIcon,
   DashboardIcon,
+  DocumentationIcon,
+  MedicineIcon,
   PatientsIcon,
   ProfileIcon,
+  ReportsIcon,
   SettingsIcon,
   StaffIcon,
   VisitsIcon,
@@ -15,8 +20,6 @@ import {
 
 import type { ClinicRole } from "../../../data/landingData";
 import { roleWorkspaces } from "../../../data/landingData";
-
-import RoleAnalyticsPreview from "./RoleAnalyticsPreview";
 
 import {
   RoleAdminContent,
@@ -60,43 +63,19 @@ export default function RoleDashboardPreview({
 
   const [name, email] = users[role];
 
-  /*
-    Based on the actual dashboard layouts:
-
-    Admin  = has sidebar
-    Doctor = no sidebar
-    Nurse  = no sidebar
-    Staff  = no sidebar
-  */
-  const hasSidebar = role === "admin";
-
   return (
     <article className="relative overflow-hidden rounded-[24px] border border-white bg-[#f8fafc] text-slate-950 shadow-[0_28px_70px_rgba(30,64,175,0.16)] ring-1 ring-blue-100/80">
       {/* TOP BAR */}
       <PreviewHeader
         name={name}
         email={email}
+        showNotifications={role === "doctor" || role === "nurse" || role === "staff"}
       />
 
-      {/* ADMIN */}
-      {hasSidebar ? (
-        <div className="grid h-[545px] overflow-hidden sm:grid-cols-[128px_1fr]">
-          <AdminSidebar
-            navigation={workspace.navigation}
-          />
-
-          <RoleDashboardBody
-            role={role}
-          />
-        </div>
-      ) : (
-        /* DOCTOR / NURSE / STAFF */
-        <div className="h-[545px] overflow-hidden">
-          <RoleDashboardBody
-            role={role}
-          />
-        </div>
-      )}
+      <div className="grid h-[545px] overflow-hidden sm:grid-cols-[128px_1fr]">
+        <RoleSidebar role={role} navigation={workspace.navigation} />
+        <RoleDashboardBody role={role} />
+      </div>
     </article>
   );
 }
@@ -108,9 +87,11 @@ export default function RoleDashboardPreview({
 function PreviewHeader({
   name,
   email,
+  showNotifications,
 }: {
   name: string;
   email: string;
+  showNotifications: boolean;
 }) {
   return (
     <div className="flex h-14 items-center border-b border-slate-200 bg-white px-4 sm:h-16 sm:px-5">
@@ -130,6 +111,13 @@ function PreviewHeader({
           ⌕
         </span>
       </div>
+
+      {showNotifications && (
+        <span className="relative ml-auto mr-1 rounded-md border border-slate-200 p-1.5 text-slate-600 [&>svg]:h-4 [&>svg]:w-4">
+          <BellIcon />
+          <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 text-[6px] font-bold text-white">3</span>
+        </span>
+      )}
 
       {/* USER INFO */}
       <div className="ml-3 text-right">
@@ -151,46 +139,57 @@ function PreviewHeader({
 }
 
 /* =========================================================
-   ADMIN SIDEBAR
-
-   Admin navigation:
-   - Dashboard
-   - Audit Logs
-   - Settings
-   - Profile
+   ROLE SIDEBAR
 ========================================================= */
 
-function AdminSidebar({
+function RoleSidebar({
+  role,
   navigation,
 }: {
+  role: ClinicRole;
   navigation: string[];
 }) {
+  const groups: { label?: string; items: string[] }[] = role === "nurse"
+    ? [
+      { items: ["Dashboard"] },
+      { label: "Care & visits", items: ["Patient Visits", "Patients", "Appointments", "Medication Requests"] },
+      { label: "Inventory & supplies", items: ["Inventory", "Manage Labels", "Purchase Requests"] },
+      { label: "Insights", items: ["Analytics", "Reports"] },
+      { label: "Resources", items: ["Documentation", "Settings"] },
+    ]
+    : role === "doctor"
+      ? [
+        { items: ["Dashboard"] },
+        { label: "Care & visits", items: ["Clinical Care", "Patient Visits", "Patients", "Appointments"] },
+        { label: "Insights", items: ["Analytics", "Reports"] },
+        { label: "Resources", items: ["Documentation"] },
+      ]
+      : role === "staff"
+        ? [{ items: navigation }]
+        : [{ items: navigation }];
+
   return (
-    <aside className="hidden border-r border-slate-200 bg-white p-3 sm:block">
+    <aside className="hidden overflow-y-auto border-r border-slate-200 bg-white p-3 sm:block">
       <p className="px-2 py-2 text-[7px] font-medium uppercase tracking-[0.1em] text-slate-400">
-        Navigation
+        {role} workspace
       </p>
 
-      {navigation.map(
-        (item, index) => (
-          <div
-            key={item}
-            className={`mt-1 flex items-center gap-2 rounded-md px-2.5 py-2 text-[8px] font-medium ${
-              index === 0
-                ? "bg-blue-600 text-white"
-                : "text-slate-600"
-            }`}
-          >
-            <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">
-              {previewNavigationIcon(
-                item,
-              )}
-            </span>
-
-            {item}
-          </div>
-        ),
-      )}
+      {groups.map((group, groupIndex) => (
+        <div key={group.label ?? `group-${groupIndex}`} className="mt-2">
+          {group.label && <p className="px-2 py-1 text-[6px] font-semibold uppercase tracking-[0.08em] text-slate-400">{group.label}</p>}
+          {group.items.map((item) => (
+            <div
+              key={item}
+              className={`mt-1 flex items-center gap-2 rounded-md px-2.5 py-2 text-[8px] font-medium ${
+                item === "Dashboard" ? "bg-blue-600 text-white" : "text-slate-600"
+              }`}
+            >
+              <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{previewNavigationIcon(item)}</span>
+              {item}
+            </div>
+          ))}
+        </div>
+      ))}
     </aside>
   );
 }
@@ -206,22 +205,6 @@ function RoleDashboardBody({
 }) {
   const workspace =
     roleWorkspaces[role];
-  const [doctorPreviewTab, setDoctorPreviewTab] = useState<"Appointments" | "Analytics">("Appointments");
-
-  /*
-    Active dashboard tab based on screenshots.
-
-    Admin  = Management
-    Doctor = Appointments
-    Nurse  = Patient Visits
-    Staff  = Patient Visits
-  */
-  const activeTab =
-    role === "staff"
-      ? 1
-      : role === "nurse"
-        ? 1
-        : 0;
 
   const metricIcons =
     getMetricIcons(role);
@@ -235,18 +218,6 @@ function RoleDashboardBody({
       <h3 className="text-[15px] font-medium tracking-tight sm:text-[18px]">
         {workspace.eyebrow}
       </h3>
-
-      {/* =================================================
-          ANALYTICS
-
-          Doctor = on the Analytics tab
-          Nurse  = yes
-          Admin  = no
-          Staff  = no
-      ================================================= */}
-      {role === "nurse" && (
-        <RoleAnalyticsPreview />
-      )}
 
       {/* =================================================
           METRIC CARDS
@@ -286,45 +257,6 @@ function RoleDashboardBody({
       )}
 
       {/* =================================================
-          ROLE TABS
-      ================================================= */}
-      <div className="mt-3 flex overflow-x-auto rounded-lg border border-slate-200 bg-white text-[7px] font-medium text-slate-600 sm:text-[8px]">
-        {workspace.features.map(
-          (
-            feature,
-            index,
-          ) => (
-            role === "doctor" && (feature === "Appointments" || feature === "Analytics") ? (
-              <button
-                key={feature}
-                type="button"
-                onClick={() => setDoctorPreviewTab(feature)}
-                aria-pressed={doctorPreviewTab === feature}
-                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 sm:px-4 ${
-                  doctorPreviewTab === feature
-                    ? "border-b-2 border-blue-600 bg-blue-50/50 text-blue-600"
-                    : ""
-                }`}
-              >
-                {feature}
-              </button>
-            ) : (
-              <span
-                key={feature}
-                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 sm:px-4 ${
-                  role !== "doctor" && index === activeTab
-                    ? "border-b-2 border-blue-600 bg-blue-50/50 text-blue-600"
-                    : ""
-                }`}
-              >
-                {feature}
-              </span>
-            )
-          ),
-        )}
-      </div>
-
-      {/* =================================================
           ROLE-SPECIFIC CONTENT
       ================================================= */}
 
@@ -332,11 +264,7 @@ function RoleDashboardBody({
         <RoleAdminContent />
       )}
 
-      {role === "doctor" && doctorPreviewTab === "Analytics" && (
-        <RoleAnalyticsPreview />
-      )}
-
-      {role === "doctor" && doctorPreviewTab === "Appointments" && (
+      {role === "doctor" && (
         <RoleDoctorContent />
       )}
 
@@ -443,13 +371,22 @@ function getMetricIcons(
   /* STAFF */
   if (role === "staff") {
     return [
-      <PatientsIcon key="patients" />,
-
-      <VisitsIcon key="visits" />,
-
-      <StaffIcon key="waiting" />,
-
       <CalendarIcon key="appointments" />,
+
+      <VisitsIcon key="waiting" />,
+
+      <StaffIcon key="visits" />,
+
+      <PatientsIcon key="patients" />,
+    ];
+  }
+
+  if (role === "doctor") {
+    return [
+      <CalendarIcon key="appointments" />,
+      <PatientsIcon key="patients" />,
+      <VisitsIcon key="consultations" />,
+      <VisitsIcon key="emergency" />,
     ];
   }
 
@@ -461,7 +398,7 @@ function getMetricIcons(
 
     <VisitsIcon key="consultations" />,
 
-    <VisitsIcon key="emergency" />,
+    <MedicineIcon key="inventory" />,
   ];
 }
 
@@ -484,9 +421,9 @@ function getMetricTones(
   if (role === "staff") {
     return [
       "blue",
+      "orange",
       "green",
       "purple",
-      "orange",
     ];
   }
 
@@ -519,6 +456,38 @@ function previewNavigationIcon(
 
   if (item === "Settings") {
     return <SettingsIcon />;
+  }
+
+  if (item === "Clinical Care" || item === "Patient Visits") {
+    return <VisitsIcon />;
+  }
+
+  if (item === "Patients" || item === "Patient Records") {
+    return <PatientsIcon />;
+  }
+
+  if (item === "Appointments") {
+    return <CalendarIcon />;
+  }
+
+  if (item === "Inventory" || item === "Manage Labels" || item === "Medication Requests") {
+    return <MedicineIcon />;
+  }
+
+  if (item === "Purchase Requests") {
+    return <CartIcon />;
+  }
+
+  if (item === "Reports" || item === "Analytics") {
+    return <ReportsIcon />;
+  }
+
+  if (item === "Notifications") {
+    return <BellIcon />;
+  }
+
+  if (item === "Documentation") {
+    return <DocumentationIcon />;
   }
 
   if (item === "Profile") {

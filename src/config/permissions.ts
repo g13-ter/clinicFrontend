@@ -16,6 +16,7 @@ export const ROUTE_ACCESS: Record<string, readonly UserRole[]> = {
   "/purchase-requests": ["admin", "nurse"],
   "/users": ["admin", "superadmin"],
   "/roles-permissions": ["superadmin"],
+  "/documentation": ["admin", "doctor", "nurse", "staff", "superadmin"],
   "/reports": ["doctor", "nurse"],
   "/audit-log": ["admin", "superadmin"],
   "/settings": ["nurse", "admin", "superadmin"],
@@ -36,8 +37,8 @@ export const NAV_ITEMS: { to: string; label: string; roles: readonly UserRole[] 
   { to: "/roles-permissions", label: "Roles & Permissions", roles: ROUTE_ACCESS["/roles-permissions"] },
   { to: "/reports", label: "Reports", roles: ROUTE_ACCESS["/reports"] },
   { to: "/audit-log", label: "Audit Logs", roles: ROUTE_ACCESS["/audit-log"] },
+  { to: "/documentation", label: "Documentation", roles: ROUTE_ACCESS["/documentation"] },
   { to: "/settings", label: "Settings", roles: ROUTE_ACCESS["/settings"] },
-  { to: "/profile", label: "Profile", roles: ROUTE_ACCESS["/profile"] },
 ];
 
 /** UI capabilities derived from the backend RBAC model. */

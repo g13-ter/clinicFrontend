@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../../services/api";
 import type { InAppNotification } from "../../utils/types";
 
@@ -7,16 +7,40 @@ interface NotificationResponse {
   unreadCount: number;
 }
 
+export interface InAppNotificationsState {
+  items: InAppNotification[];
+  unreadCount: number;
+  error: string;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
+}
+
+const InAppNotificationsContext = createContext<InAppNotificationsState | null>(null);
+
+export function InAppNotificationsProvider({
+  value,
+  children,
+}: {
+  value: InAppNotificationsState;
+  children: ReactNode;
+}) {
+  return createElement(InAppNotificationsContext.Provider, { value }, children);
+}
+
 const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
 
 export function useInAppNotifications(enabled: boolean) {
+  const sharedState = useContext(InAppNotificationsContext);
+  const localEnabled = enabled && !sharedState;
   const [items, setItems] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(enabled);
+  const [loading, setLoading] = useState(localEnabled);
 
   const refresh = useCallback(async () => {
-    if (!enabled) return;
+    if (!localEnabled) return;
     try {
       const response = await api.get<NotificationResponse>("/notifications?limit=100");
       setItems(response.data.items);
@@ -27,10 +51,10 @@ export function useInAppNotifications(enabled: boolean) {
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, [localEnabled]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!localEnabled) {
       setItems([]);
       setUnreadCount(0);
       setError("");
@@ -48,7 +72,7 @@ export function useInAppNotifications(enabled: boolean) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [enabled, refresh]);
+  }, [localEnabled, refresh]);
 
   const markRead = async (id: string) => {
     const readAt = new Date().toISOString();
@@ -72,5 +96,6 @@ export function useInAppNotifications(enabled: boolean) {
     }
   };
 
-  return { items, unreadCount, error, loading, refresh, markRead, markAllRead };
+  const localState = { items, unreadCount, error, loading, refresh, markRead, markAllRead };
+  return enabled && sharedState ? sharedState : localState;
 }

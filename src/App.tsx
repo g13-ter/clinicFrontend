@@ -1,8 +1,11 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ROUTE_ACCESS, USER_ROLES } from "./config/permissions";
+import { useAuth } from "./hooks/useAuth";
+import { InAppNotificationsProvider, useInAppNotifications } from "./features/notifications/useInAppNotifications";
+import { UserProfileProvider } from "./features/profile/UserProfileProvider";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
@@ -19,7 +22,7 @@ const ClinicalWorkspacePage = lazy(() => import("./pages/ClinicalWorkspacePage")
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
-const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const DocumentationPage = lazy(() => import("./pages/DocumentationPage"));
 const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const TemporaryInfoPage = lazy(() => import("./pages/TemporaryInfoPage"));
@@ -40,8 +43,23 @@ function PageLoader() {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
+      <AppContent />
+    </BrowserRouter>
+  );
+}
+
+function AppContent() {
+  const { role, user } = useAuth();
+  const { pathname } = useLocation();
+  const notifications = useInAppNotifications(
+    pathname !== "/login" && pathname !== "/change-password" && (role === "nurse" || role === "doctor"),
+  );
+
+  return (
+    <InAppNotificationsProvider value={notifications}>
+      <UserProfileProvider userId={user?.id ?? null}>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/change-password" element={<ProtectedRoute roles={USER_ROLES}><ChangePasswordPage /></ProtectedRoute>} />
@@ -189,6 +207,14 @@ function App() {
           }
         />
         <Route
+          path="/documentation"
+          element={
+            <ProtectedRoute roles={ROUTE_ACCESS["/documentation"]}>
+              <DocumentationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/reports"
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/reports"]}>
@@ -216,7 +242,7 @@ function App() {
           path="/profile"
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/profile"]}>
-              <ProfilePage />
+              <Navigate to="/settings?tab=profile" replace />
             </ProtectedRoute>
           }
         />
@@ -228,9 +254,10 @@ function App() {
               </ProtectedRoute>
             }
           />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+          </Routes>
+        </Suspense>
+      </UserProfileProvider>
+    </InAppNotificationsProvider>
   );
 }
 

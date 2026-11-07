@@ -154,7 +154,8 @@
     image-rendering: auto;
   }
 
-  .landing-role-preview {
+  .landing-role-preview,
+  .landing-role-details {
     animation: landing-role-preview-enter 200ms ease-out;
     will-change: opacity;
   }

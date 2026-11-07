@@ -299,7 +299,62 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : (
-        <div className="overflow-x-auto rounded bg-white shadow">
+        <>
+        <div className="space-y-3 2xl:hidden">
+          {requests.length === 0 ? (
+            <p className="rounded-xl border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-400 shadow-sm">No purchase requests found.</p>
+          ) : requests.map((r) => (
+            <article key={r._id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="break-words font-semibold text-gray-900">{r.itemName}</h3>
+                  <p className="mt-1 text-sm text-gray-500">{r.quantityRequested} {r.unit ?? ""}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${statusColor[r.status]}`}>
+                  {r.status}
+                </span>
+              </div>
+              <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+                <div>
+                  <dt className="text-xs text-gray-500">Request type</dt>
+                  <dd className="mt-0.5 text-gray-800">{r.requestType === "new_item" ? "New item" : "Restock"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-gray-500">Requested by</dt>
+                  <dd className="mt-0.5 break-words text-gray-800">{displayName(r.requestedBy)}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-xs text-gray-500">Reason</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap break-words text-gray-700">{r.reason}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-xs text-gray-500">Reviewed by</dt>
+                  <dd className="mt-0.5 break-words text-gray-700">{displayName(r.reviewedBy)}</dd>
+                </div>
+              </dl>
+              {(canReview || canSubmit) && (
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                  {canReview && r.status === "pending" ? (
+                    <>
+                      <button type="button" onClick={() => openReview(r)} className="min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Review</button>
+                      <button type="button" onClick={() => openOperation("cancel", r)} className="min-h-11 rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Cancel</button>
+                    </>
+                  ) : canReview && (r.status === "approved" || r.status === "ordered") ? (
+                    <>
+                      {r.status === "approved" && <button type="button" onClick={() => openOperation("order", r)} className="min-h-11 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">Mark Ordered</button>}
+                      <button type="button" onClick={() => openOperation("cancel", r)} className="min-h-11 rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Cancel</button>
+                    </>
+                  ) : canSubmit && (r.status === "approved" || r.status === "ordered") ? (
+                    <button type="button" onClick={() => openOperation("receive", r)} className="min-h-11 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800">Receive Delivery</button>
+                  ) : (
+                    <span className="py-3 text-sm text-gray-400">No action available</span>
+                  )}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto rounded bg-white shadow 2xl:block">
           <table className="min-w-[900px] w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
@@ -377,6 +432,7 @@ function PurchaseRequestsPage({ embedded = false }: { embedded?: boolean }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {!loading && totalPages > 1 && (

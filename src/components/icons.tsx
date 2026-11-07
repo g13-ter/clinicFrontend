@@ -71,6 +71,15 @@ export function AuditIcon({ className = "w-5 h-5" }: IconProps) {
   );
 }
 
+export function DocumentationIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
+      <path d="M6 3.5h9L19 8v12.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1Z" />
+      <path d="M14 3.5V8h5M8 12h8M8 15.5h8M8 19h5" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className = "w-5 h-5" }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>

@@ -3,6 +3,13 @@ import { roleWorkspaces } from "../../data/landingData";
 
 import RoleDashboardPreview from "./previews/RoleDashboardPreview";
 
+const roleHighlights: Record<ClinicRole, readonly string[]> = {
+  admin: ["Administrative access", "Key changes are recorded"],
+  doctor: ["Shared clinical history", "Care changes are recorded"],
+  nurse: ["Shared clinical history", "Care changes are recorded"],
+  staff: ["Patient intake and scheduling", "Key changes are recorded"],
+};
+
 type RoleShowcaseProps = {
   activeRole: ClinicRole;
   onChange: (role: ClinicRole) => void;
@@ -74,48 +81,42 @@ export default function RoleShowcase({
             })}
           </div>
 
-          {/* ROLE DESCRIPTION */}
-          <div className="mt-7 min-h-[21rem] rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm backdrop-blur-sm sm:min-h-[15rem] lg:min-h-[18rem] xl:min-h-[15rem]">
-            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
-              {activeWorkspace.title}
-            </p>
+          <div key={activeRole} className="mt-7 landing-role-details">
+            {/* ROLE DESCRIPTION */}
+            <div className="min-h-[21rem] rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm backdrop-blur-sm sm:min-h-[15rem] lg:min-h-[18rem] xl:min-h-[15rem]">
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
+                {activeWorkspace.title}
+              </p>
 
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {activeWorkspace.description}
-            </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {activeWorkspace.description}
+              </p>
 
-            <p className="mt-4 text-xs font-bold text-slate-900">
-              Pages this role can access
-            </p>
+              <p className="mt-4 text-xs font-bold text-slate-900">
+                Pages this role can access
+              </p>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {activeWorkspace.pages.map((page) => (
-                <span
-                  key={page}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm"
-                >
-                  {page}
-                </span>
-              ))}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activeWorkspace.pages.map((page) => (
+                  <span
+                    key={page}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm"
+                  >
+                    {page}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* ACCESS NOTES */}
-          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-slate-600">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              Least-privilege access
-            </span>
-
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-blue-400" />
-              Shared clinical history
-            </span>
-
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-violet-400" />
-              Auditable actions
-            </span>
+            {/* ROLE ACCESS HIGHLIGHTS */}
+            <ul aria-label={`${activeWorkspace.label} access highlights`} className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-slate-600">
+              {roleHighlights[activeRole].map((highlight, index) => (
+                <li key={highlight} className="inline-flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${index === 0 ? "bg-emerald-400" : "bg-blue-400"}`} />
+                  {highlight}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 

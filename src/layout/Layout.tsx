@@ -1,26 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { NAV_ITEMS, can } from "../config/permissions";
 import { useAuth } from "../hooks/useAuth";
 import { useSessionExpiryWarning } from "../hooks/useSessionExpiryWarning";
 import { useToast } from "../hooks/useToast";
 import { api } from "../services/api";
-import type { ClinicVisit, User } from "../utils/types";
+import type { ClinicVisit } from "../utils/types";
 import { clearCurrentSession } from "../utils/auth";
 import { BrandLogo } from "../components/BrandLogo";
 import { TermsAgreementModal } from "../components/TermsAgreementModal";
 import Modal from "../components/Modal";
 import { useInAppNotifications } from "../features/notifications/useInAppNotifications";
+import { useUserProfile } from "../features/profile/UserProfileContext";
 import {
   AuditIcon,
   CalendarIcon,
   CartIcon,
   CloseIcon,
   DashboardIcon,
+  DocumentationIcon,
+  BellIcon,
   MenuIcon,
   MedicineIcon,
   PatientsIcon,
-  ProfileIcon,
   ReportsIcon,
   SearchIcon,
   StaffIcon,
@@ -31,6 +33,7 @@ import {
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/dashboard": DashboardIcon,
   "/clinical-workspace": VisitsIcon,
+  "/analytics": ReportsIcon,
   "/patients": PatientsIcon,
   "/patient-queue": VisitsIcon,
   "/appointments": CalendarIcon,
@@ -38,11 +41,111 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/purchase-requests": CartIcon,
   "/users": StaffIcon,
   "/roles-permissions": AuditIcon,
+  "/documentation": DocumentationIcon,
   "/reports": ReportsIcon,
   "/audit-log": AuditIcon,
   "/settings": SettingsIcon,
-  "/profile": ProfileIcon,
+  "/dashboard?view=medications": MedicineIcon,
+  "/dashboard?view=notifications": BellIcon,
+  "/dashboard?tab=notifications": BellIcon,
 };
+
+type SidebarItem = {
+  to: string;
+  label: string;
+  dashboardView?: string;
+  dashboardTab?: string;
+};
+
+type SidebarGroup = {
+  id: string;
+  label?: string;
+  items: readonly SidebarItem[];
+};
+
+const NURSE_NAV_GROUPS: readonly SidebarGroup[] = [
+  { id: "primary", items: [{ to: "/dashboard", label: "Dashboard" }] },
+  {
+    id: "care",
+    label: "Care & visits",
+    items: [
+      { to: "/patient-queue", label: "Patient Visits", dashboardView: "visits" },
+      { to: "/patients", label: "Patients", dashboardView: "students" },
+      { to: "/appointments", label: "Appointments", dashboardView: "appointments" },
+      { to: "/dashboard?view=medications", label: "Medication Requests", dashboardView: "medications" },
+    ],
+  },
+  {
+    id: "supplies",
+    label: "Inventory & supplies",
+    items: [
+      { to: "/medicines", label: "Inventory", dashboardView: "inventory" },
+      { to: "/inventory-labels", label: "Manage Labels", dashboardView: "inventory-labels" },
+      { to: "/purchase-requests", label: "Purchase Requests", dashboardView: "purchase-requests" },
+    ],
+  },
+  {
+    id: "insights",
+    label: "Insights",
+    items: [
+      { to: "/analytics", label: "Analytics" },
+      { to: "/reports", label: "Reports", dashboardView: "reports" },
+    ],
+  },
+  {
+    id: "resources",
+    label: "Resources",
+    items: [
+      { to: "/documentation", label: "Documentation", dashboardView: "documentation" },
+      { to: "/settings", label: "Settings", dashboardView: "settings" },
+    ],
+  },
+];
+
+const DOCTOR_NAV_GROUPS: readonly SidebarGroup[] = [
+  { id: "primary", items: [{ to: "/dashboard", label: "Dashboard", dashboardTab: "appointments" }] },
+  {
+    id: "care",
+    label: "Care & visits",
+    items: [
+      { to: "/clinical-workspace", label: "Clinical Care" },
+      { to: "/patient-queue", label: "Patient Visits" },
+      { to: "/patients", label: "Patients" },
+      { to: "/appointments", label: "Appointments" },
+    ],
+  },
+  {
+    id: "insights",
+    label: "Insights",
+    items: [
+      { to: "/analytics", label: "Analytics" },
+      { to: "/reports", label: "Reports" },
+    ],
+  },
+  {
+    id: "resources",
+    label: "Resources",
+    items: [{ to: "/documentation", label: "Documentation" }],
+  },
+];
+
+const STAFF_NAV_GROUPS: readonly SidebarGroup[] = [
+  { id: "primary", items: [{ to: "/dashboard", label: "Dashboard", dashboardView: "overview" }] },
+  {
+    id: "care",
+    label: "Care & visits",
+    items: [
+      { to: "/patient-queue", label: "Patient Visits" },
+      { to: "/patients", label: "Patients" },
+      { to: "/appointments", label: "Appointments" },
+    ],
+  },
+  {
+    id: "resources",
+    label: "Resources",
+    items: [{ to: "/documentation", label: "Documentation" }],
+  },
+];
 
 const EMERGENCY_POLL_INTERVAL_MS = 10_000;
 
@@ -52,33 +155,57 @@ function emergencyStudentName(visit: ClinicVisit): string {
     : "Student";
 }
 
+function isSidebarItemActive(item: SidebarItem, role: string | null, pathname: string, search: string): boolean {
+  const params = new URLSearchParams(search);
+  const currentView = params.get("view");
+  const currentTab = params.get("tab");
+
+  if (pathname === "/dashboard") {
+    if (role === "doctor") {
+      if (item.to === "/clinical-workspace" && ["records", "consultation", "followups"].includes(currentTab ?? "")) return true;
+      if (item.to === "/patient-queue" && currentTab === "visits") return true;
+      if (item.to === "/reports" && currentTab === "reports") return true;
+      if (item.to === "/analytics" && currentTab === "analytics") return true;
+    }
+
+    if (role === "staff") {
+      if (item.to === "/patients" && currentView === "students") return true;
+      if (item.to === "/patient-queue" && currentView === "visits") return true;
+      if (item.to === "/appointments" && currentView === "appointments") return true;
+    }
+
+    if (item.dashboardTab) return (currentTab ?? "appointments") === item.dashboardTab;
+    if (item.dashboardView) return (currentView ?? "overview") === item.dashboardView;
+    return item.to === "/dashboard" && (!currentView || currentView === "overview");
+  }
+
+  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
+  const { profile } = useUserProfile();
   const { showToast } = useToast();
-  const hasSidebar = role === "admin" || role === "superadmin";
+  const hasSidebar = role === "admin" || role === "superadmin" || role === "nurse" || role === "doctor" || role === "staff";
   const minutesLeft = useSessionExpiryWarning();
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profile, setProfile] = useState<User | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [emergencyVisits, setEmergencyVisits] = useState<ClinicVisit[]>([]);
   const [openingEmergency, setOpeningEmergency] = useState(false);
   const [reviewingTerms, setReviewingTerms] = useState(false);
   const [snoozedMedicationIds, setSnoozedMedicationIds] = useState<string[]>([]);
-  const nurseNotifications = useInAppNotifications(role === "nurse");
-  const pendingMedicationOrder = nurseNotifications.items.find(
+  const roleNotifications = useInAppNotifications(role === "nurse" || role === "doctor");
+  const [collapsedNavGroups, setCollapsedNavGroups] = useState<string[]>(["supplies", "insights", "resources"]);
+  const pendingMedicationOrder = role === "nurse" ? roleNotifications.items.find(
     (notification) =>
       notification.kind === "medication_order" &&
       !notification.readAt &&
       !snoozedMedicationIds.includes(notification._id),
-  );
-
-  useEffect(() => {
-    api.get<User>("/users/me").then((response) => setProfile(response.data)).catch(() => {});
-  }, []);
+  ) : undefined;
 
   useEffect(() => {
     const markOnline = () => setOnline(true);
@@ -117,19 +244,44 @@ function Layout({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const visibleItems = NAV_ITEMS.filter((item) => {
-    if (!role || !item.roles.includes(role)) return false;
-    if (role === "admin") {
-      return ["/dashboard", "/audit-log", "/settings", "/profile"].includes(item.to);
-    }
-    return true;
-  });
+  const visibleNavGroups = useMemo<readonly SidebarGroup[]>(() => {
+    if (role === "nurse") return NURSE_NAV_GROUPS;
+    if (role === "doctor") return DOCTOR_NAV_GROUPS;
+    if (role === "staff") return STAFF_NAV_GROUPS;
+    const items = NAV_ITEMS.filter((item) => {
+      if (!role || !item.roles.includes(role)) return false;
+      if (role === "admin") return ["/dashboard", "/audit-log", "/documentation", "/settings"].includes(item.to);
+      return true;
+    });
+    return [{ id: "navigation", items }];
+  }, [role]);
   const canSearchStudents = can(role, "searchPatients") && role !== "doctor";
+  const showNotificationButton = role === "nurse" || role === "doctor" || role === "staff";
+  const notificationCount = role === "nurse" || role === "doctor" ? roleNotifications.unreadCount : 0;
+  const notificationPath = role === "doctor" ? "/dashboard?tab=notifications" : "/dashboard?view=notifications";
+  const notificationsActive = location.pathname === "/dashboard" && (
+    role === "doctor"
+      ? new URLSearchParams(location.search).get("tab") === "notifications"
+      : new URLSearchParams(location.search).get("view") === "notifications"
+  );
   const isClinicalRole = role === "doctor" || role === "nurse";
   const dashboardView = new URLSearchParams(location.search).get("view");
+  const activeNavGroupId = visibleNavGroups.find((group) =>
+    group.items.some((item) => isSidebarItemActive(item, role, location.pathname, location.search)),
+  )?.id;
   const isPatientQueueVisible =
     location.pathname === "/patient-queue" ||
     (location.pathname === "/dashboard" && dashboardView === "visits");
+
+  useEffect(() => {
+    if (!activeNavGroupId) return;
+    const defaultOpenGroupId = activeNavGroupId === "primary" ? "care" : activeNavGroupId;
+    setCollapsedNavGroups(
+      visibleNavGroups
+        .filter((group) => group.label && group.id !== defaultOpenGroupId)
+        .map((group) => group.id),
+    );
+  }, [activeNavGroupId, location.pathname, location.search, visibleNavGroups]);
 
   useEffect(() => {
     if (!isClinicalRole || isPatientQueueVisible) {
@@ -254,7 +406,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
 
   useEffect(() => {
@@ -267,12 +419,14 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [sidebarOpen]);
 
   const navigation = (
-    <nav aria-label="Main navigation" className="space-y-1 p-4">
+    <nav aria-label="Main navigation" className="space-y-3 p-4">
       <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-        Navigation
+        {role === "nurse" || role === "doctor" || role === "staff" ? `${role[0]!.toUpperCase()}${role.slice(1)} workspace` : "Navigation"}
       </p>
-      {visibleItems.map((item) => {
+      {visibleNavGroups.map((group) => {
+        const groupContent = group.items.map((item) => {
         const Icon = NAV_ICONS[item.to] ?? DashboardIcon;
+        const isActive = isSidebarItemActive(item, role, location.pathname, location.search);
 
         if (item.to === "/clinical-workspace" && isClinicalRole) {
           const clinicalActive = location.pathname === "/clinical-workspace";
@@ -283,7 +437,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               <Link
                 to="/clinical-workspace?tab=appointments"
                 onClick={closeSidebar}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
                   clinicalActive
                     ? "bg-blue-50 text-blue-700"
                     : "text-gray-700 hover:bg-gray-100"
@@ -301,7 +455,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                       key={tab.id}
                       to={`/clinical-workspace?tab=${tab.id}`}
                       onClick={closeSidebar}
-                      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
                         tabActive
                           ? "bg-blue-600 font-medium text-white"
                           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -317,14 +471,29 @@ function Layout({ children }: { children: React.ReactNode }) {
           );
         }
 
-        return (
+        return role === "nurse" || role === "doctor" || role === "staff" ? (
+          <Link
+            key={item.to}
+            to={item.to}
+            onClick={closeSidebar}
+            aria-current={isActive ? "page" : undefined}
+            className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            <Icon className="h-[18px] w-[18px]" />
+            <span className="min-w-0 flex-1">{item.label}</span>
+          </Link>
+        ) : (
           <NavLink
             key={item.to}
             to={item.to}
             onClick={closeSidebar}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
+            className={({ isActive: navActive }) =>
+              `flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                navActive
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               }`
@@ -334,12 +503,41 @@ function Layout({ children }: { children: React.ReactNode }) {
             {item.label}
           </NavLink>
         );
+        });
+
+        if (!group.label) return <div key={group.id}>{groupContent}</div>;
+        const expanded = !collapsedNavGroups.includes(group.id);
+        const hasActiveItem = group.items.some((item) =>
+          isSidebarItemActive(item, role, location.pathname, location.search),
+        );
+
+        return (
+          <section key={group.id}>
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={`navigation-${group.id}`}
+              onClick={() => setCollapsedNavGroups((current) => expanded
+                ? [...current, group.id]
+                : current.filter((id) => id !== group.id))}
+              className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                hasActiveItem ? "text-blue-700 hover:bg-blue-50" : "text-slate-500 hover:bg-gray-100 hover:text-slate-800"
+              }`}
+            >
+              {group.label}
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}>
+                <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {expanded && <div id={`navigation-${group.id}`} className="mt-1 space-y-1">{groupContent}</div>}
+          </section>
+        );
       })}
     </nav>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 print:bg-white">
+    <div className="flex min-h-screen flex-col bg-gray-50 print:bg-white">
       <a
         href="#main-content"
         className="fixed left-3 top-3 z-[70] -translate-y-20 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white focus:translate-y-0"
@@ -347,7 +545,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         Skip to main content
       </a>
       <header className="border-b border-gray-200 bg-white print:hidden">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-3 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6">
           {hasSidebar && (
             <button
               type="button"
@@ -355,7 +553,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               aria-label="Open navigation"
               aria-controls="mobile-navigation"
               aria-expanded={sidebarOpen}
-              className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 lg:hidden"
+              className="min-h-11 min-w-11 rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 lg:hidden"
             >
               <MenuIcon />
             </button>
@@ -376,7 +574,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           {canSearchStudents && (
             <form
               onSubmit={handleSearch}
-              className="relative order-last w-full sm:order-none sm:ml-auto sm:max-w-xs"
+              className="relative order-last w-full lg:order-none lg:ml-auto lg:max-w-xs"
             >
               <input
                 type="search"
@@ -395,18 +593,43 @@ function Layout({ children }: { children: React.ReactNode }) {
             </form>
           )}
 
-          <div className={`${canSearchStudents ? "" : "ml-auto"} flex items-center gap-3`}>
-            {profile && (
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-semibold text-gray-900">{profile.name}</p>
-                <p className="text-xs text-gray-500">{profile.email}</p>
-              </div>
+          <div className={`${canSearchStudents ? "" : "ml-auto"} flex shrink-0 items-center gap-2 sm:gap-3`}>
+            {showNotificationButton && (
+              <button
+                type="button"
+                onClick={() => navigate(notificationPath)}
+                aria-label={notificationCount > 0 ? `Notifications, ${notificationCount} unread` : "Notifications"}
+                aria-current={notificationsActive ? "page" : undefined}
+                className={`relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border transition-colors ${
+                  notificationsActive
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-blue-700"
+                }`}
+              >
+                <BellIcon />
+                <span className="sr-only">Notifications</span>
+                {notificationCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white">
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </span>
+                )}
+              </button>
             )}
+            <div className="hidden w-40 shrink-0 text-right lg:block">
+              {profile ? (
+                <>
+                  <p className="truncate text-sm font-semibold text-gray-900" title={profile.name}>{profile.name}</p>
+                  <p className="truncate text-xs text-gray-500" title={profile.email}>{profile.email}</p>
+                </>
+              ) : (
+                <div className="h-8" aria-hidden="true" />
+              )}
+            </div>
             <button
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              className="min-h-11 rounded-lg border border-gray-200 px-2 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:px-3"
             >
               {loggingOut ? "Signing out..." : "Logout"}
             </button>
@@ -426,13 +649,13 @@ function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <p className="font-semibold text-gray-900">School Clinic</p>
-                <p className="text-xs capitalize text-gray-500">{role} workspace</p>
+            <p className="text-xs capitalize text-gray-500">{role} workspace</p>
               </div>
               <button
                 type="button"
                 onClick={closeSidebar}
                 aria-label="Close navigation"
-                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+                className="min-h-11 min-w-11 rounded-lg p-2 text-gray-500 hover:bg-gray-100"
               >
                 <CloseIcon />
               </button>
@@ -442,14 +665,14 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="mx-auto flex max-w-[1800px] items-start">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-1 items-stretch">
         {hasSidebar && (
           <aside className="sticky top-[65px] hidden h-[calc(100vh-65px)] w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-white lg:block print:hidden">
             {navigation}
           </aside>
         )}
 
-        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 p-3 sm:p-6 print:max-w-none print:p-0">
+        <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col p-3 sm:p-6 print:max-w-none print:p-0">
           {emergencyVisits.length > 0 && (
             <div
               role="alert"
@@ -513,7 +736,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {children}
-          <footer className="mt-8 flex flex-col gap-2 border-t border-gray-200 pt-4 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between print:hidden">
+          <footer className="mt-auto flex flex-col gap-2 border-t border-gray-200 pt-4 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between print:hidden">
             <span>✓ You have read and accepted the Terms and Agreement.</span>
             <button type="button" onClick={() => setReviewingTerms(true)} className="self-start font-medium text-blue-600 hover:underline sm:self-auto">
               View Terms Again

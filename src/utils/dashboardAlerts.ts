@@ -74,7 +74,7 @@ export function buildDashboardAlerts(
       id: "queue",
       message: `${stats.waitingPatients} student ${stats.waitingPatients === 1 ? "is" : "are"} waiting in the clinic`,
       tone: "info",
-      link: role === "doctor" ? "/dashboard?tab=visits" : "/dashboard?view=visits",
+      link: role === "doctor" ? "/patient-queue" : "/dashboard?view=visits",
     });
   }
 
