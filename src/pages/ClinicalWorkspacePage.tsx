@@ -320,6 +320,10 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const shouldGenerateCertificate =
       isDoctor && submitter?.value === "save-and-generate-certificate";
+    if (shouldGenerateCertificate && !form.fitnessForWork) {
+      setFormError("Choose Fit to Work or Not Fit to Work before generating the certificate.");
+      return;
+    }
     setSaving(true);
     setGeneratingCertificate(shouldGenerateCertificate);
     setFormError("");
@@ -821,9 +825,25 @@ function ConsultationForm({
         <BmiPreview heightCm={form.heightCm} weightKg={form.weightKg} age={selectedPatient?.age} gender={selectedPatient?.gender} dateOfBirth={selectedPatient?.dateOfBirth} className="md:col-span-2 xl:col-span-3" />
 
         {isDoctor ? (
-          <Field label="Diagnosis" className="md:col-span-2 xl:col-span-3">
-            <textarea required rows={2} value={form.diagnosis} onChange={(event) => onChange("diagnosis", event.target.value)} className="input" placeholder="Enter diagnosis..." />
-          </Field>
+          <>
+            <Field label="Diagnosis" className="md:col-span-2 xl:col-span-3">
+              <textarea required rows={2} value={form.diagnosis} onChange={(event) => onChange("diagnosis", event.target.value)} className="input" placeholder="Enter diagnosis..." />
+            </Field>
+            <Field label="Fitness for Work (required for certificate)" className="md:col-span-2 xl:col-span-3">
+              <select
+                value={form.fitnessForWork}
+                onChange={(event) => onChange("fitnessForWork", event.target.value)}
+                className="input"
+              >
+                <option value="">Select the physician's assessment</option>
+                <option value="fit_to_work">Fit to Work</option>
+                <option value="not_fit_to_work">Not Fit to Work</option>
+              </select>
+              <span className="mt-1 block text-xs font-normal text-gray-500">
+                This is a physician decision and is never inferred from recorded vital signs.
+              </span>
+            </Field>
+          </>
         ) : (
           <Field label="Nursing Assessment" className="md:col-span-2 xl:col-span-3">
             <textarea required rows={2} value={form.assessment} onChange={(event) => onChange("assessment", event.target.value)} className="input" placeholder="Record observations and nursing assessment, not a physician diagnosis..." />

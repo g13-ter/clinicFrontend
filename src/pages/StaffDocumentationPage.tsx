@@ -38,9 +38,9 @@ const guides = [
     steps: [
       "In the sidebar, open Care & visits > Patient Visits.",
       "Select Register Visit, search by patient name or ID, and choose the correct person.",
-      "Enter the chief complaint. If the visit is an emergency, mark Emergency case and enter the details shown in the form.",
-      "Submit the visit. It will appear in the clinic queue for the Nurse to triage.",
-      "For emergencies, alert the Nurse or clinical team immediately and follow the school's emergency procedures.",
+      "Enter the chief complaint. If the patient needs attention, select Request nurse attention and describe your concern.",
+      "Submit the visit. The Nurse and Doctor will be notified, and the visit will appear in the clinic queue.",
+      "A Nurse or Doctor sets the final triage priority. For emergencies, alert the clinical team immediately and follow the school's emergency procedures.",
     ],
     keywords: "walk in check in visit register visit queue chief complaint emergency nurse triage patient ID",
     link: "/patient-queue",

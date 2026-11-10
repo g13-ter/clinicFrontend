@@ -74,6 +74,15 @@ export interface ClinicVisit {
   referralOutcome?: string;
   isEmergency?: boolean;
   emergencyDetails?: string;
+  triagePriority?: "non_urgent" | "urgent" | "emergency";
+  triageNotes?: string;
+  triageAssessedBy?: User | string;
+  triageAssessedAt?: string;
+  attentionRequested?: boolean;
+  attentionRequestDetails?: string;
+  attentionRequestedBy?: User | string;
+  attentionRequestedAt?: string;
+  attentionReviewedAt?: string;
   guardianNotifiedAt?: string;
   closedAt?: string;
   isActive: boolean;
@@ -159,6 +168,7 @@ export interface MedicalHistory {
   patientId: string;
   diagnosis: string;
   prescription: string;
+  fitnessForWork?: "fit_to_work" | "not_fit_to_work";
   prescribedItems?: PrescribedItem[];
   medicationStatus?: "pending" | "accepted" | "dispensing" | "dispensed" | "not_given" | "cancelled";
   medicationClaimedBy?: { _id: string; name: string; role: string } | string;
@@ -348,7 +358,7 @@ export interface InventoryLabelActivity {
 
 export interface InAppNotification {
   _id: string;
-  kind: "appointment_assigned" | "appointment_reassigned" | "appointment_rescheduled" | "appointment_cancelled" | "visit_ready" | "emergency" | "medication_order";
+  kind: "appointment_assigned" | "appointment_reassigned" | "appointment_rescheduled" | "appointment_cancelled" | "visit_ready" | "attention_requested" | "emergency" | "medication_order";
   title: string;
   message: string;
   link: string;

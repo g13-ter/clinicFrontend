@@ -374,7 +374,7 @@ function SettingsPage({ embedded = false }: { embedded?: boolean }) {
                 ))}
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="text-sm font-medium text-gray-700">Phone number<input type="tel" value={settings.phoneNumber} onChange={(event) => update("phoneNumber", event.target.value)} required className="input mt-2" /></label>
+                <label className="text-sm font-medium text-gray-700">Phone number<input type="tel" value={settings.phoneNumber} onChange={(event) => update("phoneNumber", event.target.value)} required className="input mt-2" /><span className="mt-1 block text-xs font-normal text-gray-500">Printed as the clinic contact number on generated medical certificates.</span></label>
                 <label className="text-sm font-medium text-gray-700">Email address<input type="email" value={settings.emailAddress} onChange={(event) => update("emailAddress", event.target.value)} required className="input mt-2" /></label>
               </div>
             </SettingsSection>}

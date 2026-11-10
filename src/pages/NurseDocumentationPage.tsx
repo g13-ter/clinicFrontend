@@ -10,8 +10,9 @@ const guides = [
     steps: [
       "In the sidebar, expand Care & visits if needed and select Patient Visits. Search by patient name or ID to check whether a visit is already open.",
       "For a walk-in, select Register Visit and choose the patient. For an appointment, check in from Appointments or the appointment's available action.",
-      "Find the visit in the queue and select Record Vitals or Edit Vitals. Record the complaint and triage information required by your clinic workflow.",
-      "Record blood pressure, temperature, and pulse before sending the patient to the doctor. Ready for Doctor stays disabled until these core vitals are complete.",
+      "Review any staff attention request, then set the clinically assessed priority: green for non-urgent, yellow for urgent, or red for emergency. The system does not assign priority from vital signs.",
+      "Find the visit in the queue and select Set Priority, Record Vitals, or Edit Vitals. Record the complaint and triage information required by your clinic workflow.",
+      "Record blood pressure, temperature, and pulse before sending the patient to the doctor. Ready for Doctor stays disabled until a priority and these core vitals are recorded.",
       "Select Ready for Doctor after triage is complete. The doctor can then open the visit and begin the consultation.",
     ],
     keywords: "walk in register visit check in patient queue triage record edit vitals blood pressure temperature pulse ready for doctor",

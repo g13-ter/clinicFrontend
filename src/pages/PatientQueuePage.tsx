@@ -26,8 +26,10 @@ const emptyCheckInForm = {
   bloodPressure: "",
   temperature: "",
   pulseRate: "",
-  isEmergency: false,
-  emergencyDetails: "",
+  attentionRequested: false,
+  attentionRequestDetails: "",
+  triagePriority: "",
+  triageNotes: "",
 };
 const CHECKIN_FORM_FIELDS = Object.keys(emptyCheckInForm);
 
@@ -75,6 +77,22 @@ function hasCompleteCoreVitals(v: ClinicVisit): boolean {
   return Boolean(v.bloodPressure && v.temperature != null && v.pulseRate != null);
 }
 
+function TriagePriorityBadge({ visit }: { visit: ClinicVisit }) {
+  if (visit.triagePriority === "emergency" || visit.isEmergency) {
+    return <span className="ml-2 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Emergency</span>;
+  }
+  if (visit.triagePriority === "urgent") {
+    return <span className="ml-2 inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-yellow-900">Urgent</span>;
+  }
+  if (visit.triagePriority === "non_urgent") {
+    return <span className="ml-2 inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-800">Non-urgent</span>;
+  }
+  if (visit.attentionRequested && !visit.attentionReviewedAt) {
+    return <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">Nurse attention requested</span>;
+  }
+  return null;
+}
+
 function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const { role, can } = useAuth();
   const { showToast } = useToast();
@@ -85,6 +103,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   const canRecordVitals = can("recordVitals");
   const requestedPatientId = searchParams.get("patientId") ?? "";
   const requestedEmergencyId = searchParams.get("emergency") ?? "";
+  const requestedAttentionId = searchParams.get("attention") ?? "";
   const emergencyFocusToken = searchParams.get("focus") ?? "";
   const handledEmergencyFocus = useRef("");
   const latestVitalsRequest = useRef(0);
@@ -113,6 +132,13 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     unmatchedFieldErrors: unmatchedCheckInErrors,
   } = useFormErrors();
   const [checkingIn, setCheckingIn] = useState(false);
+
+  const [attentionTarget, setAttentionTarget] = useState<ClinicVisit | null>(null);
+  const [attentionDetails, setAttentionDetails] = useState("");
+  const [savingAttention, setSavingAttention] = useState(false);
+  const [triageTarget, setTriageTarget] = useState<ClinicVisit | null>(null);
+  const [triageForm, setTriageForm] = useState({ priority: "", notes: "" });
+  const [savingTriage, setSavingTriage] = useState(false);
 
   const [vitalsTarget, setVitalsTarget] = useState<ClinicVisit | null>(null);
   const [vitalsForm, setVitalsForm] = useState(emptyVitalsForm);
@@ -196,10 +222,22 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       const res = await api.post("/visits", {
         patientId: checkInForm.patientId,
         complaint: checkInForm.complaint,
-        isEmergency: checkInForm.isEmergency,
-        emergencyDetails: checkInForm.emergencyDetails || undefined,
+        ...(role === "staff"
+          ? {
+              attentionRequested: checkInForm.attentionRequested,
+              attentionRequestDetails: checkInForm.attentionRequested
+                ? checkInForm.attentionRequestDetails
+                : undefined,
+            }
+          : {}),
         ...(role === "nurse"
           ? {
+              ...(checkInForm.triagePriority
+                ? {
+                    triagePriority: checkInForm.triagePriority,
+                    triageNotes: checkInForm.triageNotes || undefined,
+                  }
+                : {}),
               bloodPressure: checkInForm.bloodPressure || undefined,
               temperature: checkInForm.temperature
                 ? Number(checkInForm.temperature)
@@ -265,11 +303,12 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
   };
 
   useEffect(() => {
-    if (!requestedEmergencyId || queue.length === 0) return;
-    const focusKey = `${requestedEmergencyId}:${emergencyFocusToken}`;
+    if ((!requestedEmergencyId && !requestedAttentionId) || queue.length === 0) return;
+    const focusVisitId = requestedEmergencyId || requestedAttentionId;
+    const focusKey = `${focusVisitId}:${emergencyFocusToken}`;
     if (handledEmergencyFocus.current === focusKey) return;
 
-    const visit = queue.find((item) => item._id === requestedEmergencyId);
+    const visit = queue.find((item) => item._id === focusVisitId);
     if (!visit) return;
     handledEmergencyFocus.current = focusKey;
 
@@ -285,7 +324,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     if (role === "nurse" && !visit.readyForDoctor && visit.status === "triage") {
       openVitals(visit);
     }
-  }, [emergencyFocusToken, openVitals, queue, requestedEmergencyId, role]);
+  }, [emergencyFocusToken, openVitals, queue, requestedAttentionId, requestedEmergencyId, role]);
 
   const vf = (k: keyof typeof emptyVitalsForm, v: string) => {
     if (k === "heightCm") setPrefilledHeightRecordedAt(null);
@@ -331,6 +370,56 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
       fetchQueue(false);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Failed to update", "error");
+    }
+  };
+
+  const openAttentionRequest = (visit: ClinicVisit) => {
+    setAttentionTarget(visit);
+    setAttentionDetails("");
+  };
+
+  const submitAttentionRequest = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!attentionTarget || savingAttention) return;
+    setSavingAttention(true);
+    try {
+      const response = await api.put(`/visits/${attentionTarget._id}/attention`, {
+        details: attentionDetails,
+      });
+      showToast(response.message);
+      setAttentionTarget(null);
+      fetchQueue(false);
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Could not request nurse attention", "error");
+    } finally {
+      setSavingAttention(false);
+    }
+  };
+
+  const openTriageEditor = (visit: ClinicVisit) => {
+    setTriageTarget(visit);
+    setTriageForm({
+      priority: visit.triagePriority ?? "",
+      notes: visit.triageNotes ?? "",
+    });
+  };
+
+  const submitTriagePriority = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!triageTarget || !triageForm.priority || savingTriage) return;
+    setSavingTriage(true);
+    try {
+      const response = await api.put(`/visits/${triageTarget._id}/triage-priority`, {
+        priority: triageForm.priority,
+        notes: triageForm.notes || undefined,
+      });
+      showToast(response.message);
+      setTriageTarget(null);
+      fetchQueue(false);
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Could not update triage priority", "error");
+    } finally {
+      setSavingTriage(false);
     }
   };
 
@@ -456,6 +545,8 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           visit.complaint,
           visit.treatment,
           visit.status?.replaceAll("_", " "),
+          visit.triagePriority?.replaceAll("_", " "),
+          visit.attentionRequestDetails,
         ].some((value) => value?.toLowerCase().includes(normalizedVisitSearch));
       })
     : queue;
@@ -464,9 +555,26 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
     : vitalsTarget?.patientId;
   const vitalsPatient = patients.find((patient) => patient._id === vitalsPatientId);
   const renderQueueActions = (v: ClinicVisit) => {
+    if (role === "staff") {
+      const attentionOpen = Boolean(v.attentionRequested && !v.attentionReviewedAt);
+      return (
+        <button
+          onClick={() => openAttentionRequest(v)}
+          disabled={attentionOpen}
+          className="text-xs font-medium text-amber-700 hover:underline disabled:cursor-default disabled:text-gray-400 disabled:no-underline"
+        >
+          {attentionOpen ? "Nurse notified" : "Request nurse attention"}
+        </button>
+      );
+    }
     if (!canManage) return null;
     return (
       <>
+        {(role === "nurse" || role === "doctor") && (
+          <button onClick={() => openTriageEditor(v)} className="text-xs font-medium text-indigo-700 hover:underline">
+            {v.triagePriority ? "Change Priority" : "Set Priority"}
+          </button>
+        )}
         {canRecordVitals && (
           <button onClick={() => openVitals(v)} className="text-xs text-gray-600 hover:underline">
             {hasRecordedVitals(v) ? "Edit Vitals" : "Record Vitals"}
@@ -475,9 +583,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
         {canRecordVitals && !v.readyForDoctor && (
           <button
             onClick={() => handleMarkReady(v)}
-            disabled={!hasCompleteCoreVitals(v)}
+            disabled={!hasCompleteCoreVitals(v) || !v.triagePriority}
             title={
-              hasCompleteCoreVitals(v)
+              !v.triagePriority
+                ? "Set triage priority before sending this visit to the doctor"
+                : hasCompleteCoreVitals(v)
                 ? "Send this triaged visit to the doctor"
                 : "Record blood pressure, temperature, and pulse rate first"
             }
@@ -593,7 +703,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                     id={`visit-mobile-${v._id}`}
                     tabIndex={-1}
                     className={`rounded-lg border-l-4 bg-white p-4 shadow ${
-                      requestedEmergencyId === v._id
+                      requestedEmergencyId === v._id || requestedAttentionId === v._id
                         ? "border-red-600 ring-2 ring-red-500"
                         : v.readyForDoctor
                           ? "border-l-green-500"
@@ -613,10 +723,11 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                             </Link>
                           )
                         ) : patientLabel(v.patientId)}
-                        {v.isEmergency && (
-                          <span className="ml-2 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                            Emergency
-                          </span>
+                        <TriagePriorityBadge visit={v} />
+                        {role !== "staff" && v.attentionRequested && v.attentionRequestDetails && (
+                          <p className="mt-1 text-xs font-normal text-amber-800">
+                            Staff concern: {v.attentionRequestDetails}
+                          </p>
                         )}
                         <p className="mt-1 text-xs font-normal text-gray-400">
                           Arrived {new Date(v.visitDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -638,7 +749,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                         <dd className="break-words text-gray-700">{vitalsSummary(v)}</dd>
                       </div>
                     </dl>
-                    {canManage && (
+                    {(canManage || role === "staff") && (
                       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t pt-3">
                         {renderQueueActions(v)}
                       </div>
@@ -679,7 +790,7 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                       id={`visit-desktop-${v._id}`}
                       tabIndex={-1}
                       className={`transition-colors hover:bg-blue-50/40 ${
-                        requestedEmergencyId === v._id
+                        requestedEmergencyId === v._id || requestedAttentionId === v._id
                           ? "bg-red-50 ring-2 ring-inset ring-red-500"
                           : v.readyForDoctor
                             ? ""
@@ -700,16 +811,19 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                         ) : (
                           patientLabel(v.patientId)
                         )}
-                        {v.isEmergency && (
-                          <span className="ml-2 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                            Emergency
-                          </span>
-                        )}
+                        <TriagePriorityBadge visit={v} />
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {new Date(v.visitDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </td>
-                      <td className="px-4 py-3">{v.complaint}</td>
+                      <td className="px-4 py-3">
+                        <div>{v.complaint}</div>
+                        {role !== "staff" && v.attentionRequested && v.attentionRequestDetails && (
+                          <p className="mt-1 max-w-sm text-xs text-amber-800">
+                            Staff concern: {v.attentionRequestDetails}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-xs text-gray-500">{vitalsSummary(v)}</td>
                       <td className="px-4 py-3">
                         <span
@@ -733,6 +847,88 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
           </table>
           </div>
         </>
+      )}
+
+      {attentionTarget && (
+        <Modal
+          title="Request Nurse Attention"
+          onClose={() => setAttentionTarget(null)}
+          closeDisabled={savingAttention}
+        >
+          <form onSubmit={submitAttentionRequest} className="space-y-4">
+            <p className="text-sm text-gray-600">{patientLabel(attentionTarget.patientId)}</p>
+            <label className="block text-xs font-medium text-gray-600">
+              Describe the concern for the nurse *
+              <textarea
+                value={attentionDetails}
+                onChange={(event) => setAttentionDetails(event.target.value)}
+                required
+                minLength={3}
+                maxLength={500}
+                rows={3}
+                className="input mt-1"
+              />
+            </label>
+            <p className="text-xs text-amber-800">This alerts the clinical team. A nurse or doctor assigns the final triage priority.</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setAttentionTarget(null)} className="rounded-lg border px-4 py-2 text-sm">
+                Cancel
+              </button>
+              <button type="submit" disabled={savingAttention} className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {savingAttention ? "Sending..." : "Notify Nurse"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {triageTarget && (
+        <Modal
+          title="Set Triage Priority"
+          onClose={() => setTriageTarget(null)}
+          closeDisabled={savingTriage}
+        >
+          <form onSubmit={submitTriagePriority} className="space-y-4">
+            <p className="text-sm text-gray-600">{patientLabel(triageTarget.patientId)}</p>
+            <label className="block text-xs font-medium text-gray-600">
+              Priority *
+              <select
+                value={triageForm.priority}
+                onChange={(event) => setTriageForm((current) => ({ ...current, priority: event.target.value }))}
+                required
+                className="input mt-1"
+              >
+                <option value="">Select priority</option>
+                <option value="non_urgent">Green · Non-urgent</option>
+                <option value="urgent">Yellow · Urgent</option>
+                <option value="emergency">Red · Emergency</option>
+              </select>
+            </label>
+            {triageForm.priority === "emergency" && (
+              <label className="block text-xs font-medium text-gray-600">
+                Clinical reason for emergency priority *
+                <textarea
+                  value={triageForm.notes}
+                  onChange={(event) => setTriageForm((current) => ({ ...current, notes: event.target.value }))}
+                  required
+                  minLength={3}
+                  maxLength={500}
+                  rows={3}
+                  className="input mt-1"
+                />
+              </label>
+            )}
+            <p className="text-xs text-gray-500">Priority is a clinical decision. The system does not assign it from vital signs.</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setTriageTarget(null)} className="rounded-lg border px-4 py-2 text-sm">
+                Cancel
+              </button>
+              <button type="submit" disabled={savingTriage || !triageForm.priority} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {savingTriage ? "Saving..." : "Save Priority"}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {showCheckIn && (
@@ -809,15 +1005,65 @@ function PatientQueuePage({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </>
             )}
-            <label className="flex items-center gap-2 text-sm text-red-700">
-              <input type="checkbox" checked={checkInForm.isEmergency} onChange={(e) => ci("isEmergency", e.target.checked)} />
-              Emergency case
-            </label>
-            {checkInForm.isEmergency && (
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Emergency Details</label>
-                <textarea value={checkInForm.emergencyDetails} onChange={(e) => ci("emergencyDetails", e.target.value)} className="input w-full" rows={2} />
-              </div>
+            {role === "staff" && (
+              <>
+                <label className="flex items-center gap-2 text-sm text-amber-800">
+                  <input
+                    type="checkbox"
+                    checked={checkInForm.attentionRequested}
+                    onChange={(event) => ci("attentionRequested", event.target.checked)}
+                  />
+                  Request nurse attention
+                </label>
+                {checkInForm.attentionRequested && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">What should the nurse know? *</label>
+                    <textarea
+                      value={checkInForm.attentionRequestDetails}
+                      onChange={(event) => ci("attentionRequestDetails", event.target.value)}
+                      required
+                      minLength={3}
+                      maxLength={500}
+                      className={`input w-full ${checkInFieldErrors.attentionRequestDetails ? "input-error" : ""}`}
+                      rows={2}
+                    />
+                    <FieldError message={checkInFieldErrors.attentionRequestDetails} />
+                  </div>
+                )}
+              </>
+            )}
+            {role === "nurse" && (
+              <>
+                <label className="block text-xs text-gray-500">
+                  Triage Priority
+                  <select
+                    value={checkInForm.triagePriority}
+                    onChange={(event) => ci("triagePriority", event.target.value)}
+                    className={`input mt-1 w-full ${checkInFieldErrors.triagePriority ? "input-error" : ""}`}
+                  >
+                    <option value="">Set during triage</option>
+                    <option value="non_urgent">Green · Non-urgent</option>
+                    <option value="urgent">Yellow · Urgent</option>
+                    <option value="emergency">Red · Emergency</option>
+                  </select>
+                  <FieldError message={checkInFieldErrors.triagePriority} />
+                </label>
+                {checkInForm.triagePriority === "emergency" && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Clinical reason for emergency priority *</label>
+                    <textarea
+                      value={checkInForm.triageNotes}
+                      onChange={(event) => ci("triageNotes", event.target.value)}
+                      required
+                      minLength={3}
+                      maxLength={500}
+                      className={`input w-full ${checkInFieldErrors.triageNotes ? "input-error" : ""}`}
+                      rows={2}
+                    />
+                    <FieldError message={checkInFieldErrors.triageNotes} />
+                  </div>
+                )}
+              </>
             )}
             <div className="flex justify-end gap-2 mt-1">
               <button

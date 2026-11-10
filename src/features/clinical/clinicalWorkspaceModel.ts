@@ -14,6 +14,7 @@ export interface ConsultationForm {
   heightCm: string;
   weightKg: string;
   diagnosis: string;
+  fitnessForWork: string;
   assessment: string;
   treatment: string;
   recommendations: string;
@@ -40,6 +41,7 @@ export function createEmptyConsultation(
     heightCm: "",
     weightKg: "",
     diagnosis: "",
+    fitnessForWork: "",
     assessment: "",
     treatment: "",
     recommendations: "",
@@ -97,6 +99,7 @@ export function buildMedicalHistoryPayload(
     visitId,
     diagnosis: form.diagnosis || undefined,
     prescription: form.treatment || undefined,
+    ...(form.fitnessForWork ? { fitnessForWork: form.fitnessForWork } : {}),
     prescribedItems,
     ...(includeNurseClosure ? { closureOutcome: form.closureOutcome } : {}),
   };

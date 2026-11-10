@@ -919,7 +919,7 @@ function InAppNotificationsPanel({
               onClick={() => void onRead(notification._id)}
               className={`flex items-start gap-3 px-5 py-4 hover:bg-gray-50 ${notification.readAt ? "opacity-70" : "bg-blue-50/30"}`}
             >
-              <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${notification.kind === "emergency" || notification.kind === "appointment_cancelled" ? "bg-red-500" : "bg-blue-500"}`} />
+              <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${notification.kind === "emergency" || notification.kind === "appointment_cancelled" ? "bg-red-500" : notification.kind === "attention_requested" ? "bg-amber-500" : "bg-blue-500"}`} />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-gray-900">{notification.title}</span>
                 <span className="mt-0.5 block text-sm text-gray-600">{notification.message}</span>

@@ -50,7 +50,7 @@ const guides = [
     summary: "Document the physician's assessment and care in the linked visit.",
     steps: [
       "Start from a Ready for Doctor visit so the consultation is connected to the correct patient and visit.",
-      "Review allergies, chronic conditions, current medications, and the triage data entered by the nurse.",
+      "Review allergies, chronic conditions, current medications, and the triage data entered by the nurse. You can update the triage priority from Patient Visits when your clinical assessment changes it.",
       "Enter the chief complaint, diagnosis, and treatment plan. The diagnosis and treatment plan are required.",
       "If needed, add a medicine, quantity, and medication instructions. Available stock is shown in the selector.",
       "For follow-up care, enter the follow-up date and reason. Saving creates a follow-up appointment.",
