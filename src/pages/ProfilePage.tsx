@@ -6,6 +6,7 @@ import { useToast } from "../hooks/useToast";
 import { clearCurrentSession } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
 import { useUserProfile } from "../features/profile/UserProfileContext";
+import PasswordInput from "../components/PasswordInput";
 
 function ProfilePage({ embedded = false }: { embedded?: boolean }) {
   const { showToast } = useToast();
@@ -91,14 +92,14 @@ function ProfilePage({ embedded = false }: { embedded?: boolean }) {
             <p className="text-xs text-gray-500 sm:col-span-2">These details are printed on certificates you generate.</p>
           </div>
         )}
-        <label className="block text-sm font-medium text-gray-700">
-          Current password
-          <input className="input mt-2" type="password" required autoComplete="current-password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} />
-        </label>
-        <label className="block text-sm font-medium text-gray-700">
-          New password <span className="font-normal text-gray-400">(leave blank to keep current)</span>
-          <input className="input mt-2" type="password" minLength={12} autoComplete="new-password" value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} />
-        </label>
+        <div>
+          <label htmlFor="profile-current-password" className="block text-sm font-medium text-gray-700">Current password</label>
+          <PasswordInput id="profile-current-password" className="input" containerClassName="mt-2" required autoComplete="current-password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} />
+        </div>
+        <div>
+          <label htmlFor="profile-new-password" className="block text-sm font-medium text-gray-700">New password <span className="font-normal text-gray-400">(leave blank to keep current)</span></label>
+          <PasswordInput id="profile-new-password" className="input" containerClassName="mt-2" minLength={12} autoComplete="new-password" value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} />
+        </div>
         <p className="text-xs text-gray-500">Changing your password revokes all active sessions and requires you to sign in again.</p>
         <button className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50" disabled={saving || !user}>
           {saving ? "Saving..." : "Save Profile"}

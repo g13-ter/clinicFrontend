@@ -4,6 +4,7 @@ import { ApiError, readApiResponse } from "../services/api";
 import { useFormErrors } from "../hooks/useFormErrors";
 import { FieldError } from "../components/FieldError";
 import { BrandLogo } from "../components/BrandLogo";
+import PasswordInput from "../components/PasswordInput";
 import { TermsAgreementModal } from "../components/TermsAgreementModal";
 import {
   clearCurrentSession,
@@ -42,7 +43,6 @@ const destinationFor = (user: { mustChangePassword: boolean }) =>
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(true);
   const [cooldownUntil, setCooldownUntil] = useState(loadLoginCooldown);
@@ -315,14 +315,14 @@ function LoginPage() {
                     <FieldError message={fieldErrors.email} />
                   </label>
 
-                  <label className="block text-sm font-bold text-slate-700">
-                    Password
+                  <div>
+                    <label htmlFor="login-password" className="block text-sm font-bold text-slate-700">Password</label>
                     <span className="relative mt-2 block">
                       <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">
                         <LockIcon />
                       </span>
-                      <input
-                        type={showPassword ? "text" : "password"}
+                      <PasswordInput
+                        id="login-password"
                         autoComplete="current-password"
                         value={password}
                         onChange={(event) => {
@@ -333,17 +333,9 @@ function LoginPage() {
                         className={`h-12 w-full rounded-xl border bg-slate-50 pl-11 pr-14 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4 ${fieldErrors.password ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-blue-500 focus:ring-blue-100"}`}
                         required
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((visible) => !visible)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100 hover:text-blue-700"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? "Hide" : "Show"}
-                      </button>
                     </span>
                     <FieldError message={fieldErrors.password} />
-                  </label>
+                  </div>
 
                   <button
                     type="submit"

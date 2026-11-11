@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import PageFrame from "../components/PageFrame";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import PasswordInput from "../components/PasswordInput";
 import AdminSectionTabs from "../components/AdminSectionTabs";
 import PatientsPage from "./PatientsPage";
 import { PatientsIcon, StaffIcon, VisitsIcon } from "../components/icons";
@@ -506,9 +507,13 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
             <UserField label="Email *" error={fieldErrors.email}>
               <input type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} required className={`input ${fieldErrors.email ? "input-error" : ""}`} />
             </UserField>
-            {!editTarget && <UserField label="Password *" error={fieldErrors.password}>
-              <input type="password" value={form.password} onChange={(event) => setField("password", event.target.value)} required autoComplete="new-password" className={`input ${fieldErrors.password ? "input-error" : ""}`} />
-            </UserField>}
+            {!editTarget && (
+              <div>
+                <label htmlFor="new-user-password" className="block text-xs font-medium text-gray-600">Password *</label>
+                <PasswordInput id="new-user-password" value={form.password} onChange={(event) => setField("password", event.target.value)} required autoComplete="new-password" className={`input ${fieldErrors.password ? "input-error" : ""}`} containerClassName="mt-1" />
+                <FieldError message={fieldErrors.password} />
+              </div>
+            )}
             <UserField label="Role *" error={fieldErrors.role}>
               <select value={form.role} onChange={(event) => setField("role", event.target.value)} disabled={editTarget?._id === currentUser?.id && editTarget?.role === "superadmin"} className={`input ${fieldErrors.role ? "input-error" : ""}`}>
                 {(isSuperAdmin ? ALL_ROLES : CLINIC_ROLES).map((itemRole) => <option key={itemRole} value={itemRole}>{roleLabel(itemRole)}</option>)}
@@ -539,9 +544,11 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
               </>
             )}
             {requiresAdministrativeStepUp(role) && (
-              <UserField label="Confirm your current password" error={fieldErrors.actorPassword}>
-                <input type="password" value={stepUpPassword} onChange={(event) => { setStepUpPassword(event.target.value); clearField("actorPassword"); }} required autoComplete="current-password" className={`input ${fieldErrors.actorPassword ? "input-error" : ""}`} />
-              </UserField>
+              <div>
+                <label htmlFor="user-step-up-password" className="block text-xs font-medium text-gray-600">Confirm your current password</label>
+                <PasswordInput id="user-step-up-password" value={stepUpPassword} onChange={(event) => { setStepUpPassword(event.target.value); clearField("actorPassword"); }} required autoComplete="current-password" className={`input ${fieldErrors.actorPassword ? "input-error" : ""}`} containerClassName="mt-1" />
+                <FieldError message={fieldErrors.actorPassword} />
+              </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowModal(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Cancel</button>
@@ -558,8 +565,11 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           <p className="mb-4 text-sm text-gray-600">Set a new password for <strong>{resetTarget.name}</strong> ({resetTarget.email}). All active sessions for this account will be revoked.</p>
           {resetError && <p className="mb-3 text-sm text-red-600">{resetError}</p>}
           <form onSubmit={submitPasswordReset} className="space-y-4">
-            <label className="block text-xs font-medium text-gray-600">New password<input type="password" minLength={12} required autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input mt-1" /></label>
-            {requiresAdministrativeStepUp(role) && <label className="block text-xs font-medium text-gray-600">Confirm your current password<input type="password" required autoComplete="current-password" value={resetActorPassword} onChange={(event) => setResetActorPassword(event.target.value)} className="input mt-1" /></label>}
+            <div>
+              <label htmlFor="reset-account-password" className="block text-xs font-medium text-gray-600">New password</label>
+              <PasswordInput id="reset-account-password" minLength={12} required autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input" containerClassName="mt-1" />
+            </div>
+            {requiresAdministrativeStepUp(role) && <div><label htmlFor="reset-actor-password" className="block text-xs font-medium text-gray-600">Confirm your current password</label><PasswordInput id="reset-actor-password" required autoComplete="current-password" value={resetActorPassword} onChange={(event) => setResetActorPassword(event.target.value)} className="input" containerClassName="mt-1" /></div>}
             <div className="flex justify-end gap-2"><button type="button" onClick={() => setResetTarget(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={resetting} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{resetting ? "Resetting..." : "Reset Password"}</button></div>
           </form>
         </Modal>
@@ -571,7 +581,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           message={<>Are you sure you want to deactivate <strong>{deleteTarget.name}</strong> ({deleteTarget.email}), currently assigned the <strong>{roleLabel(deleteTarget.role)}</strong> role? The user will no longer be able to log in, but their historical clinic records and audit history will be preserved.</>}
           confirmLabel="Deactivate Account"
           busy={deleting}
-          confirmationContent={<label className="mb-5 block text-xs font-medium text-gray-600">Confirm your current password<input type="password" required autoComplete="current-password" value={deactivateActorPassword} onChange={(event) => setDeactivateActorPassword(event.target.value)} className="input mt-1" /></label>}
+          confirmationContent={<div className="mb-5"><label htmlFor="deactivate-actor-password" className="block text-xs font-medium text-gray-600">Confirm your current password</label><PasswordInput id="deactivate-actor-password" required autoComplete="current-password" value={deactivateActorPassword} onChange={(event) => setDeactivateActorPassword(event.target.value)} className="input" containerClassName="mt-1" /></div>}
           confirmDisabled={!deactivateActorPassword}
           onConfirm={deactivateUser}
           onCancel={() => { setDeleteTarget(null); setDeactivateActorPassword(""); }}
@@ -584,7 +594,7 @@ function UsersPage({ embedded = false }: { embedded?: boolean }) {
           confirmLabel="Activate Account"
           danger={false}
           busy={reactivating}
-          confirmationContent={<label className="mb-5 block text-xs font-medium text-gray-600">Confirm your current password<input type="password" required autoComplete="current-password" value={reactivateActorPassword} onChange={(event) => setReactivateActorPassword(event.target.value)} className="input mt-1" /></label>}
+          confirmationContent={<div className="mb-5"><label htmlFor="reactivate-actor-password" className="block text-xs font-medium text-gray-600">Confirm your current password</label><PasswordInput id="reactivate-actor-password" required autoComplete="current-password" value={reactivateActorPassword} onChange={(event) => setReactivateActorPassword(event.target.value)} className="input" containerClassName="mt-1" /></div>}
           confirmDisabled={!reactivateActorPassword}
           onConfirm={() => void reactivateUser(reactivateTarget, reactivateActorPassword)}
           onCancel={() => { setReactivateTarget(null); setReactivateActorPassword(""); }}
