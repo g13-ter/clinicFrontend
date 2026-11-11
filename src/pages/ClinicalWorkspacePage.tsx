@@ -767,6 +767,10 @@ function ConsultationForm({
           <input value={localDateKey()} disabled className="input bg-gray-50" />
         </Field>
 
+        <Field label="Chief Complaint" className="md:col-span-2 xl:col-span-3">
+          <textarea required rows={3} value={form.complaint} onChange={(event) => onChange("complaint", event.target.value)} className="input" placeholder="Describe the main reason for the visit..." />
+        </Field>
+
         {selectedPatient && (persistentAllergies.length > 0 || chronicConditions.length > 0 || currentMedications.length > 0) && (
           <div className="rounded-lg border-2 border-red-200 bg-red-50 p-3 text-sm text-red-900 md:col-span-2 xl:col-span-3">
             <p className="font-bold">Medical alerts</p>
@@ -783,10 +787,6 @@ function ConsultationForm({
             onSaved={onProfileSaved}
           />
         )}
-
-        <Field label="Chief Complaint" className="md:col-span-2 xl:col-span-3">
-          <textarea required rows={3} value={form.complaint} onChange={(event) => onChange("complaint", event.target.value)} className="input" placeholder="Describe the main reason for the visit..." />
-        </Field>
 
         {isDoctor && (
           <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 md:col-span-2 xl:col-span-3">
