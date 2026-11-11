@@ -12,14 +12,21 @@ function ProfilePage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const { updateProfile } = useUserProfile();
   const [user, setUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", currentPassword: "", newPassword: "" });
+  const [form, setForm] = useState({ name: "", email: "", licenseNumber: "", ptrNumber: "", currentPassword: "", newPassword: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     api.get<User>("/users/me").then((response) => {
       setUser(response.data);
-      setForm({ name: response.data.name, email: response.data.email, currentPassword: "", newPassword: "" });
+      setForm({
+        name: response.data.name,
+        email: response.data.email,
+        licenseNumber: response.data.licenseNumber ?? "",
+        ptrNumber: response.data.ptrNumber ?? "",
+        currentPassword: "",
+        newPassword: "",
+      });
     }).catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : "Failed to load profile"));
   }, []);
 
@@ -33,6 +40,10 @@ function ProfilePage({ embedded = false }: { embedded?: boolean }) {
         name: form.name,
         email: form.email,
         currentPassword: form.currentPassword,
+        ...(user.role === "doctor" ? {
+          licenseNumber: form.licenseNumber,
+          ptrNumber: form.ptrNumber,
+        } : {}),
         ...(form.newPassword ? { newPassword: form.newPassword } : {}),
       });
       setUser(response.data.user);
@@ -55,7 +66,7 @@ function ProfilePage({ embedded = false }: { embedded?: boolean }) {
       <div>
         <p className="text-sm text-gray-500">Personal account</p>
         <h2 className="mt-1 text-xl font-semibold text-gray-900">My Profile &amp; Security</h2>
-        <p className="mt-1 text-sm text-gray-500">Update your own name, email address, or password.</p>
+        <p className="mt-1 text-sm text-gray-500">Update your account details and password.</p>
       </div>
       <form onSubmit={save} className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -67,6 +78,19 @@ function ProfilePage({ embedded = false }: { embedded?: boolean }) {
           Email
           <input className="input mt-2" type="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
         </label>
+        {user?.role === "doctor" && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Medical license number
+              <input className="input mt-2" maxLength={40} value={form.licenseNumber} onChange={(event) => setForm({ ...form, licenseNumber: event.target.value })} />
+            </label>
+            <label className="block text-sm font-medium text-gray-700">
+              PTR number
+              <input className="input mt-2" maxLength={40} value={form.ptrNumber} onChange={(event) => setForm({ ...form, ptrNumber: event.target.value })} />
+            </label>
+            <p className="text-xs text-gray-500 sm:col-span-2">These details are printed on certificates you generate.</p>
+          </div>
+        )}
         <label className="block text-sm font-medium text-gray-700">
           Current password
           <input className="input mt-2" type="password" required autoComplete="current-password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} />

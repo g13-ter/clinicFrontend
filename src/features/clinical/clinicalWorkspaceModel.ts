@@ -15,6 +15,7 @@ export interface ConsultationForm {
   weightKg: string;
   diagnosis: string;
   fitnessForWork: string;
+  remarks: string;
   assessment: string;
   treatment: string;
   recommendations: string;
@@ -42,6 +43,7 @@ export function createEmptyConsultation(
     weightKg: "",
     diagnosis: "",
     fitnessForWork: "",
+    remarks: "",
     assessment: "",
     treatment: "",
     recommendations: "",
@@ -50,7 +52,7 @@ export function createEmptyConsultation(
     instructions: "",
     followUpDate: "",
     followUpReason: "",
-    closureOutcome: "returned_to_class",
+    closureOutcome: "",
     ...initial,
   };
 }
@@ -83,7 +85,6 @@ export function buildVisitPayload(form: ConsultationForm, isDoctor: boolean) {
 export function buildMedicalHistoryPayload(
   form: ConsultationForm,
   visitId: string,
-  includeNurseClosure = false,
 ) {
   const prescribedItems =
     form.medicineId && form.quantity
@@ -99,9 +100,10 @@ export function buildMedicalHistoryPayload(
     visitId,
     diagnosis: form.diagnosis || undefined,
     prescription: form.treatment || undefined,
+    ...(form.remarks.trim() ? { remarks: form.remarks.trim() } : {}),
     ...(form.fitnessForWork ? { fitnessForWork: form.fitnessForWork } : {}),
+    ...(form.closureOutcome ? { closureOutcome: form.closureOutcome } : {}),
     prescribedItems,
-    ...(includeNurseClosure ? { closureOutcome: form.closureOutcome } : {}),
   };
 }
 

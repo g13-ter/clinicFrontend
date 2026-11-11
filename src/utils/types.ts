@@ -85,6 +85,7 @@ export interface ClinicVisit {
   attentionReviewedAt?: string;
   guardianNotifiedAt?: string;
   closedAt?: string;
+  closureOutcome?: "returned_to_class" | "sent_home" | "guardian_pickup" | "referred" | "cancelled" | "physician_consultation";
   isActive: boolean;
 }
 
@@ -144,6 +145,8 @@ export interface User {
   _id: string;
   name: string;
   email: string;
+  licenseNumber?: string;
+  ptrNumber?: string;
   role: "superadmin" | "admin" | "doctor" | "nurse" | "staff";
   isActive: boolean;
   mustChangePassword?: boolean;
@@ -168,6 +171,7 @@ export interface MedicalHistory {
   patientId: string;
   diagnosis: string;
   prescription: string;
+  remarks?: string;
   fitnessForWork?: "fit_to_work" | "not_fit_to_work";
   prescribedItems?: PrescribedItem[];
   medicationStatus?: "pending" | "accepted" | "dispensing" | "dispensed" | "not_given" | "cancelled";

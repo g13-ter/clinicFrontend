@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ROUTE_ACCESS, USER_ROLES } from "./config/permissions";
@@ -21,6 +21,7 @@ const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
 const ClinicalWorkspacePage = lazy(() => import("./pages/ClinicalWorkspacePage"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
 const DocumentationPage = lazy(() => import("./pages/DocumentationPage"));
 const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
@@ -242,7 +243,7 @@ function AppContent() {
           path="/profile"
           element={
             <ProtectedRoute roles={ROUTE_ACCESS["/profile"]}>
-              <Navigate to="/settings?tab=profile" replace />
+              <ProfilePage />
             </ProtectedRoute>
           }
         />

@@ -45,6 +45,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/reports": ReportsIcon,
   "/audit-log": AuditIcon,
   "/settings": SettingsIcon,
+  "/profile": StaffIcon,
   "/dashboard?view=medications": MedicineIcon,
   "/dashboard?view=notifications": BellIcon,
   "/dashboard?tab=notifications": BellIcon,
@@ -125,7 +126,10 @@ const DOCTOR_NAV_GROUPS: readonly SidebarGroup[] = [
   {
     id: "resources",
     label: "Resources",
-    items: [{ to: "/documentation", label: "Documentation" }],
+    items: [
+      { to: "/documentation", label: "Documentation" },
+      { to: "/profile", label: "My Profile" },
+    ],
   },
 ];
 

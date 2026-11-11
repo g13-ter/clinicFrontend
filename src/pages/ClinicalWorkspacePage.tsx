@@ -28,7 +28,7 @@ import {
 } from "../features/clinical/clinicalWorkspaceModel";
 import ClinicalProfileEditor from "../features/patients/ClinicalProfileEditor";
 import { EmptyState, Panel, StatusBadge } from "../components/ui";
-import { patientAffiliation, patientIdentifier, patientTypeLabel } from "../utils/patient";
+import { patientAffiliation, patientIdentifier, patientTypeLabel, patientTypeOf } from "../utils/patient";
 import { BmiPreview } from "../components/BmiPreview";
 import SearchablePatientSelect from "../components/SearchablePatientSelect";
 import PatientRecordModal from "../components/PatientRecordModal";
@@ -100,7 +100,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       if (!stored) return;
       const draft = JSON.parse(stored) as { form?: ConsultationForm };
       if (draft.form?.patientId) {
-        setForm(draft.form);
+        setForm(createEmptyConsultation(draft.form));
         setDraftStatus("Draft restored");
       }
     } catch {
@@ -110,7 +110,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     if (!user?.id || !draftHydrated.current) return;
-    const hasContent = Boolean(form.patientId || form.complaint || form.diagnosis || form.assessment || form.treatment);
+    const hasContent = Boolean(form.patientId || form.complaint || form.diagnosis || form.assessment || form.treatment || form.remarks);
     if (!hasContent) {
       sessionStorage.removeItem(draftKey);
       setDraftStatus("");
@@ -183,26 +183,31 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
             : visit.appointmentId
           : searchParams.get("appointmentId") ?? "";
 
-        setForm((current) => ({
-          ...current,
-          visitId: visit._id,
-          patientId,
-          appointmentId,
-          complaint: visit.complaint ?? current.complaint,
-          temperature: visit.temperature != null ? String(visit.temperature) : "",
-          bloodPressure: visit.bloodPressure ?? "",
-          pulseRate: visit.pulseRate != null ? String(visit.pulseRate) : "",
-          respiratoryRate: visit.respiratoryRate != null ? String(visit.respiratoryRate) : "",
-          heightCm: visit.heightCm != null
-            ? String(visit.heightCm)
-            : latestVitals?.heightCm != null ? String(latestVitals.heightCm) : "",
-          weightKg: visit.weightKg != null
-            ? String(visit.weightKg)
-            : latestVitals?.weightKg != null ? String(latestVitals.weightKg) : "",
-          assessment: visit.nursingAssessment ?? "",
-          treatment: visit.nursingInterventions ?? visit.treatment ?? "",
-          recommendations: visit.nursingRecommendations ?? "",
-        }));
+        setForm((current) => {
+          const patientChanged = current.patientId !== patientId;
+          return {
+            ...current,
+            visitId: visit._id,
+            patientId,
+            appointmentId,
+            closureOutcome: patientChanged ? "" : current.closureOutcome,
+            fitnessForWork: patientChanged ? "" : current.fitnessForWork,
+            complaint: visit.complaint ?? current.complaint,
+            temperature: visit.temperature != null ? String(visit.temperature) : "",
+            bloodPressure: visit.bloodPressure ?? "",
+            pulseRate: visit.pulseRate != null ? String(visit.pulseRate) : "",
+            respiratoryRate: visit.respiratoryRate != null ? String(visit.respiratoryRate) : "",
+            heightCm: visit.heightCm != null
+              ? String(visit.heightCm)
+              : latestVitals?.heightCm != null ? String(latestVitals.heightCm) : "",
+            weightKg: visit.weightKg != null
+              ? String(visit.weightKg)
+              : latestVitals?.weightKg != null ? String(latestVitals.weightKg) : "",
+            assessment: visit.nursingAssessment ?? "",
+            treatment: visit.nursingInterventions ?? visit.treatment ?? "",
+            recommendations: visit.nursingRecommendations ?? "",
+          };
+        });
         setPrefilledHeightRecordedAt(
           visit.heightCm == null ? latestVitals?.heightRecordedAt ?? null : null,
         );
@@ -306,7 +311,9 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
   const updateForm = (field: keyof typeof form, value: string) => {
     if (field === "heightCm") setPrefilledHeightRecordedAt(null);
     if (field === "weightKg") setPrefilledWeightRecordedAt(null);
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => field === "patientId" && current.patientId !== value
+      ? { ...current, patientId: value, closureOutcome: "", fitnessForWork: "" }
+      : { ...current, [field]: value });
   };
 
   const handleProfileSaved = (updatedPatient: Patient) => {
@@ -320,7 +327,17 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const shouldGenerateCertificate =
       isDoctor && submitter?.value === "save-and-generate-certificate";
-    if (shouldGenerateCertificate && !form.fitnessForWork) {
+    const consultationPatient = patients.find((patient) => patient._id === form.patientId);
+    if (!consultationPatient) {
+      setFormError("Select a patient before saving the consultation.");
+      return;
+    }
+    const isStudent = patientTypeOf(consultationPatient) === "student";
+    if (isDoctor && isStudent && !form.closureOutcome) {
+      setFormError("Choose the student's disposition before saving the consultation.");
+      return;
+    }
+    if (shouldGenerateCertificate && !isStudent && !form.fitnessForWork) {
       setFormError("Choose Fit to Work or Not Fit to Work before generating the certificate.");
       return;
     }
@@ -344,7 +361,7 @@ function ClinicalWorkspacePage({ embedded = false }: { embedded?: boolean }) {
       if (isDoctor || nurseMedicationOrder) {
         const historyResponse = await api.post<MedicalHistory>(
           "/medical-history",
-          buildMedicalHistoryPayload(form, visitId, nurseMedicationOrder),
+          buildMedicalHistoryPayload(form, visitId),
         );
         savedHistory = historyResponse.data;
         if (nurseMedicationOrder) {
@@ -829,20 +846,40 @@ function ConsultationForm({
             <Field label="Diagnosis" className="md:col-span-2 xl:col-span-3">
               <textarea required rows={2} value={form.diagnosis} onChange={(event) => onChange("diagnosis", event.target.value)} className="input" placeholder="Enter diagnosis..." />
             </Field>
-            <Field label="Fitness for Work (required for certificate)" className="md:col-span-2 xl:col-span-3">
-              <select
-                value={form.fitnessForWork}
-                onChange={(event) => onChange("fitnessForWork", event.target.value)}
-                className="input"
-              >
-                <option value="">Select the physician's assessment</option>
-                <option value="fit_to_work">Fit to Work</option>
-                <option value="not_fit_to_work">Not Fit to Work</option>
-              </select>
-              <span className="mt-1 block text-xs font-normal text-gray-500">
-                This is a physician decision and is never inferred from recorded vital signs.
-              </span>
-            </Field>
+            {selectedPatient && patientTypeOf(selectedPatient) === "student" && (
+              <Field label="Student Disposition" className="md:col-span-2 xl:col-span-3">
+                <select
+                  required
+                  value={form.closureOutcome}
+                  onChange={(event) => onChange("closureOutcome", event.target.value)}
+                  className="input"
+                >
+                  <option value="">Select the physician's recommendation</option>
+                  <option value="returned_to_class">May return to class</option>
+                  <option value="sent_home">Advised to go home</option>
+                  <option value="guardian_pickup">Guardian pickup needed</option>
+                </select>
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  Choose after assessing the student. This is not inferred from recorded vital signs.
+                </span>
+              </Field>
+            )}
+            {selectedPatient && patientTypeOf(selectedPatient) !== "student" && (
+              <Field label="Fitness for Work (required for certificate)" className="md:col-span-2 xl:col-span-3">
+                <select
+                  value={form.fitnessForWork}
+                  onChange={(event) => onChange("fitnessForWork", event.target.value)}
+                  className="input"
+                >
+                  <option value="">Select the physician's assessment</option>
+                  <option value="fit_to_work">Fit to Work</option>
+                  <option value="not_fit_to_work">Not Fit to Work</option>
+                </select>
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  This is a physician decision and is never inferred from recorded vital signs.
+                </span>
+              </Field>
+            )}
           </>
         ) : (
           <Field label="Nursing Assessment" className="md:col-span-2 xl:col-span-3">
@@ -853,6 +890,12 @@ function ConsultationForm({
         <Field label={isDoctor ? "Treatment Plan" : "Nursing Interventions"} className="md:col-span-2 xl:col-span-3">
           <textarea required={isDoctor} rows={3} value={form.treatment} onChange={(event) => onChange("treatment", event.target.value)} className="input" placeholder="Describe treatment, interventions, and care provided..." />
         </Field>
+
+        {isDoctor && (
+          <Field label="Remarks (printed on certificate)" className="md:col-span-2 xl:col-span-3">
+            <textarea rows={2} maxLength={2000} value={form.remarks} onChange={(event) => onChange("remarks", event.target.value)} className="input" placeholder="Optional note for the certificate, such as school attendance advice..." />
+          </Field>
+        )}
 
         {!isDoctor && (
           <Field label="Recommendations / Home-care Advice" className="md:col-span-2 xl:col-span-3">
@@ -887,7 +930,8 @@ function ConsultationForm({
 
         {!isDoctor && (
           <Field label="Student Outcome">
-            <select value={form.closureOutcome} onChange={(event) => onChange("closureOutcome", event.target.value)} className="input">
+            <select required value={form.closureOutcome} onChange={(event) => onChange("closureOutcome", event.target.value)} className="input">
+              <option value="">Select the student's outcome</option>
               <option value="returned_to_class">Returned to class</option>
               <option value="sent_home">Sent home</option>
               <option value="guardian_pickup">Guardian pickup</option>
