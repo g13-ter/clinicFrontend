@@ -152,6 +152,28 @@ const STAFF_NAV_GROUPS: readonly SidebarGroup[] = [
 ];
 
 const EMERGENCY_POLL_INTERVAL_MS = 10_000;
+const DEFAULT_COLLAPSED_NAV_GROUPS = ["supplies", "insights", "resources"];
+
+function readCollapsedNavGroups(key: string): string[] | null {
+  try {
+    const stored = sessionStorage.getItem(key);
+    if (!stored) return null;
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === "string")
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCollapsedNavGroups(key: string, groups: string[]): void {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(groups));
+  } catch {
+    // Sidebar state remains usable if browser storage is unavailable.
+  }
+}
 
 function emergencyStudentName(visit: ClinicVisit): string {
   return visit.patientId && typeof visit.patientId === "object"
@@ -190,6 +212,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
+  const sidebarStateKey = `clinic-collapsed-navigation:${role ?? "unknown"}`;
   const { profile } = useUserProfile();
   const { showToast } = useToast();
   const hasSidebar = role === "admin" || role === "superadmin" || role === "nurse" || role === "doctor" || role === "staff";
@@ -203,7 +226,9 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [reviewingTerms, setReviewingTerms] = useState(false);
   const [snoozedMedicationIds, setSnoozedMedicationIds] = useState<string[]>([]);
   const roleNotifications = useInAppNotifications(role === "nurse" || role === "doctor");
-  const [collapsedNavGroups, setCollapsedNavGroups] = useState<string[]>(["supplies", "insights", "resources"]);
+  const [collapsedNavGroups, setCollapsedNavGroups] = useState<string[]>(() =>
+    readCollapsedNavGroups(sidebarStateKey) ?? DEFAULT_COLLAPSED_NAV_GROUPS,
+  );
   const pendingMedicationOrder = role === "nurse" ? roleNotifications.items.find(
     (notification) =>
       notification.kind === "medication_order" &&
@@ -278,9 +303,24 @@ function Layout({ children }: { children: React.ReactNode }) {
     (location.pathname === "/dashboard" && dashboardView === "visits");
 
   useEffect(() => {
-    if (!activeNavGroupId) return;
-    setCollapsedNavGroups((current) => current.filter((groupId) => groupId !== activeNavGroupId));
-  }, [activeNavGroupId]);
+    if (!activeNavGroupId || readCollapsedNavGroups(sidebarStateKey) !== null) return;
+    setCollapsedNavGroups((current) => {
+      const defaultOpenGroupId = activeNavGroupId === "primary" ? "care" : activeNavGroupId;
+      const next = current.filter((groupId) => groupId !== defaultOpenGroupId);
+      saveCollapsedNavGroups(sidebarStateKey, next);
+      return next;
+    });
+  }, [activeNavGroupId, sidebarStateKey]);
+
+  const toggleNavGroup = (groupId: string, expanded: boolean) => {
+    setCollapsedNavGroups((current) => {
+      const next = expanded
+        ? current.includes(groupId) ? current : [...current, groupId]
+        : current.filter((id) => id !== groupId);
+      saveCollapsedNavGroups(sidebarStateKey, next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isClinicalRole || isPatientQueueVisible) {
@@ -516,9 +556,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               type="button"
               aria-expanded={expanded}
               aria-controls={`navigation-${group.id}`}
-              onClick={() => setCollapsedNavGroups((current) => expanded
-                ? [...current, group.id]
-                : current.filter((id) => id !== group.id))}
+              onClick={() => toggleNavGroup(group.id, expanded)}
               className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-[11px] font-semibold uppercase tracking-wide transition-colors ${
                 hasActiveItem ? "text-blue-700 hover:bg-blue-50" : "text-slate-500 hover:bg-gray-100 hover:text-slate-800"
               }`}
