@@ -279,13 +279,8 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!activeNavGroupId) return;
-    const defaultOpenGroupId = activeNavGroupId === "primary" ? "care" : activeNavGroupId;
-    setCollapsedNavGroups(
-      visibleNavGroups
-        .filter((group) => group.label && group.id !== defaultOpenGroupId)
-        .map((group) => group.id),
-    );
-  }, [activeNavGroupId, location.pathname, location.search, visibleNavGroups]);
+    setCollapsedNavGroups((current) => current.filter((groupId) => groupId !== activeNavGroupId));
+  }, [activeNavGroupId]);
 
   useEffect(() => {
     if (!isClinicalRole || isPatientQueueVisible) {

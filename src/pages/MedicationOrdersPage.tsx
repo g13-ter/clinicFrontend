@@ -9,7 +9,7 @@ import PatientRecordModal from "../components/PatientRecordModal";
 import { patientAffiliation } from "../utils/patient";
 
 type MedicationOrder = Omit<MedicalHistory, "patientId"> & {
-  patientId: Patient;
+  patientId: Patient | string | null;
   recordedBy?: Pick<User, "_id" | "name" | "role"> | string;
 };
 
@@ -24,6 +24,10 @@ const NOT_GIVEN_REASONS = [
 
 function personName(value: MedicationOrder["recordedBy"] | MedicalHistory["medicationClaimedBy"]): string {
   return value && typeof value === "object" ? value.name : "Clinic provider";
+}
+
+function populatedPatient(value: MedicationOrder["patientId"]): Patient | null {
+  return value && typeof value === "object" && "_id" in value ? value : null;
 }
 
 function alerts(patient: Patient): string {
@@ -193,23 +197,26 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {orders.map((order) => {
+            const patient = populatedPatient(order.patientId);
             const mine = ownedByCurrentNurse(order);
             const claimed = order.medicationStatus === "accepted";
             return (
               <article key={order._id} className={`rounded-xl border bg-white p-4 shadow-sm ${requestedOrderId === order._id ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <button type="button" onClick={() => setViewingPatientId(order.patientId._id)} className="text-left font-semibold text-blue-700 hover:underline">
-                      {order.patientId.firstName} {order.patientId.lastName}
-                    </button>
-                    <p className="text-xs text-gray-500">{order.patientId.studentId} · {patientAffiliation(order.patientId)}</p>
+                    {patient ? (
+                      <button type="button" onClick={() => setViewingPatientId(patient._id)} className="text-left font-semibold text-blue-700 hover:underline">
+                        {patient.firstName} {patient.lastName}
+                      </button>
+                    ) : <p className="font-semibold text-slate-700">Patient record unavailable</p>}
+                    {patient && <p className="text-xs text-gray-500">{patient.studentId} · {patientAffiliation(patient)}</p>}
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${claimed ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"}`}>
                     {claimed ? "Accepted" : "Waiting"}
                   </span>
                 </div>
                 <div className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-900">
-                  <span className="font-semibold">Safety alerts:</span> {alerts(order.patientId)}
+                  <span className="font-semibold">Safety alerts:</span> {patient ? alerts(patient) : "Patient safety details unavailable; do not administer."}
                 </div>
                 <ul className="mt-3 divide-y rounded-lg border text-sm">
                   {order.prescribedItems?.map((item, index) => (
@@ -222,9 +229,9 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
                 <p className="mt-3 text-xs text-gray-500">Ordered by {personName(order.recordedBy)} · {new Date(order.dateRecorded).toLocaleString()}</p>
                 {claimed && !mine && <p className="mt-3 text-sm font-medium text-violet-700">Being handled by {personName(order.medicationClaimedBy)}</p>}
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <button type="button" onClick={() => setViewingPatientId(order.patientId._id)} className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">View Student Record</button>
-                  {!claimed && <button type="button" disabled={busyId === order._id} onClick={() => void claim(order)} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{busyId === order._id ? "Accepting..." : "Accept Request"}</button>}
-                  {claimed && mine && <button type="button" onClick={() => { setChecks([false, false, false, false]); setNotes(""); setAdministering(order); }} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">Review & Give Medication</button>}
+                  {patient && <button type="button" onClick={() => setViewingPatientId(patient._id)} className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">View Student Record</button>}
+                  {!claimed && <button type="button" disabled={busyId === order._id || !patient} onClick={() => void claim(order)} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{busyId === order._id ? "Accepting..." : "Accept Request"}</button>}
+                  {claimed && mine && patient && <button type="button" onClick={() => { setChecks([false, false, false, false]); setNotes(""); setAdministering(order); }} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">Review & Give Medication</button>}
                 </div>
               </article>
             );
@@ -235,17 +242,17 @@ export default function MedicationOrdersPage({ embedded = false }: { embedded?: 
       {recent.length > 0 && <section className="rounded-xl border bg-white p-4">
         <h3 className="font-semibold">Administered in the last 24 hours</h3>
         <div className="mt-3 divide-y">
-          {recent.map((order) => <div key={order._id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm"><span className="font-medium">{order.patientId.firstName} {order.patientId.lastName}</span> — {order.prescribedItems?.map((item) => item.medicineName).join(", ")}<p className="text-xs text-gray-500">{order.medicationDispensedAt ? new Date(order.medicationDispensedAt).toLocaleString() : ""}{order.medicationAdverseReaction ? ` · Reaction: ${order.medicationAdverseReaction}` : ""}</p></div>
+          {recent.map((order) => { const patient = populatedPatient(order.patientId); return <div key={order._id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm"><span className="font-medium">{patient ? `${patient.firstName} ${patient.lastName}` : "Patient record unavailable"}</span> — {order.prescribedItems?.map((item) => item.medicineName).join(", ")}<p className="text-xs text-gray-500">{order.medicationDispensedAt ? new Date(order.medicationDispensedAt).toLocaleString() : ""}{order.medicationAdverseReaction ? ` · Reaction: ${order.medicationAdverseReaction}` : ""}</p></div>
             <button type="button" onClick={() => { setReacting(order); setReaction(order.medicationAdverseReaction ?? ""); }} className="self-start rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Record Adverse Reaction</button>
-          </div>)}
+          </div>; })}
         </div>
       </section>}
 
-      {administering && <Modal title="Medication Safety Check" onClose={() => setAdministering(null)} closeDisabled={busyId === administering._id}>
+      {administering && populatedPatient(administering.patientId) && <Modal title="Medication Safety Check" onClose={() => setAdministering(null)} closeDisabled={busyId === administering._id}>
         <div className="space-y-4 text-sm">
-          <div className="rounded-lg bg-slate-50 p-3"><p className="font-semibold">{administering.patientId.firstName} {administering.patientId.lastName}</p><p>{administering.patientId.studentId}</p></div>
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-900"><strong>Alerts:</strong> {alerts(administering.patientId)}</div>
+          <div className="rounded-lg bg-slate-50 p-3"><p className="font-semibold">{populatedPatient(administering.patientId)!.firstName} {populatedPatient(administering.patientId)!.lastName}</p><p>{populatedPatient(administering.patientId)!.studentId}</p></div>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-900"><strong>Alerts:</strong> {alerts(populatedPatient(administering.patientId)!)}</div>
           <ul className="rounded-lg border p-3">{administering.prescribedItems?.map((item, index) => <li key={index} className="mb-2 last:mb-0"><strong>{item.medicineName}: {item.quantity} {item.unit}</strong>{item.instructions ? <><br />{item.instructions}</> : null}</li>)}</ul>
           {[
             "I matched the student using name and student ID.",
