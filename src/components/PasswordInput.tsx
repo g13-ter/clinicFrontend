@@ -19,7 +19,7 @@ export default function PasswordInput({
         {...inputProps}
         type={visible ? "text" : "password"}
         disabled={disabled}
-        className={`${className} pr-11`}
+        className={`${className} password-input pr-11`}
       />
       <button
         type="button"

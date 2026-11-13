@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 @layer base {
+  /* The custom PasswordInput button replaces Edge's built-in reveal control. */
+  .password-input::-ms-reveal,
+  .password-input::-ms-clear {
+    display: none;
+  }
+
   html {
     /* Keep the page width identical when tab content gains or loses a scrollbar. */
     scrollbar-gutter: stable;
